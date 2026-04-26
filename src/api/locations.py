@@ -7,7 +7,9 @@ from datetime import datetime
 from pydantic import ValidationError
 from sqlalchemy import text
 
+from src.infrastructure.auth.middleware import get_current_user, AuthError
 from src.infrastructure.database.connection import AsyncSessionLocal
+from src.domain.models.enums import UserRole
 from src.domain.models.location import LocationCreate, LocationResponse
 
 bp = func.Blueprint()
@@ -23,6 +25,22 @@ def build_path(parent_path: str | None, name: str) -> str:
 @bp.route(route="locations", methods=["POST"])
 async def create_location(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Creating new location")
+
+    try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    if user["role"] != UserRole.ADMIN:
+        return func.HttpResponse(
+            json.dumps({"error": "Only admins can create locations"}),
+            status_code=403,
+            mimetype="application/json"
+        )
 
     try:
         body = req.get_json()

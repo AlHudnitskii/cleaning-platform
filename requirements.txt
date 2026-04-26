@@ -1,0 +1,7 @@
+azure-functions
+sqlalchemy[asyncio]
+asyncpg
+alembic
+pydantic[email]
+aio-pika
+python-dotenv

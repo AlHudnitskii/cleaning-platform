@@ -1,0 +1,17 @@
+azure-functions
+azure-storage-blob
+sqlalchemy[asyncio]
+asyncpg
+alembic
+pydantic[email]
+pyjwt
+bcrypt==4.0.1
+aio-pika
+python-dotenv
+pyarrow
+pandas
+openpyxl
+pytest
+pytest-asyncio
+pytest-xdist
+httpx

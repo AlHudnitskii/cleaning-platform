@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: cleaning_postgres
+    environment:
+      POSTGRES_DB: cleaning_db
+      POSTGRES_USER: cleaning_user
+      POSTGRES_PASSWORD: cleaning_pass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: cleaning_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+volumes:
+  postgres_data:

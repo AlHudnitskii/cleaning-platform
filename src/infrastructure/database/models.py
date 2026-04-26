@@ -6,6 +6,7 @@ from sqlalchemy.types import UserDefinedType
 import uuid
 from datetime import datetime
 from src.infrastructure.database.connection import Base
+from src.domain.models.enums import UserRole, Country, TaskStatus, LocationLevel
 
 
 class LtreeType(UserDefinedType):
@@ -53,6 +54,36 @@ class Task(Base):
     location_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("locations.id"), nullable=True
     )
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     location: Mapped["Location | None"] = relationship("Location", back_populates="tasks")
+    photos: Mapped[list["TaskPhoto"]] = relationship("TaskPhoto", back_populates="task")
+    assigned_user: Mapped["User | None"] = relationship("User")
+
+
+class TaskPhoto(Base):
+    __tablename__ = "task_photos"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"))
+    url: Mapped[str] = mapped_column(String(500))
+    filename: Mapped[str] = mapped_column(String(255))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    task: Mapped["Task"] = relationship("Task", back_populates="photos")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    role: Mapped[UserRole] = mapped_column(String(50))
+    country: Mapped[Country | None] = mapped_column(String(2), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

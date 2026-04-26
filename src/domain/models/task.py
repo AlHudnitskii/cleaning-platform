@@ -1,22 +1,17 @@
+import uuid
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime
-import uuid
+
+from src.domain.models.enums import Country, TaskStatus, LocationLevel
 
 
 class TaskCreate(BaseModel):
     title: str
-    country: str
+    country: Country
     description: Optional[str] = None
     location_id: Optional[uuid.UUID] = None
-
-    @field_validator("country")
-    @classmethod
-    def validate_country(cls, v: str) -> str:
-        allowed = ["DE", "DK", "IT", "AU"]
-        if v.upper() not in allowed:
-            raise ValueError(f"Country must be one of {allowed}")
-        return v.upper()
+    assigned_to: Optional[uuid.UUID] = None
 
     @field_validator("title")
     @classmethod
@@ -30,9 +25,10 @@ class TaskResponse(BaseModel):
     id: uuid.UUID
     title: str
     description: Optional[str]
-    status: str
-    country: str
+    status: TaskStatus
+    country: Country
     location_id: Optional[uuid.UUID]
+    assigned_to: Optional[uuid.UUID]
     created_at: datetime
 
     model_config = {"from_attributes": True}

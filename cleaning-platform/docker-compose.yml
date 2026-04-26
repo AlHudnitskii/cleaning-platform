@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: cleaning_postgres
+    environment:
+      POSTGRES_DB: cleaning_db
+      POSTGRES_USER: cleaning_user
+      POSTGRES_PASSWORD: cleaning_pass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: cleaning_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: cleaning_azurite
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    volumes:
+      - azurite_data:/data
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck --loose
+
+volumes:
+  postgres_data:
+  azurite_data:

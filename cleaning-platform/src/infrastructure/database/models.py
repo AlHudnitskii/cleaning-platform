@@ -51,6 +51,9 @@ class Task(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     country: Mapped[str] = mapped_column(String(2))
+    status_history: Mapped[list["TaskStatusHistory"]] = relationship(
+        "TaskStatusHistory", back_populates="task"
+    )
     location_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("locations.id"), nullable=True
     )
@@ -77,6 +80,19 @@ class TaskPhoto(Base):
     task: Mapped["Task"] = relationship("Task", back_populates="photos")
 
 
+class TaskStatusHistory(Base):
+    __tablename__ = "task_status_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"))
+    old_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(50))
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    task: Mapped["Task"] = relationship("Task", back_populates="status_history")
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -87,3 +103,16 @@ class User(Base):
     country: Mapped[Country | None] = mapped_column(String(2), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    endpoint: Mapped[str] = mapped_column(String(500))
+    p256dh: Mapped[str] = mapped_column(String(500))
+    auth: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship("User")

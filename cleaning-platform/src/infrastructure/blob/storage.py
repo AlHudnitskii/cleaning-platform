@@ -1,9 +1,13 @@
+import os
 import logging
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from azure.core.exceptions import ResourceExistsError
 
-AZURE_STORAGE_CONNECTION_STRING = "UseDevelopmentStorage=true"
 
+AZURE_STORAGE_CONNECTION_STRING = os.environ.get(
+    "AzureWebJobsStorage",
+    "UseDevelopmentStorage=true"
+)
 CONTAINER_NAME = "task-photos"
 
 

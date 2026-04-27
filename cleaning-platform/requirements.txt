@@ -13,6 +13,7 @@ pandas
 openpyxl
 psycopg2-binary
 pytest
+python-dateutil
 pytest-asyncio
 pytest-xdist
 httpx

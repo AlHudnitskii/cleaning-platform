@@ -1,4 +1,5 @@
 import azure.functions as func
+import aiohttp
 import logging
 import json
 import uuid
@@ -7,6 +8,8 @@ from datetime import datetime
 from pydantic import ValidationError
 from sqlalchemy import text
 
+
+from src.api.events import broadcast_event
 from src.infrastructure.auth.middleware import get_current_user, AuthError
 from src.infrastructure.database.connection import AsyncSessionLocal
 from src.infrastructure.database.models import Task
@@ -79,6 +82,9 @@ async def create_task(req: func.HttpRequest) -> func.HttpResponse:
             country=task_data.country,
             location_id=task_data.location_id,
             assigned_to=task_data.assigned_to,
+            rrule=task_data.rrule,
+            is_recurring=bool(task_data.rrule),
+            scheduled_for=task_data.scheduled_for,
             created_at=datetime.utcnow()
         )
         session.add(task)
@@ -391,6 +397,25 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
         )
         task = result.fetchone()
 
+    try:
+        async with aiohttp.ClientSession() as http_session:
+            await http_session.post(
+                "http://localhost:8080/events/broadcast",
+                json={
+                    "type": "task_status_changed",
+                    "data": {
+                        "task_id": task_id,
+                        "new_status": new_status,
+                        "old_status": old_status,
+                        "changed_by": user["email"]
+                    },
+                    "exclude_user": user["sub"]
+                }
+            )
+    except Exception as e:
+        logging.error(f"SSE broadcast failed: {e}")
+
+
     response = TaskResponse(
         id=task.id,
         title=task.title,
@@ -621,6 +646,209 @@ async def get_task_history(req: func.HttpRequest) -> func.HttpResponse:
 
     return func.HttpResponse(
         json.dumps(history_list),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+@bp.route(route="tasks/{task_id}/occurrences", methods=["GET"])
+async def get_task_occurrences(req: func.HttpRequest) -> func.HttpResponse:
+    task_id = req.route_params.get("task_id")
+
+    try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid task ID"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("SELECT * FROM tasks WHERE id = :id"),
+            {"id": task_uuid}
+        )
+        task = result.fetchone()
+
+    if not task:
+        return func.HttpResponse(
+            json.dumps({"error": "Task not found"}),
+            status_code=404,
+            mimetype="application/json"
+        )
+
+    if not task.rrule:
+        return func.HttpResponse(
+            json.dumps({"error": "Task is not recurring"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    from src.domain.services.recurring_tasks import get_next_occurrences
+    occurrences = get_next_occurrences(task.rrule, count=10)
+
+    return func.HttpResponse(
+        json.dumps({
+            "task_id": task_id,
+            "rrule": task.rrule,
+            "next_occurrences": [o.isoformat() for o in occurrences]
+        }),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+@bp.route(route="tasks/{task_id}/comments", methods=["POST"])
+async def add_comment(req: func.HttpRequest) -> func.HttpResponse:
+    task_id = req.route_params.get("task_id")
+
+    try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid task ID"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    try:
+        body = req.get_json()
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    comment_text = body.get("text", "").strip()
+    if not comment_text:
+        return func.HttpResponse(
+            json.dumps({"error": "Comment text is required"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("SELECT id FROM tasks WHERE id = :id"),
+            {"id": task_uuid}
+        )
+        if not result.fetchone():
+            return func.HttpResponse(
+                json.dumps({"error": "Task not found"}),
+                status_code=404,
+                mimetype="application/json"
+            )
+
+        comment_id = uuid.uuid4()
+        await session.execute(
+            text("""
+                INSERT INTO task_comments (id, task_id, user_id, text, created_at)
+                VALUES (:id, :task_id, :user_id, :text, :created_at)
+            """),
+            {
+                "id": comment_id,
+                "task_id": task_uuid,
+                "user_id": uuid.UUID(user["sub"]),
+                "text": comment_text,
+                "created_at": datetime.utcnow()
+            }
+        )
+        await session.commit()
+
+        result = await session.execute(
+            text("""
+                SELECT c.*, u.email as user_email, u.role as user_role
+                FROM task_comments c
+                JOIN users u ON c.user_id = u.id
+                WHERE c.id = :id
+            """),
+            {"id": comment_id}
+        )
+        comment = result.fetchone()
+
+    return func.HttpResponse(
+        json.dumps({
+            "id": str(comment.id),
+            "task_id": str(comment.task_id),
+            "user_id": str(comment.user_id),
+            "user_email": comment.user_email,
+            "user_role": comment.user_role,
+            "text": comment.text,
+            "created_at": comment.created_at.isoformat()
+        }),
+        status_code=201,
+        mimetype="application/json"
+    )
+
+
+@bp.route(route="tasks/{task_id}/comments", methods=["GET"])
+async def get_comments(req: func.HttpRequest) -> func.HttpResponse:
+    task_id = req.route_params.get("task_id")
+
+    try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid task ID"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("""
+                SELECT c.*, u.email as user_email, u.role as user_role
+                FROM task_comments c
+                JOIN users u ON c.user_id = u.id
+                WHERE c.task_id = :task_id
+                ORDER BY c.created_at ASC
+            """),
+            {"task_id": task_uuid}
+        )
+        comments = result.fetchall()
+
+    comments_list = [
+        {
+            "id": str(row.id),
+            "task_id": str(row.task_id),
+            "user_id": str(row.user_id),
+            "user_email": row.user_email,
+            "user_role": row.user_role,
+            "text": row.text,
+            "created_at": row.created_at.isoformat()
+        }
+        for row in comments
+    ]
+
+    return func.HttpResponse(
+        json.dumps(comments_list),
         status_code=200,
         mimetype="application/json"
     )

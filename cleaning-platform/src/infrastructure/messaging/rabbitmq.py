@@ -1,3 +1,4 @@
+import os
 import aio_pika
 import json
 import logging
@@ -5,8 +6,7 @@ from datetime import datetime
 import uuid
 
 
-RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"
-
+RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 
 async def get_connection():
     return await aio_pika.connect_robust(RABBITMQ_URL)

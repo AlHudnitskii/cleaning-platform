@@ -85,6 +85,27 @@ async def create_task(req: func.HttpRequest) -> func.HttpResponse:
         await session.commit()
         await session.refresh(task)
 
+    if task_data.assigned_to:
+        try:
+            async with AsyncSessionLocal() as push_session:
+                result = await push_session.execute(
+                    text("SELECT * FROM push_subscriptions WHERE user_id = :user_id"),
+                    {"user_id": task_data.assigned_to}
+                )
+                subscriptions = result.fetchall()
+
+            from src.infrastructure.push.notifications import send_push_notification
+            for sub in subscriptions:
+                await send_push_notification(
+                    endpoint=sub.endpoint,
+                    p256dh=sub.p256dh,
+                    auth=sub.auth,
+                    title="Новая задача",
+                    body=f"Вам назначена задача: {task_data.title}"
+                )
+        except Exception as e:
+            logging.error(f"Failed to send push: {e}")
+
 
     await publish_message("task.created", {
         "task_id": str(task.id),
@@ -116,28 +137,74 @@ async def get_tasks(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json"
         )
 
-    country = req.params.get("country")
+    try:
+        page = int(req.params.get("page", 1))
+        limit = int(req.params.get("limit", 10))
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "page and limit must be integers"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    limit = min(limit, 100)
+    offset = (page - 1) * limit
+
+    status_filter = req.params.get("status")
+    country_filter = req.params.get("country")
+    location_id_filter = req.params.get("location_id")
+    date_from = req.params.get("date_from")
+    date_to = req.params.get("date_to")
+
+    conditions = []
+    params = {}
+
+    if user["role"] == UserRole.CLEANER:
+        conditions.append("assigned_to = :user_id")
+        params["user_id"] = uuid.UUID(user["sub"])
+    elif user["role"] == UserRole.MANAGER:
+        conditions.append("country = :country")
+        params["country"] = user["country"]
+    else:
+        if country_filter:
+            conditions.append("country = :country")
+            params["country"] = country_filter.upper()
+
+    if status_filter:
+        conditions.append("status = :status")
+        params["status"] = status_filter
+
+    if location_id_filter:
+        conditions.append("location_id = :location_id")
+        params["location_id"] = uuid.UUID(location_id_filter)
+
+    if date_from:
+        conditions.append("created_at >= :date_from")
+        params["date_from"] = date_from
+
+    if date_to:
+        conditions.append("created_at <= :date_to")
+        params["date_to"] = date_to
+
+    where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     async with AsyncSessionLocal() as session:
-        if user["role"] == UserRole.CLEANER:
-            result = await session.execute(
-                text("SELECT * FROM tasks WHERE assigned_to = :user_id"),
-                {"user_id": uuid.UUID(user["sub"])}
-            )
-        elif user["role"] == UserRole.MANAGER:
-            result = await session.execute(
-                text("SELECT * FROM tasks WHERE country = :country"),
-                {"country": user["country"]}
-            )
-        else:
-            if country:
-                result = await session.execute(
-                    text("SELECT * FROM tasks WHERE country = :country"),
-                    {"country": country.upper()}
-                )
-            else:
-                result = await session.execute(text("SELECT * FROM tasks"))
+        count_result = await session.execute(
+            text(f"SELECT COUNT(*) FROM tasks {where_clause}"),
+            params
+        )
+        total = count_result.scalar()
 
+        params["limit"] = limit
+        params["offset"] = offset
+        result = await session.execute(
+            text(f"""
+                SELECT * FROM tasks {where_clause}
+                ORDER BY created_at DESC
+                LIMIT :limit OFFSET :offset
+            """),
+            params
+        )
         tasks = result.fetchall()
 
     tasks_list = [
@@ -155,7 +222,15 @@ async def get_tasks(req: func.HttpRequest) -> func.HttpResponse:
     ]
 
     return func.HttpResponse(
-        json.dumps(tasks_list),
+        json.dumps({
+            "data": tasks_list,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": (total + limit - 1) // limit
+            }
+        }),
         status_code=200,
         mimetype="application/json"
     )
@@ -227,6 +302,15 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
     task_id = req.route_params.get("task_id")
 
     try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    try:
         task_uuid = uuid.UUID(task_id)
     except ValueError:
         return func.HttpResponse(
@@ -256,8 +340,48 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
+            text("SELECT * FROM tasks WHERE id = :id"),
+            {"id": task_uuid}
+        )
+        task = result.fetchone()
+
+        if not task:
+            return func.HttpResponse(
+                json.dumps({"error": "Task not found"}),
+                status_code=404,
+                mimetype="application/json"
+            )
+
+        if user["role"] == UserRole.CLEANER:
+            if str(task.assigned_to) != user["sub"]:
+                return func.HttpResponse(
+                    json.dumps({"error": "Access denied"}),
+                    status_code=403,
+                    mimetype="application/json"
+                )
+
+        old_status = task.status
+
+        await session.execute(
             text("UPDATE tasks SET status = :status WHERE id = :id"),
             {"status": new_status, "id": task_uuid}
+        )
+
+        await session.execute(
+            text("""
+                INSERT INTO task_status_history
+                    (id, task_id, old_status, new_status, changed_by, changed_at)
+                VALUES
+                    (:id, :task_id, :old_status, :new_status, :changed_by, :changed_at)
+            """),
+            {
+                "id": uuid.uuid4(),
+                "task_id": task_uuid,
+                "old_status": old_status,
+                "new_status": new_status,
+                "changed_by": uuid.UUID(user["sub"]),
+                "changed_at": datetime.utcnow()
+            }
         )
         await session.commit()
 
@@ -266,14 +390,6 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
             {"id": task_uuid}
         )
         task = result.fetchone()
-        await session.commit()
-
-    if not task:
-        return func.HttpResponse(
-            json.dumps({"error": "Task not found"}),
-            status_code=404,
-            mimetype="application/json"
-        )
 
     response = TaskResponse(
         id=task.id,
@@ -282,7 +398,7 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
         status=task.status,
         country=task.country,
         location_id=task.location_id,
-        assigned_to=task.assigned_to if hasattr(task, 'assigned_to') else None,
+        assigned_to=task.assigned_to,
         created_at=task.created_at
     )
     return func.HttpResponse(
@@ -294,7 +410,6 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
 
 @bp.route(route="locations/{location_id}/tasks", methods=["GET"])
 async def get_tasks_by_location(req: func.HttpRequest) -> func.HttpResponse:
-    """Получить все задачи по локации И её потомкам через ltree"""
     location_id = req.route_params.get("location_id")
 
     try:
@@ -452,6 +567,60 @@ async def get_task_photos(req: func.HttpRequest) -> func.HttpResponse:
 
     return func.HttpResponse(
         json.dumps(photos_list),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+@bp.route(route="tasks/{task_id}/history", methods=["GET"])
+async def get_task_history(req: func.HttpRequest) -> func.HttpResponse:
+    task_id = req.route_params.get("task_id")
+
+    try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid task ID format"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("""
+                SELECT h.*, u.email as changed_by_email
+                FROM task_status_history h
+                LEFT JOIN users u ON h.changed_by = u.id
+                WHERE h.task_id = :task_id
+                ORDER BY h.changed_at ASC
+            """),
+            {"task_id": task_uuid}
+        )
+        history = result.fetchall()
+
+    history_list = [
+        {
+            "id": str(row.id),
+            "task_id": str(row.task_id),
+            "old_status": row.old_status,
+            "new_status": row.new_status,
+            "changed_by": str(row.changed_by) if row.changed_by else None,
+            "changed_by_email": row.changed_by_email,
+            "changed_at": row.changed_at.isoformat()
+        }
+        for row in history
+    ]
+
+    return func.HttpResponse(
+        json.dumps(history_list),
         status_code=200,
         mimetype="application/json"
     )

@@ -27,7 +27,7 @@ export default function MyTasks() {
   const fetchTasks = async () => {
     try {
       const res = await client.get("/tasks");
-      setTasks(res.data);
+      setTasks(res.data.data);
     } finally {
       setLoading(false);
     }

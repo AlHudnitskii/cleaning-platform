@@ -6,6 +6,7 @@ import MyTasks from "./pages/MyTasks";
 import Locations from "./pages/Locations";
 import Export from "./pages/Export";
 import Navbar from "./components/Navbar";
+import Dashboard from "./pages/Dashboard";
 
 function PrivateRoute({ children, roles }) {
   const { user, loading } = useAuth();
@@ -31,6 +32,14 @@ function AppRoutes() {
           element={
             <PrivateRoute roles={["admin", "manager"]}>
               <Tasks />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute roles={["admin", "manager"]}>
+              <Dashboard />
             </PrivateRoute>
           }
         />

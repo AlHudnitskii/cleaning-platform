@@ -1,5 +1,6 @@
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 const ROLE_LABELS = {
   admin: "Admin",
@@ -10,6 +11,8 @@ const ROLE_LABELS = {
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { isSupported, isSubscribed, subscribe, unsubscribe, loading } =
+    usePushNotifications();
 
   const handleLogout = () => {
     logout();
@@ -19,9 +22,12 @@ export default function Navbar() {
   return (
     <nav style={styles.nav}>
       <div style={styles.left}>
-        <span style={styles.logo}>🧹 Cleaning Platform</span>
+        <span style={styles.logo}>Cleaning Platform</span>
         {user?.role !== "cleaner" && (
           <>
+            <Link style={styles.link} to="/dashboard">
+              Dashboard
+            </Link>
             <Link style={styles.link} to="/tasks">
               Задачи
             </Link>
@@ -40,6 +46,23 @@ export default function Navbar() {
         )}
       </div>
       <div style={styles.right}>
+        {isSupported && (
+          <button
+            style={{
+              ...styles.pushBtn,
+              background: isSubscribed ? "#d1fae5" : "#ede9fe",
+              color: isSubscribed ? "#065f46" : "#5b21b6",
+            }}
+            onClick={isSubscribed ? unsubscribe : subscribe}
+            disabled={loading}
+          >
+            {loading
+              ? "..."
+              : isSubscribed
+                ? "Уведомления вкл"
+                : "Включить уведомления"}
+          </button>
+        )}
         <span style={styles.role}>{ROLE_LABELS[user?.role]}</span>
         <span style={styles.email}>{user?.email}</span>
         <button style={styles.logout} onClick={handleLogout}>
@@ -77,5 +100,13 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
     fontWeight: "600",
+  },
+  pushBtn: {
+    padding: "6px 12px",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "600",
+    cursor: "pointer",
   },
 };

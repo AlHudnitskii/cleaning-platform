@@ -11,7 +11,9 @@ python-dotenv
 pyarrow
 pandas
 openpyxl
+psycopg2-binary
 pytest
 pytest-asyncio
 pytest-xdist
 httpx
+pywebpush

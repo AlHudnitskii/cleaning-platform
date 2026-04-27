@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { useSSE } from "../hooks/useSSE";
 
 const STATUS_COLORS = {
   pending: "#f59e0b",
@@ -34,11 +35,7 @@ export default function Tasks() {
   const [error, setError] = useState("");
   const [filters, setFilters] = useState({ status: "", country: "", page: 1 });
 
-  useEffect(() => {
-    fetchTasks();
-  }, [filters]);
-
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: filters.page, limit: 10 });
@@ -50,7 +47,17 @@ export default function Tasks() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  useSSE((event) => {
+    if (event.type === "task_status_changed") {
+      fetchTasks();
+    }
+  });
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -220,6 +227,9 @@ export default function Tasks() {
                       Назначено: {task.assigned_to.slice(0, 8)}...
                     </span>
                   )}
+                  {task.is_recurring && (
+                    <span style={styles.recurringBadge}>Повторяется</span>
+                  )}
                 </div>
                 <select
                   style={styles.select}
@@ -374,6 +384,14 @@ const styles = {
     flexWrap: "wrap",
   },
   meta: { fontSize: "12px", color: "#999" },
+  recurringBadge: {
+    fontSize: "12px",
+    color: "#667eea",
+    fontWeight: "600",
+    background: "#667eea20",
+    padding: "2px 8px",
+    borderRadius: "10px",
+  },
   select: {
     width: "100%",
     padding: "8px",

@@ -1,9 +1,8 @@
-import uuid
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime
-
-from src.domain.models.enums import Country, TaskStatus, LocationLevel
+import uuid
+from src.domain.models.enums import Country, TaskStatus
 
 
 class TaskCreate(BaseModel):
@@ -12,6 +11,8 @@ class TaskCreate(BaseModel):
     description: Optional[str] = None
     location_id: Optional[uuid.UUID] = None
     assigned_to: Optional[uuid.UUID] = None
+    rrule: Optional[str] = None
+    scheduled_for: Optional[datetime] = None
 
     @field_validator("title")
     @classmethod
@@ -19,6 +20,16 @@ class TaskCreate(BaseModel):
         if len(v.strip()) < 3:
             raise ValueError("Title must be at least 3 characters")
         return v.strip()
+
+    @field_validator("rrule")
+    @classmethod
+    def validate_rrule(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from src.domain.services.recurring_tasks import validate_rrule
+        if not validate_rrule(v):
+            raise ValueError("Invalid rrule format")
+        return v
 
 
 class TaskResponse(BaseModel):
@@ -29,6 +40,9 @@ class TaskResponse(BaseModel):
     country: Country
     location_id: Optional[uuid.UUID]
     assigned_to: Optional[uuid.UUID]
+    rrule: Optional[str] = None
+    is_recurring: bool = False
+    scheduled_for: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

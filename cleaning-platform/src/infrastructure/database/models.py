@@ -51,21 +51,20 @@ class Task(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     country: Mapped[str] = mapped_column(String(2))
+    location_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    rrule: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_recurring: Mapped[bool] = mapped_column(default=False)
+    parent_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    location: Mapped["Location | None"] = relationship("Location", back_populates="tasks")
     status_history: Mapped[list["TaskStatusHistory"]] = relationship(
         "TaskStatusHistory", back_populates="task"
     )
-    location_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("locations.id"), nullable=True
-    )
-    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id"),
-        nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    location: Mapped["Location | None"] = relationship("Location", back_populates="tasks")
+    comments: Mapped[list["TaskComment"]] = relationship("TaskComment", back_populates="task")
     photos: Mapped[list["TaskPhoto"]] = relationship("TaskPhoto", back_populates="task")
-    assigned_user: Mapped["User | None"] = relationship("User")
 
 
 class TaskPhoto(Base):
@@ -91,6 +90,19 @@ class TaskStatusHistory(Base):
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     task: Mapped["Task"] = relationship("Task", back_populates="status_history")
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    task: Mapped["Task"] = relationship("Task", back_populates="comments")
+    user: Mapped["User"] = relationship("User")
 
 
 class User(Base):

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useSSE } from "../hooks/useSSE";
@@ -17,6 +18,7 @@ const STATUS_LABELS = {
 
 export default function Tasks() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -78,7 +80,9 @@ export default function Tasks() {
     }
   };
 
-  const handleStatusChange = async (taskId, newStatus) => {
+  const handleStatusChange = async (e, taskId) => {
+    e.stopPropagation();
+    const newStatus = e.target.value;
     try {
       await client.patch(`/tasks/${taskId}/status`, { status: newStatus });
       fetchTasks();
@@ -204,7 +208,11 @@ export default function Tasks() {
               <div style={styles.empty}>Задач не найдено</div>
             )}
             {tasks.map((task) => (
-              <div key={task.id} style={styles.card}>
+              <div
+                key={task.id}
+                style={{ ...styles.card, cursor: "pointer" }}
+                onClick={() => navigate(`/tasks/${task.id}`)}
+              >
                 <div style={styles.cardHeader}>
                   <span style={styles.taskTitle}>{task.title}</span>
                   <span
@@ -234,7 +242,8 @@ export default function Tasks() {
                 <select
                   style={styles.select}
                   value={task.status}
-                  onChange={(e) => handleStatusChange(task.id, e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => handleStatusChange(e, task.id)}
                 >
                   <option value="pending">Ожидает</option>
                   <option value="in_progress">В работе</option>

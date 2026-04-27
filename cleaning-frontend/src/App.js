@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Tasks from "./pages/Tasks";
+import TaskDetail from "./pages/TaskDetail";
 import MyTasks from "./pages/MyTasks";
 import Locations from "./pages/Locations";
 import Export from "./pages/Export";
@@ -56,6 +57,14 @@ function AppRoutes() {
           element={
             <PrivateRoute roles={["admin", "manager"]}>
               <Locations />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/tasks/:id"
+          element={
+            <PrivateRoute roles={["admin", "manager", "cleaner"]}>
+              <TaskDetail />
             </PrivateRoute>
           }
         />

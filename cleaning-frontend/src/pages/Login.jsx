@@ -22,7 +22,7 @@ export default function Login() {
         navigate("/tasks");
       }
     } catch (err) {
-      setError("Неверный email или пароль");
+      setError("Wrong email or password");
     } finally {
       setLoading(false);
     }
@@ -32,7 +32,7 @@ export default function Login() {
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.title}>Cleaning Platform</h1>
-        <p style={styles.subtitle}>Войдите в систему</p>
+        <p style={styles.subtitle}>Enter a system</p>
 
         {error && <div style={styles.error}>{error}</div>}
 
@@ -44,7 +44,7 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@cleaning.com"
+              placeholder="example@example.com"
               required
             />
           </div>
@@ -64,7 +64,7 @@ export default function Login() {
             type="submit"
             disabled={loading}
           >
-            {loading ? "Входим..." : "Войти"}
+            {loading ? "Enter..." : "Enter"}
           </button>
         </form>
       </div>

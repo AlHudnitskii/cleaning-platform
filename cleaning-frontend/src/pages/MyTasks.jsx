@@ -52,9 +52,9 @@ export default function MyTasks() {
       await client.post(`/tasks/${activeTaskId}/photos`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      alert("Фото загружено");
+      alert("Photo downloaded");
     } catch {
-      alert("Ошибка загрузки фото");
+      alert("Photo downloading error");
     } finally {
       setUploadingId(null);
       setActiveTaskId(null);
@@ -66,11 +66,11 @@ export default function MyTasks() {
     fileInputRef.current.click();
   };
 
-  if (loading) return <div style={styles.center}>Загрузка...</div>;
+  if (loading) return <div style={styles.center}>Download...</div>;
 
   return (
     <div style={styles.page}>
-      <h1 style={styles.title}>Мои задачи</h1>
+      <h1 style={styles.title}>My tasks</h1>
 
       <input
         type="file"
@@ -80,9 +80,7 @@ export default function MyTasks() {
         onChange={handlePhotoUpload}
       />
 
-      {tasks.length === 0 && (
-        <div style={styles.empty}>Нет назначенных задач</div>
-      )}
+      {tasks.length === 0 && <div style={styles.empty}>No tasks assigned</div>}
 
       <div style={styles.list}>
         {tasks.map((task) => (
@@ -93,7 +91,7 @@ export default function MyTasks() {
                 {task.description && (
                   <p style={styles.description}>{task.description}</p>
                 )}
-                <span style={styles.country}>Страна: {task.country}</span>
+                <span style={styles.country}>Country: {task.country}</span>
               </div>
               <span
                 style={{
@@ -112,16 +110,16 @@ export default function MyTasks() {
                 value={task.status}
                 onChange={(e) => handleStatusChange(task.id, e.target.value)}
               >
-                <option value="pending">Ожидает</option>
-                <option value="in_progress">В работе</option>
-                <option value="completed">Выполнено</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
               </select>
               <button
                 style={styles.photoBtn}
                 onClick={() => triggerUpload(task.id)}
                 disabled={uploadingId === task.id}
               >
-                {uploadingId === task.id ? "Загрузка..." : "Загрузить фото"}
+                {uploadingId === task.id ? "Download..." : "Upload photo"}
               </button>
             </div>
           </div>

@@ -12,12 +12,26 @@ class Country(StrEnum):
     DK = "DK"
     IT = "IT"
     AU = "AU"
+    US = "US"
+    GB = "GB"
+    FR = "FR"
+    ES = "ES"
+    PL = "PL"
+    NL = "NL"
+    SE = "SE"
+    NO = "NO"
+    FI = "FI"
+    CH = "CH"
+    AT = "AT"
 
 
 class TaskStatus(StrEnum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
+    ON_REVIEW = "on_review"
     COMPLETED = "completed"
+    ON_HOLD = "on_hold"
+    CANCELLED = "cancelled"
 
 
 class LocationLevel(StrEnum):
@@ -26,3 +40,9 @@ class LocationLevel(StrEnum):
     BUILDING = "building"
     FLOOR = "floor"
     ROOM = "room"
+
+class TaskPriority(StrEnum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"

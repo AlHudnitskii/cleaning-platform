@@ -29,19 +29,19 @@ export default function Navbar() {
               Dashboard
             </Link>
             <Link style={styles.link} to="/tasks">
-              Задачи
+              Tasks
             </Link>
             <Link style={styles.link} to="/locations">
-              Локации
+              Locations
             </Link>
             <Link style={styles.link} to="/export">
-              Экспорт
+              Export
             </Link>
           </>
         )}
         {user?.role === "cleaner" && (
           <Link style={styles.link} to="/my-tasks">
-            Мои задачи
+            My Tasks
           </Link>
         )}
       </div>
@@ -59,14 +59,14 @@ export default function Navbar() {
             {loading
               ? "..."
               : isSubscribed
-                ? "Уведомления вкл"
-                : "Включить уведомления"}
+                ? "Notifications On"
+                : "Enable Notifications"}
           </button>
         )}
         <span style={styles.role}>{ROLE_LABELS[user?.role]}</span>
         <span style={styles.email}>{user?.email}</span>
         <button style={styles.logout} onClick={handleLogout}>
-          Выйти
+          Log Out
         </button>
       </div>
     </nav>

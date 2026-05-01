@@ -12,6 +12,17 @@ const COUNTRY_NAMES = {
   DK: "Denmark",
   IT: "Italy",
   AU: "Australia",
+  US: "United States",
+  GB: "United Kingdom",
+  FR: "France",
+  ES: "Spain",
+  PL: "Poland",
+  NL: "Netherlands",
+  SE: "Sweden",
+  NO: "Norway",
+  FI: "Finland",
+  CH: "Switzerland",
+  AT: "Austria",
 };
 
 export default function Dashboard() {
@@ -25,8 +36,8 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={styles.center}>Загрузка...</div>;
-  if (!stats) return <div style={styles.center}>Нет данных</div>;
+  if (loading) return <div style={styles.center}>Loading...</div>;
+  if (!stats) return <div style={styles.center}>No data</div>;
 
   const completionRate =
     stats.total_tasks > 0
@@ -40,41 +51,41 @@ export default function Dashboard() {
       <div style={styles.cardsRow}>
         <div style={styles.statCard}>
           <div style={styles.statNumber}>{stats.total_tasks}</div>
-          <div style={styles.statLabel}>Всего задач</div>
+          <div style={styles.statLabel}>Tasks</div>
         </div>
         <div style={{ ...styles.statCard, borderTop: "4px solid #f59e0b" }}>
           <div style={{ ...styles.statNumber, color: "#f59e0b" }}>
             {stats.status_stats.pending}
           </div>
-          <div style={styles.statLabel}>Ожидают</div>
+          <div style={styles.statLabel}>Waiting</div>
         </div>
         <div style={{ ...styles.statCard, borderTop: "4px solid #3b82f6" }}>
           <div style={{ ...styles.statNumber, color: "#3b82f6" }}>
             {stats.status_stats.in_progress}
           </div>
-          <div style={styles.statLabel}>В работе</div>
+          <div style={styles.statLabel}>In progress</div>
         </div>
         <div style={{ ...styles.statCard, borderTop: "4px solid #10b981" }}>
           <div style={{ ...styles.statNumber, color: "#10b981" }}>
             {stats.status_stats.completed}
           </div>
-          <div style={styles.statLabel}>Выполнено</div>
+          <div style={styles.statLabel}>Done</div>
         </div>
         <div style={{ ...styles.statCard, borderTop: "4px solid #667eea" }}>
           <div style={{ ...styles.statNumber, color: "#667eea" }}>
             {completionRate}%
           </div>
-          <div style={styles.statLabel}>Выполнено %</div>
+          <div style={styles.statLabel}>Done %</div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statNumber}>{stats.total_users}</div>
-          <div style={styles.statLabel}>Пользователей</div>
+          <div style={styles.statLabel}>Users</div>
         </div>
       </div>
 
       <div style={styles.row}>
         <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Задачи по странам</h2>
+          <h2 style={styles.sectionTitle}>Tasks by countries</h2>
           {stats.country_stats.map((item) => (
             <div key={item.country} style={styles.barRow}>
               <span style={styles.barLabel}>
@@ -94,7 +105,7 @@ export default function Dashboard() {
         </div>
 
         <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Топ локации</h2>
+          <h2 style={styles.sectionTitle}>Top locations</h2>
           {stats.top_locations.map((loc, i) => (
             <div key={i} style={styles.locRow}>
               <div style={styles.locRank}>{i + 1}</div>
@@ -102,16 +113,16 @@ export default function Dashboard() {
                 <div style={styles.locName}>{loc.name}</div>
                 <div style={styles.locLevel}>{loc.level}</div>
               </div>
-              <div style={styles.locCount}>{loc.count} задач</div>
+              <div style={styles.locCount}>{loc.count} tasks</div>
             </div>
           ))}
         </div>
       </div>
 
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Задачи за последние 7 дней</h2>
+        <h2 style={styles.sectionTitle}>Tasks for the last 7 days</h2>
         {stats.daily_stats.length === 0 ? (
-          <div style={styles.empty}>Нет данных за последние 7 дней</div>
+          <div style={styles.empty}>No data for the last 7 days</div>
         ) : (
           <div style={styles.chartRow}>
             {stats.daily_stats.map((item) => (

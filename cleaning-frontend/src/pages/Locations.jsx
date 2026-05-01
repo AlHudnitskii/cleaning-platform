@@ -3,11 +3,11 @@ import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const LEVEL_LABELS = {
-  country: "Страна",
-  city: "Город",
-  building: "Здание",
-  floor: "Этаж",
-  room: "Комната",
+  country: "Country",
+  city: "City",
+  building: "Building",
+  floor: "Floor",
+  room: "Room",
 };
 
 export default function Locations() {
@@ -53,34 +53,34 @@ export default function Locations() {
       setForm({ name: "", country: "DE", level: "country", parent_id: "" });
       fetchRootLocations();
     } catch (err) {
-      setError(err.response?.data?.error || "Ошибка создания локации");
+      setError(err.response?.data?.error || "Location creating error");
     }
   };
 
-  if (loading) return <div style={styles.center}>Загрузка...</div>;
+  if (loading) return <div style={styles.center}>Download...</div>;
 
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Локации</h1>
+        <h1 style={styles.title}>Locations</h1>
         {user.role === "admin" && (
           <button
             style={styles.primaryBtn}
             onClick={() => setShowForm(!showForm)}
           >
-            {showForm ? "Отмена" : "Создать локацию"}
+            {showForm ? "Cancel" : "Create location"}
           </button>
         )}
       </div>
 
       {showForm && (
         <div style={styles.formCard}>
-          <h2 style={styles.formTitle}>Новая локация</h2>
+          <h2 style={styles.formTitle}>New location</h2>
           {error && <div style={styles.error}>{error}</div>}
           <form onSubmit={handleCreate}>
             <div style={styles.formGrid}>
               <div style={styles.field}>
-                <label style={styles.label}>Название</label>
+                <label style={styles.label}>Name</label>
                 <input
                   style={styles.input}
                   value={form.name}
@@ -105,33 +105,33 @@ export default function Locations() {
                 </select>
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Уровень</label>
+                <label style={styles.label}>Level</label>
                 <select
                   style={styles.input}
                   value={form.level}
                   onChange={(e) => setForm({ ...form, level: e.target.value })}
                 >
-                  <option value="country">Страна</option>
-                  <option value="city">Город</option>
-                  <option value="building">Здание</option>
-                  <option value="floor">Этаж</option>
-                  <option value="room">Комната</option>
+                  <option value="country">Country</option>
+                  <option value="city">City</option>
+                  <option value="building">Building</option>
+                  <option value="floor">Floor</option>
+                  <option value="room">Room</option>
                 </select>
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>ID родителя (необязательно)</label>
+                <label style={styles.label}>Parent ID (optional)</label>
                 <input
                   style={styles.input}
                   value={form.parent_id}
                   onChange={(e) =>
                     setForm({ ...form, parent_id: e.target.value })
                   }
-                  placeholder="UUID родительской локации"
+                  placeholder="Parent's location IUUID "
                 />
               </div>
             </div>
             <button style={styles.primaryBtn} type="submit">
-              Создать
+              Create
             </button>
           </form>
         </div>
@@ -139,7 +139,7 @@ export default function Locations() {
 
       <div style={styles.grid}>
         {locations.length === 0 && (
-          <div style={styles.empty}>Локаций пока нет</div>
+          <div style={styles.empty}>No locations yet</div>
         )}
         {locations.map((loc) => (
           <div key={loc.id} style={styles.card}>

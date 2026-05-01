@@ -58,6 +58,11 @@ class Task(Base):
     is_recurring: Mapped[bool] = mapped_column(default=False)
     parent_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    quality_score: Mapped[int | None] = mapped_column(nullable=True)
+    quality_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    quality_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     location: Mapped["Location | None"] = relationship("Location", back_populates="tasks")
     status_history: Mapped[list["TaskStatusHistory"]] = relationship(

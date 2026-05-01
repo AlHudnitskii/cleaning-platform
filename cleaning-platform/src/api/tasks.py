@@ -85,6 +85,7 @@ async def create_task(req: func.HttpRequest) -> func.HttpResponse:
             rrule=task_data.rrule,
             is_recurring=bool(task_data.rrule),
             scheduled_for=task_data.scheduled_for,
+            priority=task_data.priority,
             created_at=datetime.utcnow()
         )
         session.add(task)
@@ -335,7 +336,7 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     new_status = body.get("status")
-    allowed_statuses = ["pending", "in_progress", "completed"]
+    allowed_statuses = ["pending", "in_progress", "on_review", "completed", "on_hold", "cancelled"]
 
     if new_status not in allowed_statuses:
         return func.HttpResponse(
@@ -343,6 +344,22 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
             mimetype="application/json"
         )
+
+    if new_status == "completed" and task.status == "on_review":
+        if user["role"] not in [UserRole.ADMIN, UserRole.MANAGER]:
+            return func.HttpResponse(
+                json.dumps({"error": "Only admin or manager can complete a task that is on review"}),
+                status_code=403,
+                mimetype="application/json"
+            )
+
+    if new_status == "on_review":
+        if user["role"] != UserRole.CLEANER:
+            return func.HttpResponse(
+                json.dumps({"error": "Only cleaner can submit task for review"}),
+                status_code=403,
+                mimetype="application/json"
+            )
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -849,6 +866,125 @@ async def get_comments(req: func.HttpRequest) -> func.HttpResponse:
 
     return func.HttpResponse(
         json.dumps(comments_list),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+@bp.route(route="tasks/{task_id}/quality", methods=["POST"])
+async def review_quality(req: func.HttpRequest) -> func.HttpResponse:
+    task_id = req.route_params.get("task_id")
+
+    try:
+        user = get_current_user(req)
+    except AuthError as e:
+        return func.HttpResponse(
+            json.dumps({"error": e.message}),
+            status_code=e.status_code,
+            mimetype="application/json"
+        )
+
+    if user["role"] not in [UserRole.ADMIN, UserRole.MANAGER]:
+        return func.HttpResponse(
+            json.dumps({"error": "Only admin and manager can review quality"}),
+            status_code=403,
+            mimetype="application/json"
+        )
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid task ID"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    try:
+        body = req.get_json()
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    try:
+        from src.domain.models.task import QualityReview
+        review = QualityReview(**body)
+    except Exception as e:
+        return func.HttpResponse(
+            json.dumps({"error": str(e)}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("SELECT * FROM tasks WHERE id = :id"),
+            {"id": task_uuid}
+        )
+        task = result.fetchone()
+
+        if not task:
+            return func.HttpResponse(
+                json.dumps({"error": "Task not found"}),
+                status_code=404,
+                mimetype="application/json"
+            )
+
+        if task.status != "completed":
+            return func.HttpResponse(
+                json.dumps({"error": "Can only review completed tasks"}),
+                status_code=400,
+                mimetype="application/json"
+            )
+
+        await session.execute(
+            text("""
+                UPDATE tasks SET
+                    quality_score = :score,
+                    quality_comment = :comment,
+                    quality_reviewed_by = :reviewed_by,
+                    quality_reviewed_at = :reviewed_at
+                WHERE id = :id
+            """),
+            {
+                "score": review.score,
+                "comment": review.comment,
+                "reviewed_by": uuid.UUID(user["sub"]),
+                "reviewed_at": datetime.utcnow(),
+                "id": task_uuid
+            }
+        )
+        await session.commit()
+
+        result = await session.execute(
+            text("SELECT * FROM tasks WHERE id = :id"),
+            {"id": task_uuid}
+        )
+        task = result.fetchone()
+
+    response = TaskResponse(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        status=task.status,
+        country=task.country,
+        location_id=task.location_id,
+        assigned_to=task.assigned_to,
+        rrule=task.rrule,
+        is_recurring=task.is_recurring,
+        scheduled_for=task.scheduled_for,
+        priority=task.priority,
+        quality_score=task.quality_score,
+        quality_comment=task.quality_comment,
+        quality_reviewed_by=task.quality_reviewed_by,
+        quality_reviewed_at=task.quality_reviewed_at,
+        created_at=task.created_at
+    )
+
+    return func.HttpResponse(
+        response.model_dump_json(),
         status_code=200,
         mimetype="application/json"
     )

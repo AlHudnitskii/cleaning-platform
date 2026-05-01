@@ -11,9 +11,23 @@ const STATUS_COLORS = {
 };
 
 const STATUS_LABELS = {
-  pending: "Ожидает",
-  in_progress: "В работе",
-  completed: "Выполнено",
+  pending: "Pending",
+  in_progress: "In Progress",
+  completed: "Completed",
+};
+
+const PRIORITY_COLORS = {
+  low: "#94a3b8",
+  normal: "#3b82f6",
+  high: "#f59e0b",
+  urgent: "#ef4444",
+};
+
+const PRIORITY_LABELS = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
+  urgent: "Urgent",
 };
 
 export default function Tasks() {
@@ -33,6 +47,9 @@ export default function Tasks() {
     country: "DE",
     description: "",
     assigned_to: "",
+    rrule: "",
+    is_recurring: false,
+    priority: "normal",
   });
   const [error, setError] = useState("");
   const [filters, setFilters] = useState({ status: "", country: "", page: 1 });
@@ -70,13 +87,23 @@ export default function Tasks() {
         country: form.country,
         description: form.description || undefined,
         assigned_to: form.assigned_to || undefined,
+        rrule: form.is_recurring && form.rrule ? form.rrule : undefined,
+        priority: form.priority,
       };
       await client.post("/tasks", payload);
       setShowForm(false);
-      setForm({ title: "", country: "DE", description: "", assigned_to: "" });
+      setForm({
+        title: "",
+        country: "DE",
+        description: "",
+        assigned_to: "",
+        rrule: "",
+        is_recurring: false,
+        priority: "normal",
+      });
       fetchTasks();
     } catch (err) {
-      setError(err.response?.data?.error || "Ошибка создания задачи");
+      setError(err.response?.data?.error || "Failed to create task");
     }
   };
 
@@ -100,25 +127,25 @@ export default function Tasks() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Задачи</h1>
+        <h1 style={styles.title}>Tasks</h1>
         {["admin", "manager"].includes(user.role) && (
           <button
             style={styles.primaryBtn}
             onClick={() => setShowForm(!showForm)}
           >
-            {showForm ? "Отмена" : "Создать задачу"}
+            {showForm ? "Cancel" : "Create Task"}
           </button>
         )}
       </div>
 
       {showForm && (
         <div style={styles.formCard}>
-          <h2 style={styles.formTitle}>Новая задача</h2>
+          <h2 style={styles.formTitle}>New Task</h2>
           {error && <div style={styles.error}>{error}</div>}
           <form onSubmit={handleCreate}>
             <div style={styles.formGrid}>
               <div style={styles.field}>
-                <label style={styles.label}>Название</label>
+                <label style={styles.label}>Title</label>
                 <input
                   style={styles.input}
                   value={form.title}
@@ -128,7 +155,7 @@ export default function Tasks() {
                 />
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Страна</label>
+                <label style={styles.label}>Country</label>
                 <select
                   style={styles.input}
                   value={form.country}
@@ -136,37 +163,98 @@ export default function Tasks() {
                     setForm({ ...form, country: e.target.value })
                   }
                 >
-                  <option value="DE">Germany</option>
-                  <option value="DK">Denmark</option>
-                  <option value="IT">Italy</option>
-                  <option value="AU">Australia</option>
+                  <option value="">All countries</option>
+                  <option value="US">United States</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="FR">France</option>
+                  <option value="ES">Spain</option>
+                  <option value="PL">Poland</option>
+                  <option value="NL">Netherlands</option>
+                  <option value="SE">Sweden</option>
+                  <option value="NO">Norway</option>
+                  <option value="FI">Finland</option>
+                  <option value="CH">Switzerland</option>
+                  <option value="AT">Austria</option>
                 </select>
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Описание</label>
+                <label style={styles.label}>Description</label>
                 <input
                   style={styles.input}
                   value={form.description}
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
                   }
-                  placeholder="Необязательно"
+                  placeholder="Optional"
                 />
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Назначить (ID cleaner)</label>
+                <label style={styles.label}>Assign to (Cleaner ID)</label>
                 <input
                   style={styles.input}
                   value={form.assigned_to}
                   onChange={(e) =>
                     setForm({ ...form, assigned_to: e.target.value })
                   }
-                  placeholder="UUID пользователя"
+                  placeholder="User UUID"
                 />
               </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Priority</label>
+                <select
+                  style={styles.input}
+                  value={form.priority}
+                  onChange={(e) =>
+                    setForm({ ...form, priority: e.target.value })
+                  }
+                >
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+              <div style={styles.field}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={form.is_recurring}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        is_recurring: e.target.checked,
+                        rrule: "",
+                      })
+                    }
+                  />
+                  Recurring Task
+                </label>
+              </div>
+              {form.is_recurring && (
+                <div style={styles.field}>
+                  <label style={styles.label}>Schedule</label>
+                  <select
+                    style={styles.input}
+                    value={form.rrule}
+                    onChange={(e) =>
+                      setForm({ ...form, rrule: e.target.value })
+                    }
+                  >
+                    <option value="">Select...</option>
+                    <option value="FREQ=DAILY">Every day</option>
+                    <option value="FREQ=WEEKLY;BYDAY=MO">Every Monday</option>
+                    <option value="FREQ=WEEKLY;BYDAY=MO,WE,FR">
+                      Mon, Wed, Fri
+                    </option>
+                    <option value="FREQ=WEEKLY;BYDAY=MO,TH">Mon and Thu</option>
+                    <option value="FREQ=WEEKLY">Every week</option>
+                    <option value="FREQ=MONTHLY">Every month</option>
+                  </select>
+                </div>
+              )}
             </div>
             <button style={styles.primaryBtn} type="submit">
-              Создать
+              Create
             </button>
           </form>
         </div>
@@ -178,10 +266,12 @@ export default function Tasks() {
           value={filters.status}
           onChange={(e) => handleFilterChange("status", e.target.value)}
         >
-          <option value="">Все статусы</option>
-          <option value="pending">Ожидает</option>
-          <option value="in_progress">В работе</option>
-          <option value="completed">Выполнено</option>
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
+          <option value="on_hold">On Hold</option>
+          <option value="cancelled">Cancelled</option>
         </select>
         {user.role === "admin" && (
           <select
@@ -189,23 +279,30 @@ export default function Tasks() {
             value={filters.country}
             onChange={(e) => handleFilterChange("country", e.target.value)}
           >
-            <option value="">Все страны</option>
-            <option value="DE">Germany</option>
-            <option value="DK">Denmark</option>
-            <option value="IT">Italy</option>
-            <option value="AU">Australia</option>
+            <option value="">All countries</option>
+            <option value="US">United States</option>
+            <option value="GB">United Kingdom</option>
+            <option value="FR">France</option>
+            <option value="ES">Spain</option>
+            <option value="PL">Poland</option>
+            <option value="NL">Netherlands</option>
+            <option value="SE">Sweden</option>
+            <option value="NO">Norway</option>
+            <option value="FI">Finland</option>
+            <option value="CH">Switzerland</option>
+            <option value="AT">Austria</option>
           </select>
         )}
-        <span style={styles.totalLabel}>Всего: {pagination.total}</span>
+        <span style={styles.totalLabel}>Total: {pagination.total}</span>
       </div>
 
       {loading ? (
-        <div style={styles.center}>Загрузка...</div>
+        <div style={styles.center}>Loading...</div>
       ) : (
         <>
           <div style={styles.grid}>
             {tasks.length === 0 && (
-              <div style={styles.empty}>Задач не найдено</div>
+              <div style={styles.empty}>No tasks found</div>
             )}
             {tasks.map((task) => (
               <div
@@ -215,28 +312,39 @@ export default function Tasks() {
               >
                 <div style={styles.cardHeader}>
                   <span style={styles.taskTitle}>{task.title}</span>
-                  <span
-                    style={{
-                      ...styles.badge,
-                      background: STATUS_COLORS[task.status] + "20",
-                      color: STATUS_COLORS[task.status],
-                    }}
-                  >
-                    {STATUS_LABELS[task.status]}
-                  </span>
+                  <div style={styles.badgeGroup}>
+                    <span
+                      style={{
+                        ...styles.badge,
+                        background: STATUS_COLORS[task.status] + "20",
+                        color: STATUS_COLORS[task.status],
+                      }}
+                    >
+                      {STATUS_LABELS[task.status]}
+                    </span>
+                    <span
+                      style={{
+                        ...styles.badge,
+                        background: PRIORITY_COLORS[task.priority] + "20",
+                        color: PRIORITY_COLORS[task.priority],
+                      }}
+                    >
+                      {PRIORITY_LABELS[task.priority]}
+                    </span>
+                  </div>
                 </div>
                 {task.description && (
                   <p style={styles.description}>{task.description}</p>
                 )}
                 <div style={styles.cardMeta}>
-                  <span style={styles.meta}>Страна: {task.country}</span>
+                  <span style={styles.meta}>Country: {task.country}</span>
                   {task.assigned_to && (
                     <span style={styles.meta}>
-                      Назначено: {task.assigned_to.slice(0, 8)}...
+                      Assigned: {task.assigned_to.slice(0, 8)}...
                     </span>
                   )}
                   {task.is_recurring && (
-                    <span style={styles.recurringBadge}>Повторяется</span>
+                    <span style={styles.recurringBadge}>Recurring</span>
                   )}
                 </div>
                 <select
@@ -245,9 +353,11 @@ export default function Tasks() {
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => handleStatusChange(e, task.id)}
                 >
-                  <option value="pending">Ожидает</option>
-                  <option value="in_progress">В работе</option>
-                  <option value="completed">Выполнено</option>
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
               </div>
             ))}
@@ -260,7 +370,7 @@ export default function Tasks() {
                 disabled={pagination.page === 1}
                 onClick={() => handlePageChange(pagination.page - 1)}
               >
-                Назад
+                Previous
               </button>
               {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(
                 (p) => (
@@ -282,7 +392,7 @@ export default function Tasks() {
                 disabled={pagination.page === pagination.pages}
                 onClick={() => handlePageChange(pagination.page + 1)}
               >
-                Вперёд
+                Next
               </button>
             </div>
           )}
@@ -329,6 +439,16 @@ const styles = {
     fontSize: "14px",
     fontWeight: "600",
     color: "#555",
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#555",
+    cursor: "pointer",
+    marginTop: "24px",
   },
   input: {
     width: "100%",
@@ -378,6 +498,7 @@ const styles = {
     marginBottom: "8px",
   },
   taskTitle: { fontWeight: "600", fontSize: "16px", color: "#1a1a2e" },
+  badgeGroup: { display: "flex", gap: "4px", flexWrap: "wrap" },
   badge: {
     padding: "4px 10px",
     borderRadius: "20px",

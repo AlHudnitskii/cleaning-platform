@@ -40,9 +40,9 @@ export default function Export() {
       link.click();
       link.remove();
 
-      setSuccess(`Файл ${filename} скачан`);
+      setSuccess(`File ${filename} has been download`);
     } catch (err) {
-      setError("Ошибка экспорта");
+      setError("Export error");
     } finally {
       setLoading(false);
     }
@@ -50,7 +50,7 @@ export default function Export() {
 
   return (
     <div style={styles.page}>
-      <h1 style={styles.title}>Экспорт задач</h1>
+      <h1 style={styles.title}>Task export</h1>
 
       <div style={styles.card}>
         {error && <div style={styles.error}>{error}</div>}
@@ -92,17 +92,28 @@ export default function Export() {
               </select>
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Страна (необязательно)</label>
+              <label style={styles.label}>Counry (optional)</label>
               <select
                 style={styles.input}
                 value={form.country}
                 onChange={(e) => setForm({ ...form, country: e.target.value })}
               >
-                <option value="">Все страны</option>
+                <option value="">All countries</option>
                 <option value="DE">Germany</option>
                 <option value="DK">Denmark</option>
                 <option value="IT">Italy</option>
                 <option value="AU">Australia</option>
+                <option value="US">United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="FR">France</option>
+                <option value="ES">Spain</option>
+                <option value="PL">Poland</option>
+                <option value="NL">Netherlands</option>
+                <option value="SE">Sweden</option>
+                <option value="NO">Norway</option>
+                <option value="FI">Finland</option>
+                <option value="CH">Switzerland</option>
+                <option value="AT">Austria</option>
               </select>
             </div>
           </div>
@@ -112,18 +123,18 @@ export default function Export() {
             type="submit"
             disabled={loading}
           >
-            {loading ? "Экспортируем..." : "Скачать отчёт"}
+            {loading ? "Exporting..." : "Download report"}
           </button>
         </form>
 
         <div style={styles.info}>
           <h3 style={styles.infoTitle}>Форматы</h3>
           <p style={styles.infoText}>
-            Excel — удобен для просмотра и редактирования в таблицах.
+            Excel is convenient for viewing and editing tables.
           </p>
           <p style={styles.infoText}>
-            Parquet — columnar формат, в 5-7 раз меньше по размеру чем Excel на
-            больших данных. Используется для аналитики.
+            Parquet is a columnar format, 5-7 times smaller than Excel for big
+            data. It's used for analytics.
           </p>
         </div>
       </div>

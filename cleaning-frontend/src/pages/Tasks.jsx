@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useSSE } from "../hooks/useSSE";
@@ -30,10 +30,21 @@ const PRIORITY_LABELS = {
   urgent: "Urgent",
 };
 
+const LEVEL_INDENT = {
+  country: 0,
+  city: 1,
+  building: 2,
+  floor: 3,
+  room: 4,
+};
+
 export default function Tasks() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [tasks, setTasks] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -50,9 +61,22 @@ export default function Tasks() {
     rrule: "",
     is_recurring: false,
     priority: "normal",
+    location_id: "",
   });
   const [error, setError] = useState("");
-  const [filters, setFilters] = useState({ status: "", country: "", page: 1 });
+  const [filters, setFilters] = useState({
+    status: searchParams.get("status") || "",
+    country: searchParams.get("country") || "",
+    location_id: searchParams.get("location_id") || "",
+    priority: searchParams.get("priority") || "",
+    date_from: searchParams.get("date_from") || "",
+    date_to: searchParams.get("date_to") || "",
+    page: 1,
+  });
+
+  useEffect(() => {
+    client.get("/locations").then((res) => setLocations(res.data));
+  }, []);
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -60,6 +84,11 @@ export default function Tasks() {
       const params = new URLSearchParams({ page: filters.page, limit: 10 });
       if (filters.status) params.append("status", filters.status);
       if (filters.country) params.append("country", filters.country);
+      if (filters.location_id)
+        params.append("location_id", filters.location_id);
+      if (filters.priority) params.append("priority", filters.priority);
+      if (filters.date_from) params.append("date_from", filters.date_from);
+      if (filters.date_to) params.append("date_to", filters.date_to);
       const res = await client.get(`/tasks?${params}`);
       setTasks(res.data.data);
       setPagination(res.data.pagination);
@@ -72,25 +101,23 @@ export default function Tasks() {
     fetchTasks();
   }, [fetchTasks]);
 
-  useSSE((event) => {
-    if (event.type === "task_status_changed") {
-      fetchTasks();
-    }
-  });
+  // useSSE((event) => {
+  //   if (event.type === "task_status_changed") fetchTasks();
+  // });
 
   const handleCreate = async (e) => {
     e.preventDefault();
     setError("");
     try {
-      const payload = {
+      await client.post("/tasks", {
         title: form.title,
         country: form.country,
         description: form.description || undefined,
         assigned_to: form.assigned_to || undefined,
         rrule: form.is_recurring && form.rrule ? form.rrule : undefined,
         priority: form.priority,
-      };
-      await client.post("/tasks", payload);
+        location_id: form.location_id || undefined,
+      });
       setShowForm(false);
       setForm({
         title: "",
@@ -100,6 +127,7 @@ export default function Tasks() {
         rrule: "",
         is_recurring: false,
         priority: "normal",
+        location_id: "",
       });
       fetchTasks();
     } catch (err) {
@@ -109,9 +137,8 @@ export default function Tasks() {
 
   const handleStatusChange = async (e, taskId) => {
     e.stopPropagation();
-    const newStatus = e.target.value;
     try {
-      await client.patch(`/tasks/${taskId}/status`, { status: newStatus });
+      await client.patch(`/tasks/${taskId}/status`, { status: e.target.value });
       fetchTasks();
     } catch {}
   };
@@ -120,9 +147,29 @@ export default function Tasks() {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
   };
 
-  const handlePageChange = (newPage) => {
-    setFilters((prev) => ({ ...prev, page: newPage }));
+  const clearFilters = () => {
+    setFilters({
+      status: "",
+      country: "",
+      location_id: "",
+      priority: "",
+      date_from: "",
+      date_to: "",
+      page: 1,
+    });
   };
+
+  const hasActiveFilters =
+    filters.status ||
+    filters.country ||
+    filters.location_id ||
+    filters.priority ||
+    filters.date_from ||
+    filters.date_to;
+
+  const filteredLocations = filters.country
+    ? locations.filter((l) => l.country === filters.country)
+    : locations;
 
   return (
     <div style={styles.page}>
@@ -160,21 +207,45 @@ export default function Tasks() {
                   style={styles.input}
                   value={form.country}
                   onChange={(e) =>
-                    setForm({ ...form, country: e.target.value })
+                    setForm({
+                      ...form,
+                      country: e.target.value,
+                      location_id: "",
+                    })
                   }
                 >
-                  <option value="">All countries</option>
+                  <option value="DE">Germany</option>
+                  <option value="NL">Netherlands</option>
                   <option value="US">United States</option>
                   <option value="GB">United Kingdom</option>
                   <option value="FR">France</option>
                   <option value="ES">Spain</option>
                   <option value="PL">Poland</option>
-                  <option value="NL">Netherlands</option>
                   <option value="SE">Sweden</option>
                   <option value="NO">Norway</option>
                   <option value="FI">Finland</option>
                   <option value="CH">Switzerland</option>
                   <option value="AT">Austria</option>
+                </select>
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Location</label>
+                <select
+                  style={styles.input}
+                  value={form.location_id}
+                  onChange={(e) =>
+                    setForm({ ...form, location_id: e.target.value })
+                  }
+                >
+                  <option value="">No location</option>
+                  {locations
+                    .filter((l) => l.country === form.country)
+                    .map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {"　".repeat(LEVEL_INDENT[loc.level] || 0)}
+                        {loc.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div style={styles.field}>
@@ -273,6 +344,19 @@ export default function Tasks() {
           <option value="on_hold">On Hold</option>
           <option value="cancelled">Cancelled</option>
         </select>
+
+        <select
+          style={styles.filterSelect}
+          value={filters.priority}
+          onChange={(e) => handleFilterChange("priority", e.target.value)}
+        >
+          <option value="">All priorities</option>
+          <option value="low">Low</option>
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+
         {user.role === "admin" && (
           <select
             style={styles.filterSelect}
@@ -280,12 +364,13 @@ export default function Tasks() {
             onChange={(e) => handleFilterChange("country", e.target.value)}
           >
             <option value="">All countries</option>
+            <option value="DE">Germany</option>
+            <option value="NL">Netherlands</option>
             <option value="US">United States</option>
             <option value="GB">United Kingdom</option>
             <option value="FR">France</option>
             <option value="ES">Spain</option>
             <option value="PL">Poland</option>
-            <option value="NL">Netherlands</option>
             <option value="SE">Sweden</option>
             <option value="NO">Norway</option>
             <option value="FI">Finland</option>
@@ -293,6 +378,35 @@ export default function Tasks() {
             <option value="AT">Austria</option>
           </select>
         )}
+
+        <select
+          style={styles.filterSelect}
+          value={filters.location_id}
+          onChange={(e) => handleFilterChange("location_id", e.target.value)}
+        >
+          <option value="">All locations</option>
+          {filteredLocations.map((loc) => (
+            <option key={loc.id} value={loc.id}>
+              {"　".repeat(LEVEL_INDENT[loc.level] || 0)}
+              {loc.name}
+            </option>
+          ))}
+        </select>
+
+        {filters.date_from && (
+          <span style={styles.dateTag}>
+            {filters.date_from === filters.date_to
+              ? filters.date_from
+              : `${filters.date_from} — ${filters.date_to}`}
+          </span>
+        )}
+
+        {hasActiveFilters && (
+          <button style={styles.clearBtn} onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
+
         <span style={styles.totalLabel}>Total: {pagination.total}</span>
       </div>
 
@@ -368,7 +482,7 @@ export default function Tasks() {
               <button
                 style={styles.pageBtn}
                 disabled={pagination.page === 1}
-                onClick={() => handlePageChange(pagination.page - 1)}
+                onClick={() => setFilters((p) => ({ ...p, page: p.page - 1 }))}
               >
                 Previous
               </button>
@@ -381,7 +495,7 @@ export default function Tasks() {
                       background: p === pagination.page ? "#667eea" : "white",
                       color: p === pagination.page ? "white" : "#667eea",
                     }}
-                    onClick={() => handlePageChange(p)}
+                    onClick={() => setFilters((prev) => ({ ...prev, page: p }))}
                   >
                     {p}
                   </button>
@@ -390,7 +504,7 @@ export default function Tasks() {
               <button
                 style={styles.pageBtn}
                 disabled={pagination.page === pagination.pages}
-                onClick={() => handlePageChange(pagination.page + 1)}
+                onClick={() => setFilters((p) => ({ ...p, page: p.page + 1 }))}
               >
                 Next
               </button>
@@ -471,6 +585,7 @@ const styles = {
     gap: "12px",
     marginBottom: "20px",
     alignItems: "center",
+    flexWrap: "wrap",
   },
   filterSelect: {
     padding: "8px 12px",
@@ -478,6 +593,23 @@ const styles = {
     borderRadius: "8px",
     fontSize: "14px",
     cursor: "pointer",
+  },
+  dateTag: {
+    padding: "8px 12px",
+    background: "#667eea20",
+    color: "#667eea",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "600",
+  },
+  clearBtn: {
+    padding: "8px 12px",
+    border: "2px solid #ef4444",
+    borderRadius: "8px",
+    fontSize: "13px",
+    cursor: "pointer",
+    background: "white",
+    color: "#ef4444",
   },
   totalLabel: { marginLeft: "auto", color: "#888", fontSize: "14px" },
   grid: {

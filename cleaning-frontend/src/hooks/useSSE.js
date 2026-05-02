@@ -1,36 +1,33 @@
 import { useEffect, useRef } from "react";
 
+const SSE_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:8080/events/stream"
+    : "https://https://odd-boats-wish.loca.lt/events/stream";
+
 export function useSSE(onEvent) {
-  const esRef = useRef(null);
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    const es = new EventSource(
-      `http://localhost:8080/events/stream?token=${token}`,
-    );
+    const es = new EventSource(`${SSE_URL}?token=${token}`);
 
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type !== "ping") {
-          onEvent(data);
+          onEventRef.current(data);
         }
-      } catch (e) {
-        console.error("SSE parse error:", e);
-      }
+      } catch (e) {}
     };
 
-    es.onerror = (err) => {
-      console.error("SSE error:", err);
+    es.onerror = () => {
       es.close();
     };
 
-    esRef.current = es;
-
-    return () => {
-      es.close();
-    };
+    return () => es.close();
   }, []);
 }

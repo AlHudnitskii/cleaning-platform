@@ -1,7 +1,7 @@
 import pytest
 import pytest_asyncio
 import asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -34,7 +34,7 @@ async def admin_token():
 async def manager_token():
     async with AsyncClient(base_url="http://localhost:7071") as client:
         response = await client.post("/api/auth/login", json={
-            "email": "manager@cleaning.com",
+            "email": "manager.de@cleaning.com",
             "password": "manager123"
         })
         return response.json()["access_token"]
@@ -44,7 +44,7 @@ async def manager_token():
 async def cleaner_token():
     async with AsyncClient(base_url="http://localhost:7071") as client:
         response = await client.post("/api/auth/login", json={
-            "email": "cleaner@cleaning.com",
+            "email": "cleaner1@cleaning.com",
             "password": "cleaner123"
         })
         return response.json()["access_token"]

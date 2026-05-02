@@ -8,7 +8,9 @@ pyjwt
 bcrypt==4.0.1
 aio-pika
 python-dotenv
+pywebpush
 pyarrow
+pytest-cov
 pandas
 openpyxl
 psycopg2-binary

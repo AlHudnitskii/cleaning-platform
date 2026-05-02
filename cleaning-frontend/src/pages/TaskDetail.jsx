@@ -2,17 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { useOfflineSync } from "../hooks/useOfflineSync";
 
 const STATUS_COLORS = {
   pending: "#f59e0b",
   in_progress: "#3b82f6",
   completed: "#10b981",
+  on_hold: "#94a3b8",
+  cancelled: "#ef4444",
 };
 
 const STATUS_LABELS = {
   pending: "Pending",
   in_progress: "In Progress",
   completed: "Completed",
+  on_hold: "On Hold",
+  cancelled: "Cancelled",
 };
 
 const PRIORITY_COLORS = {
@@ -35,6 +40,14 @@ const ROLE_LABELS = {
   cleaner: "Cleaner",
 };
 
+function isNetworkError(err) {
+  return (
+    !err.response ||
+    err.response?.status === 503 ||
+    err.response?.data?.offline === true
+  );
+}
+
 function StarRating({ value, onChange, readonly }) {
   return (
     <div style={styles.stars}>
@@ -49,7 +62,7 @@ function StarRating({ value, onChange, readonly }) {
           }}
           onClick={() => !readonly && onChange && onChange(star)}
         >
-          ★
+          *
         </span>
       ))}
     </div>
@@ -62,7 +75,11 @@ export default function TaskDetail() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
+  const { isOnline, queueStatusChange, markOffline, markOnline } =
+    useOfflineSync();
+
   const [task, setTask] = useState(null);
+  const [location, setLocation] = useState(null);
   const [comments, setComments] = useState([]);
   const [occurrences, setOccurrences] = useState([]);
   const [history, setHistory] = useState([]);
@@ -90,41 +107,68 @@ export default function TaskDetail() {
         client.get(`/tasks/${id}/history`),
         client.get(`/tasks/${id}/photos`),
       ]);
-      setTask(taskRes.data);
+      const taskData = taskRes.data;
+      setTask(taskData);
       setComments(commentsRes.data);
       setHistory(historyRes.data);
       setPhotos(photosRes.data);
+      markOnline();
 
-      if (taskRes.data.quality_score) {
-        setQualityScore(taskRes.data.quality_score);
-        setQualityComment(taskRes.data.quality_comment || "");
+      if (taskData.quality_score) {
+        setQualityScore(taskData.quality_score);
+        setQualityComment(taskData.quality_comment || "");
       }
 
-      if (taskRes.data.is_recurring) {
+      if (taskData.location_id) {
+        try {
+          const locRes = await client.get("/locations");
+          const found = locRes.data.find((l) => l.id === taskData.location_id);
+          setLocation(found || null);
+        } catch {}
+      }
+
+      if (taskData.is_recurring) {
         const occRes = await client.get(`/tasks/${id}/occurrences`);
         setOccurrences(occRes.data.next_occurrences);
       }
-    } catch {
-      navigate(-1);
+    } catch (err) {
+      if (isNetworkError(err)) {
+        markOffline();
+      } else {
+        navigate(-1);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleStatusChange = async (newStatus) => {
+    setTask((prev) => ({ ...prev, status: newStatus }));
+
+    if (!isOnline) {
+      queueStatusChange(id, newStatus);
+      return;
+    }
+
     try {
       const res = await client.patch(`/tasks/${id}/status`, {
         status: newStatus,
       });
       setTask(res.data);
+      markOnline();
       const historyRes = await client.get(`/tasks/${id}/history`);
       setHistory(historyRes.data);
-    } catch {}
+    } catch (err) {
+      if (isNetworkError(err)) {
+        markOffline();
+        queueStatusChange(id, newStatus);
+      }
+    }
   };
 
   const handleAddComment = async (e) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || !isOnline) return;
     setSubmitting(true);
     try {
       const res = await client.post(`/tasks/${id}/comments`, {
@@ -132,7 +176,9 @@ export default function TaskDetail() {
       });
       setComments((prev) => [...prev, res.data]);
       setCommentText("");
-    } catch {
+      markOnline();
+    } catch (err) {
+      if (isNetworkError(err)) markOffline();
     } finally {
       setSubmitting(false);
     }
@@ -140,7 +186,7 @@ export default function TaskDetail() {
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !isOnline) return;
     setUploadingPhoto(true);
     const formData = new FormData();
     formData.append("photo", file);
@@ -150,7 +196,9 @@ export default function TaskDetail() {
       });
       const photosRes = await client.get(`/tasks/${id}/photos`);
       setPhotos(photosRes.data);
-    } catch {
+      markOnline();
+    } catch (err) {
+      if (isNetworkError(err)) markOffline();
     } finally {
       setUploadingPhoto(false);
     }
@@ -158,7 +206,7 @@ export default function TaskDetail() {
 
   const handleQualityReview = async (e) => {
     e.preventDefault();
-    if (!qualityScore) return;
+    if (!qualityScore || !isOnline) return;
     setSubmittingReview(true);
     try {
       const res = await client.post(`/tasks/${id}/quality`, {
@@ -167,8 +215,10 @@ export default function TaskDetail() {
       });
       setTask(res.data);
       setReviewSuccess(true);
+      markOnline();
       setTimeout(() => setReviewSuccess(false), 3000);
-    } catch {
+    } catch (err) {
+      if (isNetworkError(err)) markOffline();
     } finally {
       setSubmittingReview(false);
     }
@@ -185,6 +235,12 @@ export default function TaskDetail() {
       <button style={styles.backBtn} onClick={() => navigate(-1)}>
         Back
       </button>
+
+      {!isOnline && (
+        <div style={styles.offlineBanner}>
+          Offline mode — status changes will sync when connection is restored
+        </div>
+      )}
 
       <div style={styles.grid}>
         <div style={styles.left}>
@@ -225,6 +281,15 @@ export default function TaskDetail() {
                 <span style={styles.metaLabel}>Country</span>
                 <span style={styles.metaValue}>{task.country}</span>
               </div>
+              {location && (
+                <div style={styles.metaItem}>
+                  <span style={styles.metaLabel}>Location</span>
+                  <div>
+                    <div style={styles.metaValue}>{location.name}</div>
+                    <div style={styles.metaPath}>{location.path}</div>
+                  </div>
+                </div>
+              )}
               <div style={styles.metaItem}>
                 <span style={styles.metaLabel}>Created</span>
                 <span style={styles.metaValue}>
@@ -271,16 +336,20 @@ export default function TaskDetail() {
                 onChange={handlePhotoUpload}
               />
               <button
-                style={styles.photoBtn}
-                onClick={() => fileInputRef.current.click()}
-                disabled={uploadingPhoto}
+                style={{ ...styles.photoBtn, opacity: !isOnline ? 0.5 : 1 }}
+                onClick={() => isOnline && fileInputRef.current.click()}
+                disabled={uploadingPhoto || !isOnline}
               >
-                {uploadingPhoto ? "Uploading..." : "Upload Photo"}
+                {uploadingPhoto
+                  ? "Uploading..."
+                  : !isOnline
+                    ? "Photo unavailable offline"
+                    : "Upload Photo"}
               </button>
             </div>
           </div>
 
-          {canReview && (
+          {canReview && isOnline && (
             <div style={styles.card}>
               <h2 style={styles.sectionTitle}>Quality Review</h2>
               {reviewSuccess && (
@@ -432,19 +501,27 @@ export default function TaskDetail() {
 
                 <form onSubmit={handleAddComment} style={styles.commentForm}>
                   <textarea
-                    style={styles.textarea}
+                    style={{ ...styles.textarea, opacity: !isOnline ? 0.5 : 1 }}
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Write a comment..."
+                    placeholder={
+                      isOnline
+                        ? "Write a comment..."
+                        : "Comments unavailable offline"
+                    }
                     rows={3}
+                    disabled={!isOnline}
                   />
                   <button
                     style={{
                       ...styles.primaryBtn,
-                      opacity: submitting ? 0.7 : 1,
+                      opacity:
+                        submitting || !commentText.trim() || !isOnline
+                          ? 0.7
+                          : 1,
                     }}
                     type="submit"
-                    disabled={submitting || !commentText.trim()}
+                    disabled={submitting || !commentText.trim() || !isOnline}
                   >
                     {submitting ? "Sending..." : "Send"}
                   </button>
@@ -473,11 +550,14 @@ export default function TaskDetail() {
                               style={{
                                 ...styles.historyBadge,
                                 background:
-                                  STATUS_COLORS[item.old_status] + "20",
-                                color: STATUS_COLORS[item.old_status],
+                                  (STATUS_COLORS[item.old_status] ||
+                                    "#94a3b8") + "20",
+                                color:
+                                  STATUS_COLORS[item.old_status] || "#94a3b8",
                               }}
                             >
-                              {STATUS_LABELS[item.old_status]}
+                              {STATUS_LABELS[item.old_status] ||
+                                item.old_status}
                             </span>
                             <span style={styles.historyArrow}>→</span>
                           </>
@@ -485,11 +565,13 @@ export default function TaskDetail() {
                         <span
                           style={{
                             ...styles.historyBadge,
-                            background: STATUS_COLORS[item.new_status] + "20",
-                            color: STATUS_COLORS[item.new_status],
+                            background:
+                              (STATUS_COLORS[item.new_status] || "#94a3b8") +
+                              "20",
+                            color: STATUS_COLORS[item.new_status] || "#94a3b8",
                           }}
                         >
-                          {STATUS_LABELS[item.new_status]}
+                          {STATUS_LABELS[item.new_status] || item.new_status}
                         </span>
                       </div>
                       <div style={styles.historyMeta}>
@@ -513,6 +595,15 @@ export default function TaskDetail() {
 const styles = {
   page: { padding: "24px", maxWidth: "1200px", margin: "0 auto" },
   center: { textAlign: "center", padding: "60px", color: "#888" },
+  offlineBanner: {
+    padding: "10px 16px",
+    background: "#fef3c7",
+    color: "#92400e",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    marginBottom: "16px",
+  },
   backBtn: {
     padding: "8px 16px",
     background: "white",
@@ -572,6 +663,12 @@ const styles = {
     textTransform: "uppercase",
   },
   metaValue: { fontSize: "14px", color: "#333" },
+  metaPath: {
+    fontSize: "11px",
+    color: "#aaa",
+    fontFamily: "monospace",
+    marginTop: "2px",
+  },
   statusSection: {
     display: "flex",
     flexDirection: "column",

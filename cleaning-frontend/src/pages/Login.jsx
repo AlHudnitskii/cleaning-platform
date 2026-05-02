@@ -22,6 +22,7 @@ export default function Login() {
         navigate("/tasks");
       }
     } catch (err) {
+      alert("host: " + window.location.hostname + " | err: " + err.message);
       setError("Wrong email or password");
     } finally {
       setLoading(false);
@@ -49,7 +50,7 @@ export default function Login() {
             />
           </div>
           <div style={styles.field}>
-            <label style={styles.label}>Пароль</label>
+            <label style={styles.label}>Password</label>
             <input
               style={styles.input}
               type="password"

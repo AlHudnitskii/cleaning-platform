@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 from src.domain.models.enums import UserRole
 
 SECRET_KEY = "your-secret-key-change-in-production"
+REFRESH_SECRET_KEY = "your-refresh-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 
 def hash_password(password: str) -> str:
@@ -23,10 +25,25 @@ def create_access_token(user_id: str, email: str, role: UserRole, country: str |
         "email": email,
         "role": role,
         "country": country,
-        "exp": expire
+        "exp": expire,
+        "type": "access"
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def create_refresh_token(user_id: str) -> str:
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    payload = {
+        "sub": user_id,
+        "exp": expire,
+        "type": "refresh"
+    }
+    return jwt.encode(payload, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+
+
 def decode_token(token: str) -> dict:
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+
+def decode_refresh_token(token: str) -> dict:
+    return jwt.decode(token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])

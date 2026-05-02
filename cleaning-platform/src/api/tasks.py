@@ -8,13 +8,12 @@ from datetime import datetime
 from pydantic import ValidationError
 from sqlalchemy import text
 
-
 from src.api.events import broadcast_event
 from src.infrastructure.auth.middleware import get_current_user, AuthError
 from src.infrastructure.database.connection import AsyncSessionLocal
 from src.infrastructure.database.models import Task
 from src.infrastructure.blob.storage import upload_photo, get_photos_for_task
-from src.infrastructure.messaging.rabbitmq import publish_message
+from src.infrastructure.messaging.rabbitmq import publish_task_created, publish_task_status_changed
 from src.domain.models.enums import UserRole
 from src.domain.models.task import TaskCreate, TaskResponse
 
@@ -38,8 +37,6 @@ async def create_task(req: func.HttpRequest) -> func.HttpResponse:
             status_code=403,
             mimetype="application/json"
         )
-
-    logging.info("Creating new task")
 
     try:
         body = req.get_json()
@@ -92,36 +89,13 @@ async def create_task(req: func.HttpRequest) -> func.HttpResponse:
         await session.commit()
         await session.refresh(task)
 
-    if task_data.assigned_to:
-        try:
-            async with AsyncSessionLocal() as push_session:
-                result = await push_session.execute(
-                    text("SELECT * FROM push_subscriptions WHERE user_id = :user_id"),
-                    {"user_id": task_data.assigned_to}
-                )
-                subscriptions = result.fetchall()
-
-            from src.infrastructure.push.notifications import send_push_notification
-            for sub in subscriptions:
-                await send_push_notification(
-                    endpoint=sub.endpoint,
-                    p256dh=sub.p256dh,
-                    auth=sub.auth,
-                    title="Новая задача",
-                    body=f"Вам назначена задача: {task_data.title}"
-                )
-        except Exception as e:
-            logging.error(f"Failed to send push: {e}")
-
-
-    await publish_message("task.created", {
-        "task_id": str(task.id),
-        "title": task.title,
-        "status": task.status,
-        "country": task.country,
-        "location_id": str(task.location_id) if task.location_id else None,
-        "created_at": task.created_at.isoformat()
-    })
+    await publish_task_created(
+        task_id=str(task.id),
+        title=task.title,
+        country=task.country,
+        assigned_to=str(task.assigned_to) if task.assigned_to else None,
+        location_id=str(task.location_id) if task.location_id else None,
+    )
 
     response = TaskResponse.model_validate(task)
     return func.HttpResponse(
@@ -160,6 +134,7 @@ async def get_tasks(req: func.HttpRequest) -> func.HttpResponse:
     status_filter = req.params.get("status")
     country_filter = req.params.get("country")
     location_id_filter = req.params.get("location_id")
+    priority_filter = req.params.get("priority")
     date_from = req.params.get("date_from")
     date_to = req.params.get("date_to")
 
@@ -180,6 +155,10 @@ async def get_tasks(req: func.HttpRequest) -> func.HttpResponse:
     if status_filter:
         conditions.append("status = :status")
         params["status"] = status_filter
+
+    if priority_filter:
+        conditions.append("priority = :priority")
+        params["priority"] = priority_filter
 
     if location_id_filter:
         conditions.append("location_id = :location_id")
@@ -223,6 +202,9 @@ async def get_tasks(req: func.HttpRequest) -> func.HttpResponse:
             country=row.country,
             location_id=row.location_id,
             assigned_to=row.assigned_to,
+            rrule=row.rrule,
+            is_recurring=row.is_recurring,
+            priority=row.priority,
             created_at=row.created_at
         ).model_dump_json())
         for row in tasks
@@ -295,6 +277,13 @@ async def get_task(req: func.HttpRequest) -> func.HttpResponse:
         country=task.country,
         location_id=task.location_id,
         assigned_to=task.assigned_to,
+        rrule=task.rrule,
+        is_recurring=task.is_recurring,
+        priority=task.priority,
+        quality_score=task.quality_score,
+        quality_comment=task.quality_comment,
+        quality_reviewed_by=task.quality_reviewed_by,
+        quality_reviewed_at=task.quality_reviewed_at,
         created_at=task.created_at
     )
     return func.HttpResponse(
@@ -344,22 +333,6 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
             mimetype="application/json"
         )
-
-    if new_status == "completed" and task.status == "on_review":
-        if user["role"] not in [UserRole.ADMIN, UserRole.MANAGER]:
-            return func.HttpResponse(
-                json.dumps({"error": "Only admin or manager can complete a task that is on review"}),
-                status_code=403,
-                mimetype="application/json"
-            )
-
-    if new_status == "on_review":
-        if user["role"] != UserRole.CLEANER:
-            return func.HttpResponse(
-                json.dumps({"error": "Only cleaner can submit task for review"}),
-                status_code=403,
-                mimetype="application/json"
-            )
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -432,6 +405,13 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logging.error(f"SSE broadcast failed: {e}")
 
+    await publish_task_status_changed(
+        task_id=task_id,
+        title=task.title,
+        old_status=old_status,
+        new_status=new_status,
+        assigned_to=str(task.assigned_to) if task.assigned_to else None,
+    )
 
     response = TaskResponse(
         id=task.id,
@@ -441,6 +421,9 @@ async def update_task_status(req: func.HttpRequest) -> func.HttpResponse:
         country=task.country,
         location_id=task.location_id,
         assigned_to=task.assigned_to,
+        rrule=task.rrule,
+        is_recurring=task.is_recurring,
+        priority=task.priority,
         created_at=task.created_at
     )
     return func.HttpResponse(
@@ -565,12 +548,7 @@ async def upload_task_photo(req: func.HttpRequest) -> func.HttpResponse:
         await session.commit()
 
     return func.HttpResponse(
-        json.dumps({
-            "id": str(photo_id),
-            "task_id": task_id,
-            "url": url,
-            "filename": filename
-        }),
+        json.dumps({"id": str(photo_id), "task_id": task_id, "url": url, "filename": filename}),
         status_code=201,
         mimetype="application/json"
     )
@@ -612,6 +590,7 @@ async def get_task_photos(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         mimetype="application/json"
     )
+
 
 @bp.route(route="tasks/{task_id}/history", methods=["GET"])
 async def get_task_history(req: func.HttpRequest) -> func.HttpResponse:
@@ -666,6 +645,7 @@ async def get_task_history(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         mimetype="application/json"
     )
+
 
 @bp.route(route="tasks/{task_id}/occurrences", methods=["GET"])
 async def get_task_occurrences(req: func.HttpRequest) -> func.HttpResponse:
@@ -722,6 +702,7 @@ async def get_task_occurrences(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         mimetype="application/json"
     )
+
 
 @bp.route(route="tasks/{task_id}/comments", methods=["POST"])
 async def add_comment(req: func.HttpRequest) -> func.HttpResponse:
@@ -869,6 +850,7 @@ async def get_comments(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         mimetype="application/json"
     )
+
 
 @bp.route(route="tasks/{task_id}/quality", methods=["POST"])
 async def review_quality(req: func.HttpRequest) -> func.HttpResponse:

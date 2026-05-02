@@ -6,14 +6,18 @@ import TaskDetail from "./pages/TaskDetail";
 import MyTasks from "./pages/MyTasks";
 import Locations from "./pages/Locations";
 import Export from "./pages/Export";
+import Import from "./pages/Import";
 import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
+import Users from "./pages/Users";
+import Profile from "./pages/Profile";
+import Reports from "./pages/Reports";
 
 function PrivateRoute({ children, roles }) {
   const { user, loading } = useAuth();
   if (loading)
     return (
-      <div style={{ padding: "40px", textAlign: "center" }}>Загрузка...</div>
+      <div style={{ padding: "40px", textAlign: "center" }}>Loading...</div>
     );
   if (!user) return <Navigate to="/login" />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
@@ -41,6 +45,30 @@ function AppRoutes() {
           element={
             <PrivateRoute roles={["admin", "manager"]}>
               <Dashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <PrivateRoute roles={["admin", "manager"]}>
+              <Reports />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <PrivateRoute roles={["admin"]}>
+              <Users />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
             </PrivateRoute>
           }
         />
@@ -73,6 +101,14 @@ function AppRoutes() {
           element={
             <PrivateRoute roles={["admin", "manager"]}>
               <Export />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/import"
+          element={
+            <PrivateRoute roles={["admin", "manager"]}>
+              <Import />
             </PrivateRoute>
           }
         />

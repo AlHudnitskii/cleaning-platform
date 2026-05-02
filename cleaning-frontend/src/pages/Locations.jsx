@@ -10,6 +10,86 @@ const LEVEL_LABELS = {
   room: "Room",
 };
 
+const LEVEL_COLORS = {
+  country: "#667eea",
+  city: "#3b82f6",
+  building: "#10b981",
+  floor: "#f59e0b",
+  room: "#94a3b8",
+};
+
+function buildTree(locations) {
+  const map = {};
+  const roots = [];
+
+  locations.forEach((loc) => {
+    map[loc.id] = { ...loc, children: [] };
+  });
+
+  locations.forEach((loc) => {
+    if (loc.parent_id && map[loc.parent_id]) {
+      map[loc.parent_id].children.push(map[loc.id]);
+    } else {
+      roots.push(map[loc.id]);
+    }
+  });
+
+  return roots;
+}
+
+function TreeNode({ node, depth = 0 }) {
+  const [expanded, setExpanded] = useState(depth < 2);
+  const hasChildren = node.children && node.children.length > 0;
+
+  return (
+    <div style={{ marginLeft: depth === 0 ? 0 : 20 }}>
+      <div
+        style={{
+          ...styles.node,
+          borderLeft: `3px solid ${LEVEL_COLORS[node.level]}`,
+        }}
+      >
+        <div style={styles.nodeLeft}>
+          {hasChildren ? (
+            <button
+              style={styles.toggleBtn}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "-" : "+"}
+            </button>
+          ) : (
+            <div style={styles.togglePlaceholder} />
+          )}
+          <div>
+            <div style={styles.nodeName}>{node.name}</div>
+            <div style={styles.nodePath}>{node.path}</div>
+          </div>
+        </div>
+        <div style={styles.nodeRight}>
+          <span
+            style={{
+              ...styles.levelBadge,
+              background: LEVEL_COLORS[node.level] + "20",
+              color: LEVEL_COLORS[node.level],
+            }}
+          >
+            {LEVEL_LABELS[node.level]}
+          </span>
+          <span style={styles.nodeCountry}>{node.country}</span>
+        </div>
+      </div>
+
+      {expanded && hasChildren && (
+        <div style={styles.children}>
+          {node.children.map((child) => (
+            <TreeNode key={child.id} node={child} depth={depth + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Locations() {
   const { user } = useAuth();
   const [locations, setLocations] = useState([]);
@@ -22,12 +102,13 @@ export default function Locations() {
     parent_id: "",
   });
   const [error, setError] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
 
   useEffect(() => {
-    fetchRootLocations();
+    fetchLocations();
   }, []);
 
-  const fetchRootLocations = async () => {
+  const fetchLocations = async () => {
     try {
       const res = await client.get("/locations");
       setLocations(res.data);
@@ -42,35 +123,61 @@ export default function Locations() {
     e.preventDefault();
     setError("");
     try {
-      const payload = {
+      await client.post("/locations", {
         name: form.name,
         country: form.country,
         level: form.level,
         parent_id: form.parent_id || undefined,
-      };
-      await client.post("/locations", payload);
+      });
       setShowForm(false);
       setForm({ name: "", country: "DE", level: "country", parent_id: "" });
-      fetchRootLocations();
+      fetchLocations();
     } catch (err) {
       setError(err.response?.data?.error || "Location creating error");
     }
   };
 
-  if (loading) return <div style={styles.center}>Download...</div>;
+  const filtered = countryFilter
+    ? locations.filter((l) => l.country === countryFilter)
+    : locations;
+
+  const tree = buildTree(filtered);
+
+  if (loading) return <div style={styles.center}>Loading...</div>;
 
   return (
     <div style={styles.page}>
       <div style={styles.header}>
         <h1 style={styles.title}>Locations</h1>
-        {user.role === "admin" && (
-          <button
-            style={styles.primaryBtn}
-            onClick={() => setShowForm(!showForm)}
+        <div style={styles.headerRight}>
+          <select
+            style={styles.filterSelect}
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
           >
-            {showForm ? "Cancel" : "Create location"}
-          </button>
-        )}
+            <option value="">All countries</option>
+            <option value="DE">Germany</option>
+            <option value="NL">Netherlands</option>
+            <option value="US">United States</option>
+            <option value="GB">United Kingdom</option>
+            <option value="FR">France</option>
+            <option value="ES">Spain</option>
+            <option value="PL">Poland</option>
+            <option value="SE">Sweden</option>
+            <option value="NO">Norway</option>
+            <option value="FI">Finland</option>
+            <option value="CH">Switzerland</option>
+            <option value="AT">Austria</option>
+          </select>
+          {user.role === "admin" && (
+            <button
+              style={styles.primaryBtn}
+              onClick={() => setShowForm(!showForm)}
+            >
+              {showForm ? "Cancel" : "Create location"}
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -90,7 +197,7 @@ export default function Locations() {
                 />
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Страна</label>
+                <label style={styles.label}>Country</label>
                 <select
                   style={styles.input}
                   value={form.country}
@@ -99,9 +206,17 @@ export default function Locations() {
                   }
                 >
                   <option value="DE">Germany</option>
-                  <option value="DK">Denmark</option>
-                  <option value="IT">Italy</option>
-                  <option value="AU">Australia</option>
+                  <option value="NL">Netherlands</option>
+                  <option value="US">United States</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="FR">France</option>
+                  <option value="ES">Spain</option>
+                  <option value="PL">Poland</option>
+                  <option value="SE">Sweden</option>
+                  <option value="NO">Norway</option>
+                  <option value="FI">Finland</option>
+                  <option value="CH">Switzerland</option>
+                  <option value="AT">Austria</option>
                 </select>
               </div>
               <div style={styles.field}>
@@ -119,15 +234,23 @@ export default function Locations() {
                 </select>
               </div>
               <div style={styles.field}>
-                <label style={styles.label}>Parent ID (optional)</label>
-                <input
+                <label style={styles.label}>Parent location</label>
+                <select
                   style={styles.input}
                   value={form.parent_id}
                   onChange={(e) =>
                     setForm({ ...form, parent_id: e.target.value })
                   }
-                  placeholder="Parent's location IUUID "
-                />
+                >
+                  <option value="">No parent</option>
+                  {locations
+                    .filter((l) => l.country === form.country)
+                    .map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.path}
+                      </option>
+                    ))}
+                </select>
               </div>
             </div>
             <button style={styles.primaryBtn} type="submit">
@@ -137,19 +260,21 @@ export default function Locations() {
         </div>
       )}
 
-      <div style={styles.grid}>
-        {locations.length === 0 && (
-          <div style={styles.empty}>No locations yet</div>
-        )}
-        {locations.map((loc) => (
-          <div key={loc.id} style={styles.card}>
-            <div style={styles.cardHeader}>
-              <span style={styles.locName}>{loc.name}</span>
-              <span style={styles.levelBadge}>{LEVEL_LABELS[loc.level]}</span>
-            </div>
-            <p style={styles.path}>{loc.path}</p>
-            <span style={styles.country}>{loc.country}</span>
+      <div style={styles.legend}>
+        {Object.entries(LEVEL_LABELS).map(([level, label]) => (
+          <div key={level} style={styles.legendItem}>
+            <div
+              style={{ ...styles.legendDot, background: LEVEL_COLORS[level] }}
+            />
+            <span>{label}</span>
           </div>
+        ))}
+      </div>
+
+      <div style={styles.tree}>
+        {tree.length === 0 && <div style={styles.empty}>No locations yet</div>}
+        {tree.map((node) => (
+          <TreeNode key={node.id} node={node} depth={0} />
         ))}
       </div>
     </div>
@@ -157,20 +282,23 @@ export default function Locations() {
 }
 
 const styles = {
-  page: { padding: "24px", maxWidth: "1200px", margin: "0 auto" },
+  page: { padding: "24px", maxWidth: "1000px", margin: "0 auto" },
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "24px",
   },
+  headerRight: { display: "flex", gap: "12px", alignItems: "center" },
   title: { margin: 0, fontSize: "28px", color: "#1a1a2e" },
   center: { textAlign: "center", padding: "60px", color: "#888" },
-  empty: {
-    textAlign: "center",
-    padding: "60px",
-    color: "#888",
-    gridColumn: "1/-1",
+  empty: { textAlign: "center", padding: "60px", color: "#888" },
+  filterSelect: {
+    padding: "8px 12px",
+    border: "2px solid #eee",
+    borderRadius: "8px",
+    fontSize: "14px",
+    cursor: "pointer",
   },
   formCard: {
     background: "white",
@@ -210,39 +338,63 @@ const styles = {
     marginBottom: "16px",
     fontSize: "14px",
   },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+  legend: {
+    display: "flex",
     gap: "16px",
+    marginBottom: "16px",
+    flexWrap: "wrap",
   },
-  card: {
+  legendItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "13px",
+    color: "#555",
+  },
+  legendDot: { width: "10px", height: "10px", borderRadius: "50%" },
+  tree: {
     background: "white",
     borderRadius: "12px",
-    padding: "20px",
+    padding: "16px",
     boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
   },
-  cardHeader: {
+  node: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "8px",
+    padding: "10px 12px",
+    marginBottom: "6px",
+    background: "#f8f9fa",
+    borderRadius: "8px",
   },
-  locName: { fontWeight: "600", fontSize: "16px", color: "#1a1a2e" },
+  nodeLeft: { display: "flex", alignItems: "center", gap: "10px" },
+  nodeRight: { display: "flex", alignItems: "center", gap: "10px" },
+  nodeName: { fontSize: "14px", fontWeight: "600", color: "#1a1a2e" },
+  nodePath: { fontSize: "11px", color: "#aaa", fontFamily: "monospace" },
+  nodeCountry: { fontSize: "12px", color: "#999" },
   levelBadge: {
-    padding: "4px 10px",
+    padding: "3px 8px",
     borderRadius: "20px",
-    fontSize: "12px",
+    fontSize: "11px",
     fontWeight: "600",
-    background: "#667eea20",
-    color: "#667eea",
   },
-  path: {
-    fontSize: "13px",
-    color: "#888",
-    margin: "4px 0",
-    fontFamily: "monospace",
+  toggleBtn: {
+    width: "22px",
+    height: "22px",
+    border: "2px solid #ddd",
+    borderRadius: "4px",
+    background: "white",
+    cursor: "pointer",
+    fontSize: "14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    fontWeight: "700",
+    color: "#555",
   },
-  country: { fontSize: "12px", color: "#999" },
+  togglePlaceholder: { width: "22px", height: "22px", flexShrink: 0 },
+  children: { marginTop: "4px" },
   primaryBtn: {
     padding: "10px 20px",
     background: "#667eea",

@@ -8,7 +8,10 @@ from pydantic import ValidationError
 from sqlalchemy import text
 
 from src.infrastructure.database.connection import AsyncSessionLocal
-from src.infrastructure.auth.jwt_handler import hash_password, verify_password, create_access_token
+from src.infrastructure.auth.jwt_handler import (
+    hash_password, verify_password,
+    create_access_token, create_refresh_token, decode_refresh_token
+)
 from src.domain.models.user import UserRegister, UserLogin, UserResponse, TokenResponse
 
 bp = func.Blueprint()
@@ -72,12 +75,12 @@ async def register(req: func.HttpRequest) -> func.HttpResponse:
         )
         user = result.fetchone()
 
-    token = create_access_token(
-        str(user.id), user.email, user.role, user.country
-    )
+    access_token = create_access_token(str(user.id), user.email, user.role, user.country)
+    refresh_token = create_refresh_token(str(user.id))
 
     response = TokenResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         user=UserResponse(
             id=user.id,
             email=user.email,
@@ -137,12 +140,12 @@ async def login(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json"
         )
 
-    token = create_access_token(
-        str(user.id), user.email, user.role, user.country
-    )
+    access_token = create_access_token(str(user.id), user.email, user.role, user.country)
+    refresh_token = create_refresh_token(str(user.id))
 
     response = TokenResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         user=UserResponse(
             id=user.id,
             email=user.email,
@@ -159,9 +162,74 @@ async def login(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
+@bp.route(route="auth/refresh", methods=["POST"])
+async def refresh(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("Refreshing token")
+
+    try:
+        body = req.get_json()
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    refresh_token = body.get("refresh_token")
+    if not refresh_token:
+        return func.HttpResponse(
+            json.dumps({"error": "refresh_token is required"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    try:
+        payload = decode_refresh_token(refresh_token)
+    except Exception:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid or expired refresh token"}),
+            status_code=401,
+            mimetype="application/json"
+        )
+
+    if payload.get("type") != "refresh":
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid token type"}),
+            status_code=401,
+            mimetype="application/json"
+        )
+
+    user_id = payload.get("sub")
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("SELECT * FROM users WHERE id = :id"),
+            {"id": uuid.UUID(user_id)}
+        )
+        user = result.fetchone()
+
+    if not user or not user.is_active:
+        return func.HttpResponse(
+            json.dumps({"error": "User not found or disabled"}),
+            status_code=401,
+            mimetype="application/json"
+        )
+
+    new_access_token = create_access_token(str(user.id), user.email, user.role, user.country)
+    new_refresh_token = create_refresh_token(str(user.id))
+
+    return func.HttpResponse(
+        json.dumps({
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+        }),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+
 @bp.route(route="auth/me", methods=["GET"])
 async def me(req: func.HttpRequest) -> func.HttpResponse:
-    """Получить текущего пользователя по токену"""
     from src.infrastructure.auth.middleware import get_current_user, AuthError
 
     try:

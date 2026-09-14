@@ -17,13 +17,24 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    const response = await client.post("/auth/login", { email, password });
-    const { access_token, refresh_token, user } = response.data;
-    localStorage.setItem("token", access_token);
-    localStorage.setItem("refresh_token", refresh_token);
-    localStorage.setItem("user", JSON.stringify(user));
-    setUser(user);
-    return user;
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        "POST",
+        `http://${window.location.hostname}:7071/api/auth/login`,
+      );
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.onload = () => {
+        const data = JSON.parse(xhr.responseText);
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        setUser(data.user);
+        resolve(data.user);
+      };
+      xhr.onerror = () => reject(new Error("Network Error"));
+      xhr.send(JSON.stringify({ email, password }));
+    });
   };
 
   const logout = () => {

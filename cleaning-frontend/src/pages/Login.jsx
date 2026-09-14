@@ -22,13 +22,17 @@ export default function Login() {
         navigate("/tasks");
       }
     } catch (err) {
-      alert("host: " + window.location.hostname + " | err: " + err.message);
       setError("Wrong email or password");
     } finally {
       setLoading(false);
     }
   };
-
+  console.log(
+    "BASE_URL:",
+    window.location.hostname === "localhost"
+      ? "/api"
+      : `http://${window.location.hostname}:7071/api`,
+  );
   return (
     <div style={styles.container}>
       <div style={styles.card}>

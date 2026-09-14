@@ -13,11 +13,7 @@
     }
   },
   "cors": {
-    "allowedOrigins": [
-      "http://localhost:3000",
-      "http://192.168.0.186:3000",
-      "https://scanner-progressive-theory-ing.trycloudflare.com"
-    ],
+    "allowedOrigins": ["*"],
     "supportCredentials": false
   }
 }

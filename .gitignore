@@ -27,10 +27,16 @@ project.lock.json
 appsettings.json
 local.settings.json
 
-node_modules
-dist
+__blobstorage__
+__queuestorage__
+__azurite_db*__.json
 
 .python_packages/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 
 .env
 .venv
@@ -40,10 +46,48 @@ ENV/
 env.bak/
 venv.bak/
 
-__pycache__/
-*.py[cod]
-*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+*.egg
 
-__blobstorage__
-__queuestorage__
-__azurite_db*__.json
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+secrets.json
+
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+*.log
+logs/
+
+*.pid
+*.seed
+*.pid.lock

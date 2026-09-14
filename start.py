@@ -120,6 +120,7 @@ if __name__ == "__main__":
     else:
         env["PATH"] = venv_bin + ":" + env.get("PATH", "")
     env["PYTHONPATH"] = BACKEND_DIR
+    env["languageWorkers__python__defaultExecutablePath"] = venv_python
 
     log("FUNC", f"Using python: {venv_python}")
 

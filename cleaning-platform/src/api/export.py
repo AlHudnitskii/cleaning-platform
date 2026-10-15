@@ -1,158 +1,91 @@
-import azure.functions as func
 import logging
-import json
-from datetime import datetime
+import uuid
+from datetime import UTC, datetime
+from enum import StrEnum
 
-from sqlalchemy import text
+import azure.functions as func
+from azure.core.exceptions import AzureError
+from sqlalchemy import select
 
-from src.infrastructure.database.connection import AsyncSessionLocal
-from src.infrastructure.auth.middleware import get_current_user, AuthError
-from src.infrastructure.export.exporter import tasks_to_dataframe, export_to_parquet, export_to_excel
-from src.infrastructure.blob.storage import get_blob_service_client, CONTAINER_NAME
-from src.domain.models.enums import UserRole
+from src.api.http import ApiError, authenticated, parse_date, query_choice
+from src.api.task_store import day_end_exclusive, day_start
+from src.domain.models.enums import Country, UserRole
+from src.domain.models.user import CurrentUser
+from src.infrastructure.blob.storage import EXPORTS_CONTAINER, upload_blob
+from src.infrastructure.database.connection import session_scope
+from src.infrastructure.database.models import Location, Task, User
+from src.infrastructure.export.exporter import export_to_excel, export_to_parquet, tasks_to_dataframe
+
+logger = logging.getLogger(__name__)
 
 bp = func.Blueprint()
 
+MAX_EXPORT_DAYS = 366
+EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+class ExportFormat(StrEnum):
+    EXCEL = "excel"
+    PARQUET = "parquet"
+
 
 @bp.route(route="export/tasks", methods=["GET"])
-async def export_tasks(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Exporting tasks")
+@authenticated(UserRole.ADMIN, UserRole.MANAGER)
+async def export_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    raw_from, raw_to = req.params.get("date_from"), req.params.get("date_to")
+    if not raw_from or not raw_to:
+        raise ApiError(400, "date_from and date_to are required (YYYY-MM-DD)")
+    date_from, date_to = parse_date(raw_from, "date_from"), parse_date(raw_to, "date_to")
+    if date_from > date_to:
+        raise ApiError(400, "date_from must not be after date_to")
+    if (date_to - date_from).days > MAX_EXPORT_DAYS:
+        raise ApiError(400, f"Export period must not exceed {MAX_EXPORT_DAYS} days")
 
-    try:
-        user = get_current_user(req)
-    except AuthError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.message}),
-            status_code=e.status_code,
-            mimetype="application/json"
-        )
+    export_format = query_choice(req, "format", ExportFormat) or ExportFormat.PARQUET
+    country = user.country if user.is_manager else query_choice(req, "country", Country)
 
-    if user["role"] not in [UserRole.ADMIN, UserRole.MANAGER]:
-        return func.HttpResponse(
-            json.dumps({"error": "Insufficient permissions"}),
-            status_code=403,
-            mimetype="application/json"
-        )
+    stmt = (
+        select(Task, Location.name, User.email)
+        .outerjoin(Location, Task.location_id == Location.id)
+        .outerjoin(User, Task.assigned_to == User.id)
+        .where(Task.created_at >= day_start(date_from), Task.created_at < day_end_exclusive(date_to))
+        .order_by(Task.created_at.desc(), Task.id.desc())
+    )
+    if country:
+        stmt = stmt.where(Task.country == country)
 
-    date_from = req.params.get("date_from")
-    date_to = req.params.get("date_to")
-    export_format = req.params.get("format", "parquet")
-    country_filter = req.params.get("country")
+    async with session_scope() as session:
+        rows = (await session.execute(stmt)).all()
 
-    if not date_from or not date_to:
-        return func.HttpResponse(
-            json.dumps({"error": "date_from and date_to are required (YYYY-MM-DD)"}),
-            status_code=400,
-            mimetype="application/json"
-        )
+    df = tasks_to_dataframe(
+        [
+            {
+                "id": str(task.id),
+                "title": task.title,
+                "description": task.description or "",
+                "status": task.status,
+                "priority": task.priority,
+                "country": task.country,
+                "location": location_name or "",
+                "assignee": assignee_email or "",
+                "created_at": task.created_at.isoformat(),
+            }
+            for task, location_name, assignee_email in rows
+        ]
+    )
 
-    try:
-        dt_from = datetime.strptime(date_from, "%Y-%m-%d")
-        dt_to = datetime.strptime(date_to, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59
-        )
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid date format. Use YYYY-MM-DD"}),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    async with AsyncSessionLocal() as session:
-        if user["role"] == UserRole.MANAGER:
-            result = await session.execute(
-                text("""
-                    SELECT t.id, t.title, t.description, t.status,
-                           t.country, t.location_id, t.assigned_to, t.created_at
-                    FROM tasks t
-                    WHERE t.country = :country
-                    AND t.created_at BETWEEN :date_from AND :date_to
-                    ORDER BY t.created_at DESC
-                """),
-                {
-                    "country": user["country"],
-                    "date_from": dt_from,
-                    "date_to": dt_to
-                }
-            )
-        else:
-            if country_filter:
-                result = await session.execute(
-                    text("""
-                        SELECT t.id, t.title, t.description, t.status,
-                               t.country, t.location_id, t.assigned_to, t.created_at
-                        FROM tasks t
-                        WHERE t.country = :country
-                        AND t.created_at BETWEEN :date_from AND :date_to
-                        ORDER BY t.created_at DESC
-                    """),
-                    {
-                        "country": country_filter.upper(),
-                        "date_from": dt_from,
-                        "date_to": dt_to
-                    }
-                )
-            else:
-                result = await session.execute(
-                    text("""
-                        SELECT t.id, t.title, t.description, t.status,
-                               t.country, t.location_id, t.assigned_to, t.created_at
-                        FROM tasks t
-                        WHERE t.created_at BETWEEN :date_from AND :date_to
-                        ORDER BY t.created_at DESC
-                    """),
-                    {
-                        "date_from": dt_from,
-                        "date_to": dt_to
-                    }
-                )
-
-        rows = result.fetchall()
-
-    tasks = [
-        {
-            "id": str(row.id),
-            "title": row.title,
-            "description": row.description or "",
-            "status": row.status,
-            "country": row.country,
-            "location_id": str(row.location_id) if row.location_id else "",
-            "assigned_to": str(row.assigned_to) if row.assigned_to else "",
-            "created_at": row.created_at.isoformat()
-        }
-        for row in rows
-    ]
-
-    logging.info(f"Exporting {len(tasks)} tasks")
-
-    df = tasks_to_dataframe(tasks)
-
-    if export_format == "excel":
-        file_data = export_to_excel(df)
-        filename = f"tasks_{date_from}_{date_to}.xlsx"
-        content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if export_format == ExportFormat.EXCEL:
+        file_data, extension, content_type = export_to_excel(df), "xlsx", EXCEL_MIME
     else:
-        file_data = export_to_parquet(df)
-        filename = f"tasks_{date_from}_{date_to}.parquet"
-        content_type = "application/octet-stream"
+        file_data, extension, content_type = export_to_parquet(df), "parquet", "application/octet-stream"
 
+    filename = f"tasks_{date_from}_{date_to}.{extension}"
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    blob_name = f"{user.id}/{stamp}_{uuid.uuid4().hex[:8]}_{filename}"
     try:
-        client = get_blob_service_client()
-        blob_client = client.get_blob_client(
-            container="exports",
-            blob=filename
-        )
-        try:
-            client.create_container("exports")
-        except Exception:
-            pass
-
-        blob_client.upload_blob(file_data, overwrite=True)
-        blob_url = f"http://127.0.0.1:10000/devstoreaccount1/exports/{filename}"
-        logging.info(f"Export saved to blob: {blob_url}")
-    except Exception as e:
-        logging.error(f"Failed to save to blob: {e}")
-        blob_url = None
+        await upload_blob(EXPORTS_CONTAINER, blob_name, file_data, content_type)
+    except AzureError:
+        logger.exception("Failed to archive export", extra={"blob": blob_name})
 
     return func.HttpResponse(
         body=file_data,
@@ -160,7 +93,6 @@ async def export_tasks(req: func.HttpRequest) -> func.HttpResponse:
         mimetype=content_type,
         headers={
             "Content-Disposition": f"attachment; filename={filename}",
-            "X-Total-Tasks": str(len(tasks)),
-            "X-Blob-URL": blob_url or ""
-        }
+            "X-Total-Tasks": str(len(rows)),
+        },
     )

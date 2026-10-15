@@ -41,8 +41,19 @@ class LocationLevel(StrEnum):
     FLOOR = "floor"
     ROOM = "room"
 
+    @property
+    def depth(self) -> int:
+        return list(LocationLevel).index(self)
+
+
 class TaskPriority(StrEnum):
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
     URGENT = "urgent"
+
+
+class TaskSort(StrEnum):
+    CREATED_AT = "created_at"
+    PRIORITY = "priority"
+    STATUS = "status"

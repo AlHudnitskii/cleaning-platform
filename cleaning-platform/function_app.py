@@ -1,28 +1,37 @@
+import logging
+
 import azure.functions as func
-from src.api.tasks import bp as tasks_bp
-from src.api.locations import bp as locations_bp
+
 from src.api.auth import bp as auth_bp
-from src.api.export import bp as export_bp
 from src.api.docs import bp as docs_bp
-from src.api.stats import bp as stats_bp
-from src.api.push import bp as push_bp
-from src.api.events import bp as events_bp
-from src.api.users import bp as users_bp
-from src.api.reports import bp as reports_bp
-from src.api.sync import bp as sync_bp
+from src.api.export import bp as export_bp
 from src.api.import_tasks import bp as import_bp
+from src.api.locations import bp as locations_bp
+from src.api.push import bp as push_bp
+from src.api.stats import bp as stats_bp
+from src.api.sync import bp as sync_bp
+from src.api.task_activity import bp as task_activity_bp
+from src.api.tasks import bp as tasks_bp
+from src.api.users import bp as users_bp
+from src.settings import get_settings
 
-app = func.FunctionApp()
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
 
-app.register_functions(tasks_bp)
-app.register_functions(locations_bp)
-app.register_functions(auth_bp)
-app.register_functions(export_bp)
-app.register_functions(docs_bp)
-app.register_functions(stats_bp)
-app.register_functions(push_bp)
-app.register_functions(events_bp)
-app.register_functions(users_bp)
-app.register_functions(reports_bp)
-app.register_functions(sync_bp)
-app.register_functions(import_bp)
+get_settings()
+
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+for blueprint in (
+    auth_bp,
+    users_bp,
+    tasks_bp,
+    task_activity_bp,
+    locations_bp,
+    stats_bp,
+    import_bp,
+    export_bp,
+    sync_bp,
+    push_bp,
+    docs_bp,
+):
+    app.register_functions(blueprint)

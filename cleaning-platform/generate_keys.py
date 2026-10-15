@@ -1,14 +1,18 @@
+import sys
+from pathlib import Path
+
 from py_vapid import Vapid
 
-v = Vapid()
-v.generate_keys()
-v.save_key('private_key.pem')
-v.save_public_key('public_key.pem')
+PRIVATE_KEY = Path("private_key.pem")
+PUBLIC_KEY = Path("public_key.pem")
 
-print("Private key file: private_key.pem")
-print("Public key file: public_key.pem")
-print()
-print("Add to local.settings.json:")
-print(f'"VAPID_PRIVATE_KEY": "private_key.pem"')
-print(f'"VAPID_PUBLIC_KEY": "public_key.pem"')
-print(f'"VAPID_CLAIMS_EMAIL": "admin@cleaning.com"')
+if PRIVATE_KEY.exists() and "--force" not in sys.argv:
+    sys.exit(f"{PRIVATE_KEY} already exists. Pass --force to replace it.")
+
+vapid = Vapid()
+vapid.generate_keys()
+vapid.save_key(str(PRIVATE_KEY))
+vapid.save_public_key(str(PUBLIC_KEY))
+
+print(f"Wrote {PRIVATE_KEY} and {PUBLIC_KEY}")
+print('Set VAPID_PRIVATE_KEY="private_key.pem" in local.settings.json and .env')

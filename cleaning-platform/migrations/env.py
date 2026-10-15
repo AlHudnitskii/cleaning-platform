@@ -1,30 +1,26 @@
-import os
 from logging.config import fileConfig
-from sqlalchemy import create_engine
+
 from alembic import context
-from src.infrastructure.database.connection import Base
-from src.infrastructure.database.models import Task, Location, TaskPhoto, User
+from sqlalchemy import create_engine
+
+from src.infrastructure.database import models
+from src.settings import get_settings
 
 config = context.config
-fileConfig(config.config_file_name)
-target_metadata = Base.metadata
+if config.config_file_name:
+    fileConfig(config.config_file_name)
+
+target_metadata = models.Base.metadata
 
 
-def get_database_url():
-    raw_url = os.environ.get("DATABASE_URL", "")
-    if raw_url:
-        return raw_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-    return "postgresql+psycopg2://cleaning_user:cleaning_pass@127.0.0.1:5433/cleaning_db"
+def sync_database_url() -> str:
+    return get_settings().database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 
 
-def run_migrations_online():
-    connectable = create_engine(get_database_url())
-
+def run_migrations_online() -> None:
+    connectable = create_engine(sync_database_url())
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
         with context.begin_transaction():
             context.run_migrations()
 

@@ -1,135 +1,55 @@
+from typing import Any
+
 import azure.functions as func
-import logging
-import json
-import uuid
-from datetime import datetime
+from pydantic import ValidationError
 
-from sqlalchemy import text
-
-from src.infrastructure.database.connection import AsyncSessionLocal
-from src.infrastructure.auth.middleware import get_current_user, AuthError
-from src.infrastructure.messaging.rabbitmq import publish_task_status_changed
+from src.api.http import ApiError, authenticated, json_response, read_json, validation_details
+from src.api.task_store import change_status, last_status_change, load_visible_task
+from src.domain.models.task import SyncStatusChange
+from src.domain.models.user import CurrentUser
+from src.infrastructure.database.connection import session_scope
 
 bp = func.Blueprint()
 
+MAX_CHANGES = 200
+
+
+def sync_error(change: Any, message: str) -> dict[str, Any]:
+    task_id = change.get("task_id") if isinstance(change, dict) else None
+    return {"task_id": str(task_id) if task_id else None, "error": message}
+
 
 @bp.route(route="sync/batch", methods=["POST"])
-async def batch_sync(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Batch sync request")
-
-    try:
-        user = get_current_user(req)
-    except AuthError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.message}),
-            status_code=e.status_code,
-            mimetype="application/json"
-        )
-
-    try:
-        body = req.get_json()
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid JSON"}),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    changes = body.get("changes", [])
-    if not changes:
-        return func.HttpResponse(
-            json.dumps({"synced": 0, "errors": []}),
-            status_code=200,
-            mimetype="application/json"
-        )
+@authenticated()
+async def batch_sync(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    changes = read_json(req).get("changes", [])
+    if not isinstance(changes, list):
+        raise ApiError(400, "changes must be a list")
+    if len(changes) > MAX_CHANGES:
+        raise ApiError(400, f"At most {MAX_CHANGES} changes per batch")
 
     synced = 0
-    errors = []
+    errors: list[dict[str, Any]] = []
 
-    async with AsyncSessionLocal() as session:
-        for change in changes:
+    async with session_scope() as session, session.begin():
+        for raw in changes:
             try:
-                change_type = change.get("type")
-                task_id = change.get("task_id")
-                client_timestamp = change.get("timestamp")
+                change = SyncStatusChange.model_validate(raw)
+            except ValidationError as e:
+                details = "; ".join(f"{d['field']}: {d['message']}" for d in validation_details(e))
+                errors.append(sync_error(raw, details))
+                continue
 
-                if not task_id or not change_type:
-                    errors.append({"change": change, "error": "Missing task_id or type"})
-                    continue
+            try:
+                async with session.begin_nested():
+                    task = await load_visible_task(session, user, change.task_id, for_update=True)
+                    last_change = await last_status_change(session, task.id)
+                    if change.timestamp and last_change and last_change > change.timestamp:
+                        raise ApiError(409, "Task was changed on the server after this offline change")
+                    change_status(session, user, task, change.status)
+            except ApiError as e:
+                errors.append(sync_error(raw, e.message))
+                continue
+            synced += 1
 
-                try:
-                    task_uuid = uuid.UUID(task_id)
-                except ValueError:
-                    errors.append({"task_id": task_id, "error": "Invalid task ID"})
-                    continue
-
-                result = await session.execute(
-                    text("SELECT * FROM tasks WHERE id = :id"),
-                    {"id": task_uuid}
-                )
-                task = result.fetchone()
-
-                if not task:
-                    errors.append({"task_id": task_id, "error": "Task not found"})
-                    continue
-
-                if str(task.assigned_to) != user["sub"]:
-                    errors.append({"task_id": task_id, "error": "Access denied"})
-                    continue
-
-                if change_type == "status_change":
-                    new_status = change.get("status")
-                    if not new_status:
-                        errors.append({"task_id": task_id, "error": "Missing status"})
-                        continue
-
-                    allowed = ["pending", "in_progress", "completed", "on_hold"]
-                    if new_status not in allowed:
-                        errors.append({"task_id": task_id, "error": f"Invalid status: {new_status}"})
-                        continue
-
-                    old_status = task.status
-
-                    await session.execute(
-                        text("UPDATE tasks SET status = :status WHERE id = :id"),
-                        {"status": new_status, "id": task_uuid}
-                    )
-
-                    await session.execute(
-                        text("""
-                            INSERT INTO task_status_history
-                                (id, task_id, old_status, new_status, changed_by, changed_at)
-                            VALUES
-                                (:id, :task_id, :old_status, :new_status, :changed_by, :changed_at)
-                        """),
-                        {
-                            "id": uuid.uuid4(),
-                            "task_id": task_uuid,
-                            "old_status": old_status,
-                            "new_status": new_status,
-                            "changed_by": uuid.UUID(user["sub"]),
-                            "changed_at": datetime.utcnow()
-                        }
-                    )
-
-                    await publish_task_status_changed(
-                        task_id=task_id,
-                        title=task.title,
-                        old_status=old_status,
-                        new_status=new_status,
-                        assigned_to=str(task.assigned_to) if task.assigned_to else None,
-                    )
-
-                    synced += 1
-
-            except Exception as e:
-                logging.error(f"Error syncing change {change}: {e}")
-                errors.append({"change": change, "error": str(e)})
-
-        await session.commit()
-
-    return func.HttpResponse(
-        json.dumps({"synced": synced, "errors": errors}),
-        status_code=200,
-        mimetype="application/json"
-    )
+    return json_response({"synced": synced, "errors": errors})

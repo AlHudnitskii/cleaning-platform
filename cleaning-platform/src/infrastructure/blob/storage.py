@@ -1,59 +1,24 @@
-import os
-import logging
-from azure.storage.blob import BlobServiceClient, ContentSettings
+from contextlib import suppress
+
 from azure.core.exceptions import ResourceExistsError
+from azure.storage.blob import ContentSettings
+from azure.storage.blob.aio import BlobServiceClient
+
+from src.settings import get_settings
+
+PHOTOS_CONTAINER = "task-photos"
+EXPORTS_CONTAINER = "exports"
 
 
-AZURE_STORAGE_CONNECTION_STRING = os.environ.get(
-    "AzureWebJobsStorage",
-    "UseDevelopmentStorage=true"
-)
-CONTAINER_NAME = "task-photos"
+def _client() -> BlobServiceClient:
+    return BlobServiceClient.from_connection_string(get_settings().storage_connection_string)
 
 
-def get_blob_service_client() -> BlobServiceClient:
-    return BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-
-
-async def ensure_container_exists():
-    client = get_blob_service_client()
-    try:
-        client.create_container(CONTAINER_NAME)
-        logging.info(f"Container '{CONTAINER_NAME}' created")
-    except ResourceExistsError:
-        pass
-
-
-async def upload_photo(task_id: str, filename: str, data: bytes, content_type: str) -> str:
-    await ensure_container_exists()
-
-    client = get_blob_service_client()
-    blob_name = f"{task_id}/{filename}"
-    blob_client = client.get_blob_client(
-        container=CONTAINER_NAME,
-        blob=blob_name
-    )
-
-    blob_client.upload_blob(
-        data,
-        overwrite=True,
-        content_settings=ContentSettings(content_type=content_type)
-    )
-
-    url = f"http://127.0.0.1:10000/devstoreaccount1/{CONTAINER_NAME}/{blob_name}"
-    logging.info(f"Photo uploaded: {url}")
-    return url
-
-
-async def get_photos_for_task(task_id: str) -> list[str]:
-    await ensure_container_exists()
-
-    client = get_blob_service_client()
-    container_client = client.get_container_client(CONTAINER_NAME)
-
-    urls = []
-    for blob in container_client.list_blobs(name_starts_with=f"{task_id}/"):
-        url = f"http://127.0.0.1:10000/devstoreaccount1/{CONTAINER_NAME}/{blob.name}"
-        urls.append(url)
-
-    return urls
+async def upload_blob(container: str, name: str, data: bytes, content_type: str) -> str:
+    async with _client() as client:
+        container_client = client.get_container_client(container)
+        with suppress(ResourceExistsError):
+            await container_client.create_container()
+        blob = container_client.get_blob_client(name)
+        await blob.upload_blob(data, overwrite=False, content_settings=ContentSettings(content_type=content_type))
+        return blob.url

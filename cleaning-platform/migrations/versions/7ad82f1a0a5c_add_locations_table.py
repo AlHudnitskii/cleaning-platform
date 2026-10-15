@@ -37,6 +37,6 @@ def upgrade() -> None:
     op.create_foreign_key(None, 'tasks', 'locations', ['location_id'], ['id'])
 
 def downgrade() -> None:
-    op.drop_constraint(None, 'tasks', type_='foreignkey')
+    op.drop_constraint('tasks_location_id_fkey', 'tasks', type_='foreignkey')
     op.drop_column('tasks', 'location_id')
     op.drop_table('locations')

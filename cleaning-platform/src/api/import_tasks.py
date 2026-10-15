@@ -1,234 +1,161 @@
+import io
+from datetime import UTC, datetime
+
 import azure.functions as func
-import logging
-import json
-import uuid
-from datetime import datetime
-from io import BytesIO
-
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import or_, select
 
-from src.infrastructure.database.connection import AsyncSessionLocal
-from src.infrastructure.auth.middleware import get_current_user, AuthError
-from src.domain.models.enums import UserRole, Country, TaskPriority
+from src.api.http import ApiError, authenticated, json_response
+from src.domain.models.enums import TaskStatus, UserRole
+from src.domain.models.user import CurrentUser
+from src.domain.services import task_access
+from src.domain.services.task_import import (
+    MAX_IMPORT_BYTES,
+    MAX_IMPORT_ROWS,
+    REQUIRED_COLUMNS,
+    ImportRow,
+    parse_row,
+)
+from src.infrastructure.database.connection import session_scope
+from src.infrastructure.database.models import Location, Task, User
 
 bp = func.Blueprint()
 
-REQUIRED_COLUMNS = {"title", "country"}
-OPTIONAL_COLUMNS = {"description", "priority", "assigned_to", "location_name", "rrule"}
-VALID_PRIORITIES = {p.value for p in TaskPriority}
-VALID_COUNTRIES = {c.value for c in Country}
+FIRST_DATA_ROW = 2
+TEMPLATE_ROWS = [
+    {
+        "title": "Clean Room 101",
+        "country": "DE",
+        "description": "Daily cleaning",
+        "priority": "normal",
+        "assignee_email": "",
+        "location_name": "Room 101",
+        "rrule": "",
+    },
+    {
+        "title": "Vacuum carpets",
+        "country": "NL",
+        "description": "",
+        "priority": "high",
+        "assignee_email": "",
+        "location_name": "Floor A",
+        "rrule": "FREQ=WEEKLY;BYDAY=MO",
+    },
+]
 
 
-def validate_row(row: dict, row_num: int) -> tuple[dict | None, str | None]:
-    title = str(row.get("title", "")).strip()
-    if len(title) < 3:
-        return None, f"Row {row_num}: title must be at least 3 characters"
+def read_table(filename: str, data: bytes) -> pd.DataFrame:
+    name = filename.lower()
+    try:
+        if name.endswith(".csv"):
+            return pd.read_csv(io.BytesIO(data), dtype=str, keep_default_na=False, nrows=MAX_IMPORT_ROWS + 1)
+        if name.endswith(".xlsx"):
+            return pd.read_excel(io.BytesIO(data), dtype=str, keep_default_na=False, nrows=MAX_IMPORT_ROWS + 1)
+    except (ValueError, UnicodeDecodeError, pd.errors.ParserError) as e:
+        raise ApiError(400, "Failed to parse file. Check that it is a valid CSV or Excel file") from e
+    raise ApiError(400, "Unsupported file format. Use CSV or Excel (.xlsx)")
 
-    country = str(row.get("country", "")).strip().upper()
-    if country not in VALID_COUNTRIES:
-        return None, f"Row {row_num}: invalid country '{country}'"
 
-    priority = str(row.get("priority", "normal")).strip().lower()
-    if priority not in VALID_PRIORITIES:
-        priority = "normal"
-
-    return {
-        "title": title,
-        "country": country,
-        "description": str(row.get("description", "")).strip() or None,
-        "priority": priority,
-        "assigned_to": str(row.get("assigned_to", "")).strip() or None,
-        "location_name": str(row.get("location_name", "")).strip() or None,
-        "rrule": str(row.get("rrule", "")).strip() or None,
-    }, None
+def row_error(row: ImportRow, message: str) -> str:
+    return f"Row {row.row_number}: {message}"
 
 
 @bp.route(route="import/tasks", methods=["POST"])
-async def import_tasks(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Import tasks request")
+@authenticated(UserRole.ADMIN, UserRole.MANAGER)
+async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    upload = req.files.get("file")
+    if upload is None:
+        raise ApiError(400, "No file provided. Use form-data with key 'file'")
 
-    try:
-        user = get_current_user(req)
-    except AuthError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.message}),
-            status_code=e.status_code,
-            mimetype="application/json"
-        )
+    data = upload.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise ApiError(413, f"File must be at most {MAX_IMPORT_BYTES // (1024 * 1024)} MB")
 
-    if user["role"] not in [UserRole.ADMIN, UserRole.MANAGER]:
-        return func.HttpResponse(
-            json.dumps({"error": "Insufficient permissions"}),
-            status_code=403,
-            mimetype="application/json"
-        )
-
-    files = req.files
-    if "file" not in files:
-        return func.HttpResponse(
-            json.dumps({"error": "No file provided. Use form-data with key 'file'"}),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    file = files["file"]
-    filename = file.filename.lower()
-    data = file.read()
-
-    try:
-        if filename.endswith(".csv"):
-            df = pd.read_csv(BytesIO(data))
-        elif filename.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(BytesIO(data))
-        else:
-            return func.HttpResponse(
-                json.dumps({"error": "Unsupported file format. Use CSV or Excel (.xlsx)"}),
-                status_code=400,
-                mimetype="application/json"
-            )
-    except Exception as e:
-        return func.HttpResponse(
-            json.dumps({"error": f"Failed to parse file: {str(e)}"}),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    df.columns = [c.strip().lower() for c in df.columns]
-
+    df = read_table(upload.filename or "", data)
+    df.columns = [str(c).strip().lower() for c in df.columns]
     missing = REQUIRED_COLUMNS - set(df.columns)
     if missing:
-        return func.HttpResponse(
-            json.dumps({"error": f"Missing required columns: {', '.join(missing)}"}),
-            status_code=400,
-            mimetype="application/json"
-        )
+        raise ApiError(400, f"Missing required columns: {', '.join(sorted(missing))}")
+    if len(df) > MAX_IMPORT_ROWS:
+        raise ApiError(400, f"File must contain at most {MAX_IMPORT_ROWS} rows")
 
-    if user["role"] == UserRole.MANAGER:
-        df["country"] = user["country"]
-
-    rows = df.to_dict(orient="records")
-    valid_rows = []
-    errors = []
-
-    for i, row in enumerate(rows, start=2):
-        validated, error = validate_row(row, i)
-        if error:
-            errors.append(error)
+    forced_country = user.country if user.is_manager else None
+    errors: list[str] = []
+    rows: list[ImportRow] = []
+    for offset, record in enumerate(df.to_dict(orient="records")):
+        parsed = parse_row(record, offset + FIRST_DATA_ROW, forced_country)
+        if isinstance(parsed, str):
+            errors.append(parsed)
         else:
-            valid_rows.append(validated)
+            rows.append(parsed)
 
-    if not valid_rows:
-        return func.HttpResponse(
-            json.dumps({"imported": 0, "errors": errors}),
-            status_code=400,
-            mimetype="application/json"
-        )
+    imported = 0
+    async with session_scope() as session, session.begin():
+        countries = {row.country.value for row in rows}
+        locations: dict[tuple[str, str], list[Location]] = {}
+        for location in await session.scalars(select(Location).where(Location.country.in_(countries))):
+            locations.setdefault((location.country, location.name.lower()), []).append(location)
 
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(text("SELECT id, name FROM locations"))
-        locations = {row.name.lower(): row.id for row in result.fetchall()}
+        emails = {row.assignee_email for row in rows if row.assignee_email}
+        ids = {row.assignee_id for row in rows if row.assignee_id}
+        assignees = (await session.scalars(select(User).where(or_(User.email.in_(emails), User.id.in_(ids))))).all()
+        by_email = {a.email.lower(): a for a in assignees}
+        by_id = {a.id: a for a in assignees}
 
-        imported = 0
-        import_errors = list(errors)
+        now = datetime.now(UTC)
+        for row in rows:
+            location_id = None
+            if row.location_name:
+                matches = locations.get((row.country.value, row.location_name.lower()), [])
+                if not matches:
+                    errors.append(row_error(row, f"location '{row.location_name}' not found in {row.country}"))
+                    continue
+                if len(matches) > 1:
+                    errors.append(row_error(row, f"location name '{row.location_name}' is ambiguous"))
+                    continue
+                location_id = matches[0].id
 
-        for row in valid_rows:
-            try:
-                location_id = None
-                if row["location_name"]:
-                    location_id = locations.get(row["location_name"].lower())
+            assignee_id = None
+            assignee = by_id.get(row.assignee_id) if row.assignee_id else None
+            if row.assignee_email:
+                assignee = by_email.get(row.assignee_email)
+            if row.assignee_email or row.assignee_id:
+                if assignee is None or not task_access.can_assign(
+                    row.country, assignee.role, assignee.country, assignee.is_active
+                ):
+                    errors.append(row_error(row, "assignee must be an active cleaner from the task's country"))
+                    continue
+                assignee_id = assignee.id
 
-                assigned_to = None
-                if row["assigned_to"]:
-                    try:
-                        assigned_uuid = uuid.UUID(row["assigned_to"])
-                        res = await session.execute(
-                            text("SELECT id FROM users WHERE id = :id AND role = 'cleaner'"),
-                            {"id": assigned_uuid}
-                        )
-                        if res.fetchone():
-                            assigned_to = assigned_uuid
-                    except ValueError:
-                        pass
-
-                await session.execute(
-                    text("""
-                        INSERT INTO tasks
-                            (id, title, description, status, country, location_id,
-                             assigned_to, priority, rrule, is_recurring, created_at)
-                        VALUES
-                            (:id, :title, :desc, 'pending', :country, :loc_id,
-                             :assigned, :priority, :rrule, :is_recurring, :now)
-                    """),
-                    {
-                        "id": uuid.uuid4(),
-                        "title": row["title"],
-                        "desc": row["description"],
-                        "country": row["country"],
-                        "loc_id": location_id,
-                        "assigned": assigned_to,
-                        "priority": row["priority"],
-                        "rrule": row["rrule"],
-                        "is_recurring": bool(row["rrule"]),
-                        "now": datetime.utcnow(),
-                    }
+            session.add(
+                Task(
+                    title=row.title,
+                    description=row.description,
+                    status=TaskStatus.PENDING,
+                    country=row.country,
+                    location_id=location_id,
+                    assigned_to=assignee_id,
+                    priority=row.priority,
+                    rrule=row.rrule,
+                    is_recurring=bool(row.rrule),
+                    created_at=now,
                 )
-                imported += 1
-            except Exception as e:
-                import_errors.append(f"Row insert error: {str(e)}")
+            )
+            imported += 1
 
-        await session.commit()
-
-    return func.HttpResponse(
-        json.dumps({
-            "imported": imported,
-            "total_rows": len(rows),
-            "errors": import_errors,
-        }),
-        status_code=200,
-        mimetype="application/json"
-    )
+    return json_response({"imported": imported, "total_rows": len(df), "errors": errors})
 
 
 @bp.route(route="import/template", methods=["GET"])
-async def download_template(req: func.HttpRequest) -> func.HttpResponse:
-    try:
-        user = get_current_user(req)
-    except AuthError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.message}),
-            status_code=e.status_code,
-            mimetype="application/json"
-        )
-
-    df = pd.DataFrame([
-        {
-            "title": "Clean Room 101",
-            "country": "DE",
-            "description": "Daily cleaning",
-            "priority": "normal",
-            "assigned_to": "",
-            "location_name": "Room 101",
-            "rrule": "",
-        },
-        {
-            "title": "Vacuum carpets",
-            "country": "NL",
-            "description": "",
-            "priority": "high",
-            "assigned_to": "",
-            "location_name": "Floor A",
-            "rrule": "FREQ=WEEKLY;BYDAY=MO",
-        },
-    ])
-
-    buffer = BytesIO()
+@authenticated(UserRole.ADMIN, UserRole.MANAGER)
+async def download_template(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Tasks")
+        pd.DataFrame(TEMPLATE_ROWS).to_excel(writer, index=False, sheet_name="Tasks")
 
     return func.HttpResponse(
         body=buffer.getvalue(),
         status_code=200,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=import_template.xlsx"}
+        headers={"Content-Disposition": "attachment; filename=import_template.xlsx"},
     )

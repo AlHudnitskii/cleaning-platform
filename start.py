@@ -1,161 +1,144 @@
-import subprocess
-import threading
-import sys
-import os
-import time
-import signal
+from __future__ import annotations
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.join(BASE_DIR, "cleaning-platform")
-FRONTEND_DIR = os.path.join(BASE_DIR, "cleaning-frontend")
+import os
+import shlex
+import signal
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+BACKEND = ROOT / "cleaning-platform"
+FRONTEND = ROOT / "cleaning-frontend"
+ENV_FILE = BACKEND / ".env"
+IS_WINDOWS = sys.platform == "win32"
 
 COLORS = {
     "DOCKER": "\033[36m",
+    "MIGRATE": "\033[36m",
     "FUNC": "\033[35m",
     "SSE": "\033[34m",
     "CONSUMER": "\033[33m",
+    "RELAY": "\033[33m",
     "FRONT": "\033[32m",
-    "RESET": "\033[0m",
+    "ERROR": "\033[31m",
 }
+RESET = "\033[0m"
 
-processes = []
-
-
-def log(prefix, line):
-    color = COLORS.get(prefix, "")
-    reset = COLORS["RESET"]
-    print(f"{color}[{prefix}]{reset} {line}", flush=True)
+processes: list[tuple[str, subprocess.Popen[bytes]]] = []
 
 
-def stream(proc, prefix):
+def log(prefix: str, line: str) -> None:
+    print(f"{COLORS.get(prefix, '')}[{prefix}]{RESET} {line}", flush=True)
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def venv_python() -> Path:
+    candidate = BACKEND / ("venv/Scripts/python.exe" if IS_WINDOWS else "venv/bin/python")
+    if candidate.exists():
+        return candidate
+    log("FUNC", f"venv not found at {candidate}, using {sys.executable}")
+    return Path(sys.executable)
+
+
+def stream(name: str, proc: subprocess.Popen[bytes]) -> None:
+    assert proc.stdout is not None
     for line in iter(proc.stdout.readline, b""):
-        log(prefix, line.decode("utf-8", errors="replace").rstrip())
+        log(name, line.decode("utf-8", errors="replace").rstrip())
 
 
-def start_process(name, cmd, cwd=None, env=None):
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        shell=True,
-        env=env,
-    )
-    processes.append(proc)
-    thread = threading.Thread(target=stream, args=(proc, name), daemon=True)
-    thread.start()
-    log(name, f"Started (pid={proc.pid})")
-    return proc
+def start(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> None:
+    proc = subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    processes.append((name, proc))
+    threading.Thread(target=stream, args=(name, proc), daemon=True).start()
+    log(name, f"started: {shlex.join(command)} (pid={proc.pid})")
 
 
-def wait_for_backend(timeout=60):
-    import urllib.request
-    log("FUNC", "Waiting for backend to be ready...")
-    start = time.time()
-    while time.time() - start < timeout:
+def run(name: str, command: list[str], cwd: Path, env: dict[str, str]) -> None:
+    log(name, shlex.join(command))
+    result = subprocess.run(command, cwd=cwd, env=env, check=False)
+    if result.returncode != 0:
+        log("ERROR", f"{name} failed with exit code {result.returncode}")
+        sys.exit(result.returncode)
+
+
+def wait_for(url: str, name: str, timeout: float = 90) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         try:
-            urllib.request.urlopen("http://localhost:7071/api/docs", timeout=2)
-            log("FUNC", "Backend is ready")
-            return True
-        except Exception:
+            with urllib.request.urlopen(url, timeout=2):
+                log(name, "ready")
+                return
+        except OSError:
             time.sleep(2)
-    log("FUNC", "Backend did not start in time — check [FUNC] logs above")
-    return False
+    log("ERROR", f"{name} did not become ready at {url}")
 
 
-def shutdown(signum=None, frame=None):
-    print("\n\nShutting down all processes...", flush=True)
-    for proc in processes:
+def shutdown(signum: int | None = None, frame: object = None) -> None:
+    print("\nShutting down...", flush=True)
+    for _, proc in processes:
+        proc.terminate()
+    for _, proc in processes:
         try:
-            proc.terminate()
-        except Exception:
-            pass
-    time.sleep(2)
-    for proc in processes:
-        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
             proc.kill()
-        except Exception:
-            pass
     sys.exit(0)
 
 
-signal.signal(signal.SIGINT, shutdown)
-signal.signal(signal.SIGTERM, shutdown)
+def main() -> None:
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
+
+    file_env = read_env_file(ENV_FILE)
+    missing = [key for key in ("JWT_SECRET", "JWT_REFRESH_SECRET") if not (file_env.get(key) or os.environ.get(key))]
+    if missing:
+        log("ERROR", f"Set {', '.join(missing)} in {ENV_FILE} (see .env.example)")
+        sys.exit(1)
+
+    python = venv_python()
+    env = {**os.environ, **file_env, "PYTHONPATH": str(BACKEND)}
+    env["PATH"] = os.pathsep.join([str(python.parent), env.get("PATH", "")])
+    env["languageWorkers__python__defaultExecutablePath"] = str(python)
+
+    run("DOCKER", ["docker", "compose", "up", "-d", "--wait", "postgres", "rabbitmq", "azurite"], ROOT, env)
+    run("MIGRATE", [str(python), "-m", "alembic", "upgrade", "head"], BACKEND, env)
+
+    start("FUNC", ["func", "start"], BACKEND, env)
+    start("SSE", [str(python), "sse_server.py"], BACKEND, env)
+    start("CONSUMER", [str(python), "-m", "src.infrastructure.messaging.consumer"], BACKEND, env)
+    start("RELAY", [str(python), "-m", "src.infrastructure.messaging.relay"], BACKEND, env)
+    wait_for("http://127.0.0.1:7071/api/docs", "FUNC")
+
+    start("FRONT", ["npm.cmd" if IS_WINDOWS else "npm", "run", "dev"], FRONTEND, {**os.environ, "BROWSER": "none"})
+
+    print("\nAll services started. Press Ctrl+C to stop.", flush=True)
+    print("  Frontend: http://localhost:3000", flush=True)
+    print("  API docs: http://localhost:7071/api/docs", flush=True)
+    print("  RabbitMQ: http://localhost:15672\n", flush=True)
+
+    while True:
+        for name, proc in processes:
+            if proc.poll() is not None:
+                log("ERROR", f"{name} exited with code {proc.returncode}")
+                shutdown()
+        time.sleep(5)
+
 
 if __name__ == "__main__":
-    print("Starting Cleaning Platform...\n", flush=True)
-
-    log("DOCKER", "Starting infrastructure...")
-    docker = subprocess.run(
-        ["docker-compose", "up", "-d"],
-        cwd=BASE_DIR,
-        capture_output=True,
-        text=True,
-    )
-    if docker.returncode != 0:
-        print(docker.stderr)
-        print("Docker failed to start. Make sure Docker is running.")
-        sys.exit(1)
-    log("DOCKER", "Infrastructure ready")
-    time.sleep(3)
-
-    is_windows = sys.platform == "win32"
-
-    if is_windows:
-        venv_python = os.path.join(BACKEND_DIR, "venv", "Scripts", "python.exe")
-        venv_bin = os.path.join(BACKEND_DIR, "venv", "Scripts")
-    else:
-        venv_python = os.path.join(BACKEND_DIR, "venv", "bin", "python")
-        venv_bin = os.path.join(BACKEND_DIR, "venv", "bin")
-
-    if not os.path.exists(venv_python):
-        log("FUNC", f"WARNING: venv not found at {venv_python}")
-        log("FUNC", "Using system python — dependencies may be missing")
-        venv_python = sys.executable
-        venv_bin = os.path.dirname(sys.executable)
-
-    env = os.environ.copy()
-    if is_windows:
-        env["PATH"] = venv_bin + ";" + env.get("PATH", "")
-    else:
-        env["PATH"] = venv_bin + ":" + env.get("PATH", "")
-    env["PYTHONPATH"] = BACKEND_DIR
-    env["languageWorkers__python__defaultExecutablePath"] = venv_python
-
-    log("FUNC", f"Using python: {venv_python}")
-
-    start_process("FUNC", "func start --host 0.0.0.0", cwd=BACKEND_DIR, env=env)
-    time.sleep(5)
-
-    start_process("SSE", f'"{venv_python}" sse_server.py', cwd=BACKEND_DIR, env=env)
-
-    start_process(
-        "CONSUMER",
-        f'"{venv_python}" -m src.infrastructure.messaging.consumer',
-        cwd=BACKEND_DIR,
-        env=env,
-    )
-
-    wait_for_backend()
-
-    front_env = os.environ.copy()
-    front_env["HOST"] = "0.0.0.0"
-    front_env["BROWSER"] = "none"
-
-    npm_cmd = "npm.cmd start" if is_windows else "npm start"
-    start_process("FRONT", npm_cmd, cwd=FRONTEND_DIR, env=front_env)
-
-    print("\nAll services started. Press Ctrl+C to stop.\n", flush=True)
-    print("  Frontend:  http://localhost:3000", flush=True)
-    print("  Backend:   http://localhost:7071/api/docs", flush=True)
-    print("  RabbitMQ:  http://localhost:15672", flush=True)
-    print("", flush=True)
-
-    try:
-        while True:
-            for proc in processes:
-                if proc.poll() is not None:
-                    log("ERROR", f"Process pid={proc.pid} exited with code {proc.returncode}")
-            time.sleep(5)
-    except KeyboardInterrupt:
-        shutdown()
+    main()

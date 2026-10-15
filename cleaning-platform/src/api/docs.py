@@ -1,306 +1,167 @@
-import azure.functions as func
 import json
+from functools import lru_cache
+from typing import Any
+
+import azure.functions as func
+from pydantic import BaseModel
+
+from src.domain.models.location import LocationCreate, LocationResponse
+from src.domain.models.task import (
+    CommentCreate,
+    CommentResponse,
+    HistoryEntryResponse,
+    PhotoResponse,
+    QualityReview,
+    SyncStatusChange,
+    TaskCreate,
+    TaskResponse,
+    TaskStatusUpdate,
+)
+from src.domain.models.user import (
+    AssigneeResponse,
+    PasswordChange,
+    TokenResponse,
+    UserLogin,
+    UserRegister,
+    UserResponse,
+)
 
 bp = func.Blueprint()
 
-OPENAPI_SPEC = {
-    "openapi": "3.0.0",
-    "info": {
-        "title": "Cleaning Platform API",
-        "version": "1.0.0",
-        "description": "API для управления клининговыми задачами"
-    },
-    "servers": [{"url": "http://localhost:7071/api"}],
-    "components": {
-        "securitySchemes": {
-            "BearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "bearerFormat": "JWT"
-            }
-        },
-        "schemas": {
-            "TaskCreate": {
-                "type": "object",
-                "required": ["title", "country"],
-                "properties": {
-                    "title": {"type": "string", "minLength": 3, "example": "Clean Room 301"},
-                    "country": {"type": "string", "enum": ["DE", "DK", "IT", "AU"]},
-                    "description": {"type": "string", "nullable": True},
-                    "location_id": {"type": "string", "format": "uuid", "nullable": True},
-                    "assigned_to": {"type": "string", "format": "uuid", "nullable": True}
-                }
-            },
-            "TaskResponse": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string", "format": "uuid"},
-                    "title": {"type": "string"},
-                    "description": {"type": "string", "nullable": True},
-                    "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]},
-                    "country": {"type": "string"},
-                    "location_id": {"type": "string", "format": "uuid", "nullable": True},
-                    "assigned_to": {"type": "string", "format": "uuid", "nullable": True},
-                    "created_at": {"type": "string", "format": "date-time"}
-                }
-            },
-            "LocationCreate": {
-                "type": "object",
-                "required": ["name", "country", "level"],
-                "properties": {
-                    "name": {"type": "string", "example": "Berlin"},
-                    "country": {"type": "string", "enum": ["DE", "DK", "IT", "AU"]},
-                    "level": {"type": "string", "enum": ["country", "city", "building", "floor", "room"]},
-                    "parent_id": {"type": "string", "format": "uuid", "nullable": True}
-                }
-            },
-            "UserRegister": {
-                "type": "object",
-                "required": ["email", "password", "role"],
-                "properties": {
-                    "email": {"type": "string", "format": "email"},
-                    "password": {"type": "string", "minLength": 6},
-                    "role": {"type": "string", "enum": ["admin", "manager", "cleaner"]},
-                    "country": {"type": "string", "enum": ["DE", "DK", "IT", "AU"], "nullable": True}
-                }
-            },
-            "TokenResponse": {
-                "type": "object",
-                "properties": {
-                    "access_token": {"type": "string"},
-                    "token_type": {"type": "string", "example": "bearer"},
-                    "user": {"$ref": "#/components/schemas/UserResponse"}
-                }
-            },
-            "UserResponse": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string", "format": "uuid"},
-                    "email": {"type": "string"},
-                    "role": {"type": "string"},
-                    "country": {"type": "string", "nullable": True},
-                    "created_at": {"type": "string", "format": "date-time"}
-                }
-            },
-            "Error": {
-                "type": "object",
-                "properties": {
-                    "error": {"type": "string"}
-                }
-            }
-        }
-    },
-    "security": [{"BearerAuth": []}],
-    "paths": {
-        "/auth/register": {
-            "post": {
-                "tags": ["Auth"],
-                "summary": "Регистрация пользователя",
-                "security": [],
-                "requestBody": {
-                    "required": True,
-                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserRegister"}}}
-                },
-                "responses": {
-                    "201": {"description": "Успешная регистрация", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TokenResponse"}}}},
-                    "400": {"description": "Ошибка валидации"},
-                    "409": {"description": "Email уже занят"}
-                }
-            }
-        },
-        "/auth/login": {
-            "post": {
-                "tags": ["Auth"],
-                "summary": "Вход в систему",
-                "security": [],
-                "requestBody": {
-                    "required": True,
-                    "content": {"application/json": {"schema": {"type": "object", "properties": {"email": {"type": "string"}, "password": {"type": "string"}}}}}
-                },
-                "responses": {
-                    "200": {"description": "Успешный вход", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TokenResponse"}}}},
-                    "401": {"description": "Неверные данные"}
-                }
-            }
-        },
-        "/auth/me": {
-            "get": {
-                "tags": ["Auth"],
-                "summary": "Текущий пользователь",
-                "responses": {
-                    "200": {"description": "Данные пользователя"},
-                    "401": {"description": "Не авторизован"}
-                }
-            }
-        },
-        "/tasks": {
-            "get": {
-                "tags": ["Tasks"],
-                "summary": "Список задач",
-                "description": "Admin видит все, Manager — своей страны, Cleaner — только свои",
-                "parameters": [
-                    {"name": "country", "in": "query", "schema": {"type": "string"}, "description": "Фильтр по стране (только для Admin)"}
-                ],
-                "responses": {
-                    "200": {"description": "Список задач", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/TaskResponse"}}}}},
-                    "401": {"description": "Не авторизован"}
-                }
-            },
-            "post": {
-                "tags": ["Tasks"],
-                "summary": "Создать задачу",
-                "description": "Доступно: Admin, Manager",
-                "requestBody": {
-                    "required": True,
-                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaskCreate"}}}
-                },
-                "responses": {
-                    "201": {"description": "Задача создана", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaskResponse"}}}},
-                    "400": {"description": "Ошибка валидации"},
-                    "403": {"description": "Недостаточно прав"}
-                }
-            }
-        },
-        "/tasks/{task_id}": {
-            "get": {
-                "tags": ["Tasks"],
-                "summary": "Задача по ID",
-                "description": "Cleaner видит только свои задачи",
-                "parameters": [
-                    {"name": "task_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}
-                ],
-                "responses": {
-                    "200": {"description": "Задача", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaskResponse"}}}},
-                    "403": {"description": "Нет доступа"},
-                    "404": {"description": "Не найдена"}
-                }
-            }
-        },
-        "/tasks/{task_id}/status": {
-            "patch": {
-                "tags": ["Tasks"],
-                "summary": "Обновить статус задачи",
-                "parameters": [
-                    {"name": "task_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}
-                ],
-                "requestBody": {
-                    "required": True,
-                    "content": {"application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["pending", "in_progress", "completed"]}}}}}
-                },
-                "responses": {
-                    "200": {"description": "Статус обновлён"},
-                    "404": {"description": "Не найдена"}
-                }
-            }
-        },
-        "/tasks/{task_id}/photos": {
-            "post": {
-                "tags": ["Tasks"],
-                "summary": "Загрузить фото",
-                "parameters": [
-                    {"name": "task_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}
-                ],
-                "requestBody": {
-                    "content": {"multipart/form-data": {"schema": {"type": "object", "properties": {"photo": {"type": "string", "format": "binary"}}}}}
-                },
-                "responses": {
-                    "201": {"description": "Фото загружено"},
-                    "404": {"description": "Задача не найдена"}
-                }
-            },
-            "get": {
-                "tags": ["Tasks"],
-                "summary": "Список фото задачи",
-                "parameters": [
-                    {"name": "task_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}
-                ],
-                "responses": {
-                    "200": {"description": "Список фото"}
-                }
-            }
-        },
-        "/locations": {
-            "post": {
-                "tags": ["Locations"],
-                "summary": "Создать локацию",
-                "description": "Доступно: только Admin",
-                "requestBody": {
-                    "required": True,
-                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocationCreate"}}}
-                },
-                "responses": {
-                    "201": {"description": "Локация создана"},
-                    "403": {"description": "Недостаточно прав"}
-                }
-            }
-        },
-        "/locations/{location_id}/children": {
-            "get": {
-                "tags": ["Locations"],
-                "summary": "Все потомки локации",
-                "description": "Использует ltree для обхода иерархии",
-                "parameters": [
-                    {"name": "location_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}
-                ],
-                "responses": {
-                    "200": {"description": "Список потомков"},
-                    "404": {"description": "Локация не найдена"}
-                }
-            }
-        },
-        "/locations/{location_id}/tasks": {
-            "get": {
-                "tags": ["Locations"],
-                "summary": "Задачи в локации и её потомках",
-                "description": "Использует ltree оператор <@ для поиска по дереву",
-                "parameters": [
-                    {"name": "location_id", "in": "path", "required": True, "schema": {"type": "string", "format": "uuid"}}
-                ],
-                "responses": {
-                    "200": {"description": "Список задач"}
-                }
-            }
-        },
-        "/export/tasks": {
-            "get": {
-                "tags": ["Export"],
-                "summary": "Экспорт задач",
-                "description": "Доступно: Admin, Manager. Поддерживает Parquet и Excel форматы",
-                "parameters": [
-                    {"name": "date_from", "in": "query", "required": True, "schema": {"type": "string"}, "example": "2026-01-01"},
-                    {"name": "date_to", "in": "query", "required": True, "schema": {"type": "string"}, "example": "2026-12-31"},
-                    {"name": "format", "in": "query", "schema": {"type": "string", "enum": ["parquet", "excel"]}, "description": "Формат экспорта"},
-                    {"name": "country", "in": "query", "schema": {"type": "string"}, "description": "Фильтр по стране (только Admin)"}
-                ],
-                "responses": {
-                    "200": {"description": "Файл экспорта", "content": {"application/octet-stream": {}}},
-                    "400": {"description": "Неверные параметры"},
-                    "403": {"description": "Недостаточно прав"}
-                }
-            }
-        }
-    }
+SCHEMAS: list[type[BaseModel]] = [
+    AssigneeResponse,
+    CommentCreate,
+    CommentResponse,
+    HistoryEntryResponse,
+    LocationCreate,
+    LocationResponse,
+    PasswordChange,
+    PhotoResponse,
+    QualityReview,
+    SyncStatusChange,
+    TaskCreate,
+    TaskResponse,
+    TaskStatusUpdate,
+    TokenResponse,
+    UserLogin,
+    UserRegister,
+    UserResponse,
+]
+
+PATH_PARAMS = {
+    "task_id": "Task ID",
+    "location_id": "Location ID",
+    "user_id": "User ID",
 }
 
+ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
+    ("post", "/auth/register", "Register a user", "UserRegister", "TokenResponse", False),
+    ("post", "/auth/login", "Sign in; sets the refresh_token cookie", "UserLogin", "TokenResponse", False),
+    ("post", "/auth/refresh", "Rotate the session using the refresh_token cookie", None, "TokenResponse", False),
+    ("post", "/auth/logout", "Revoke all sessions of the cookie owner", None, None, False),
+    ("get", "/auth/me", "Current user", None, "UserResponse", True),
+    ("get", "/users", "List users (admin)", None, "UserResponse", True),
+    ("post", "/users", "Create a user (admin)", "UserRegister", "UserResponse", True),
+    ("get", "/users/assignees", "Active cleaners available for assignment", None, "AssigneeResponse", True),
+    ("patch", "/users/{user_id}/toggle-active", "Activate or deactivate a user (admin)", None, "UserResponse", True),
+    ("patch", "/users/me/password", "Change own password", "PasswordChange", "TokenResponse", True),
+    ("get", "/tasks", "List tasks visible to the caller", None, "TaskResponse", True),
+    ("post", "/tasks", "Create a task (admin, manager)", "TaskCreate", "TaskResponse", True),
+    ("get", "/tasks/{task_id}", "Task details", None, "TaskResponse", True),
+    ("patch", "/tasks/{task_id}/status", "Change task status", "TaskStatusUpdate", "TaskResponse", True),
+    ("post", "/tasks/{task_id}/quality", "Review quality of a completed task", "QualityReview", "TaskResponse", True),
+    ("get", "/tasks/{task_id}/occurrences", "Next occurrences of a recurring task", None, None, True),
+    ("get", "/tasks/{task_id}/comments", "Task comments", None, "CommentResponse", True),
+    ("post", "/tasks/{task_id}/comments", "Add a comment", "CommentCreate", "CommentResponse", True),
+    ("get", "/tasks/{task_id}/history", "Status history", None, "HistoryEntryResponse", True),
+    ("get", "/tasks/{task_id}/photos", "Task photos", None, "PhotoResponse", True),
+    (
+        "post",
+        "/tasks/{task_id}/photos",
+        "Upload a JPEG/PNG/WebP photo (form field 'photo')",
+        None,
+        "PhotoResponse",
+        True,
+    ),
+    ("get", "/locations", "Locations visible to the caller", None, "LocationResponse", True),
+    ("post", "/locations", "Create a location (admin)", "LocationCreate", "LocationResponse", True),
+    ("get", "/locations/{location_id}/children", "Descendants of a location", None, "LocationResponse", True),
+    ("get", "/locations/{location_id}/tasks", "Tasks in a location subtree", None, "TaskResponse", True),
+    ("get", "/stats/dashboard", "Dashboard statistics", None, None, True),
+    ("get", "/stats/reports", "Period report", None, None, True),
+    ("post", "/import/tasks", "Import tasks from CSV/XLSX (form field 'file')", None, None, True),
+    ("get", "/import/template", "Download the import template", None, None, True),
+    ("get", "/export/tasks", "Export tasks as Excel or Parquet", None, None, True),
+    ("post", "/sync/batch", "Apply offline status changes", None, None, True),
+    ("get", "/push/vapid-public-key", "VAPID public key", None, None, False),
+    ("post", "/push/subscribe", "Subscribe to push notifications", None, None, True),
+    ("delete", "/push/unsubscribe", "Remove own push subscriptions", None, None, True),
+]
 
-@bp.route(route="docs/openapi.json", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
-async def openapi_spec(req: func.HttpRequest) -> func.HttpResponse:
-    return func.HttpResponse(
-        json.dumps(OPENAPI_SPEC, ensure_ascii=False, indent=2),
-        status_code=200,
-        mimetype="application/json"
-    )
+
+def ref(name: str) -> dict[str, str]:
+    return {"$ref": f"#/components/schemas/{name}"}
 
 
-@bp.route(route="docs", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
-async def swagger_ui(req: func.HttpRequest) -> func.HttpResponse:
-    html = """<!DOCTYPE html>
+def operation(path: str, summary: str, request: str | None, response: str | None, secured: bool) -> dict[str, Any]:
+    op: dict[str, Any] = {"summary": summary, "responses": {"200": {"description": "OK"}}}
+    if response:
+        op["responses"]["200"]["content"] = {"application/json": {"schema": ref(response)}}
+    if request:
+        op["requestBody"] = {"required": True, "content": {"application/json": {"schema": ref(request)}}}
+    params = [name for name in PATH_PARAMS if "{" + name + "}" in path]
+    if params:
+        op["parameters"] = [
+            {
+                "name": name,
+                "in": "path",
+                "required": True,
+                "description": PATH_PARAMS[name],
+                "schema": {"type": "string", "format": "uuid"},
+            }
+            for name in params
+        ]
+    if secured:
+        op["security"] = [{"BearerAuth": []}]
+    return op
+
+
+@lru_cache
+def openapi_spec() -> dict[str, Any]:
+    schemas: dict[str, Any] = {}
+    for model in SCHEMAS:
+        schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
+        schemas.update(schema.pop("$defs", {}))
+        schemas[model.__name__] = schema
+
+    paths: dict[str, Any] = {}
+    for method, path, summary, request, response, secured in ROUTES:
+        paths.setdefault(path, {})[method] = operation(path, summary, request, response, secured)
+
+    return {
+        "openapi": "3.1.0",
+        "info": {"title": "Cleaning Platform API", "version": "2.0.0"},
+        "servers": [{"url": "/api"}],
+        "components": {
+            "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+            "schemas": schemas,
+        },
+        "paths": paths,
+    }
+
+
+@bp.route(route="docs/openapi.json", methods=["GET"])
+async def openapi_json(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(json.dumps(openapi_spec(), ensure_ascii=False), mimetype="application/json")
+
+
+SWAGGER_HTML = """<!DOCTYPE html>
 <html>
 <head>
     <title>Cleaning Platform API</title>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css">
 </head>
 <body>
 <div id="swagger-ui"></div>
@@ -308,12 +169,15 @@ async def swagger_ui(req: func.HttpRequest) -> func.HttpResponse:
 <script>
     SwaggerUIBundle({
         url: "/api/docs/openapi.json",
-        dom_id: '#swagger-ui',
-        presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-        layout: "BaseLayout",
+        dom_id: "#swagger-ui",
+        presets: [SwaggerUIBundle.presets.apis],
         persistAuthorization: true
     })
 </script>
 </body>
 </html>"""
-    return func.HttpResponse(html, status_code=200, mimetype="text/html")
+
+
+@bp.route(route="docs", methods=["GET"])
+async def swagger_ui(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(SWAGGER_HTML, mimetype="text/html")

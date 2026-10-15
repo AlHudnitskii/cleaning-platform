@@ -1,248 +1,134 @@
 import azure.functions as func
-import logging
-import json
-import uuid
-from datetime import datetime
+from sqlalchemy import select
 
-from pydantic import ValidationError
-from sqlalchemy import text
-
-from src.infrastructure.database.connection import AsyncSessionLocal
-from src.infrastructure.auth.jwt_handler import (
-    hash_password, verify_password,
-    create_access_token, create_refresh_token, decode_refresh_token
+from src.api.http import (
+    ApiError,
+    authenticated,
+    cookie_header,
+    json_response,
+    public,
+    read_cookie,
+    read_model,
 )
-from src.domain.models.user import UserRegister, UserLogin, UserResponse, TokenResponse
+from src.domain.models.user import CurrentUser, TokenResponse, UserLogin, UserRegister, UserResponse
+from src.infrastructure.auth.jwt_handler import (
+    InvalidTokenError,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    hash_password,
+    verify_password,
+)
+from src.infrastructure.database.connection import session_scope
+from src.infrastructure.database.models import User
+from src.settings import get_settings
 
 bp = func.Blueprint()
 
+REFRESH_COOKIE = "refresh_token"
+REFRESH_COOKIE_PATH = "/api/auth"
+
+
+def refresh_cookie(token: str) -> str:
+    settings = get_settings()
+    max_age = settings.refresh_token_days * 24 * 3600
+    return cookie_header(REFRESH_COOKIE, token, max_age, REFRESH_COOKIE_PATH, settings.secure_cookies)
+
+
+def cleared_refresh_cookie() -> str:
+    return cookie_header(REFRESH_COOKIE, "", 0, REFRESH_COOKIE_PATH, get_settings().secure_cookies)
+
+
+def session_response(user: User, status_code: int = 200) -> func.HttpResponse:
+    body = TokenResponse(
+        access_token=create_access_token(user.id, user.token_version),
+        user=UserResponse.model_validate(user),
+    )
+    refresh = create_refresh_token(user.id, user.token_version)
+    return json_response(body, status_code, headers={"Set-Cookie": refresh_cookie(refresh)})
+
+
+async def user_from_refresh_token(token: str | None) -> User:
+    if not token:
+        raise ApiError(401, "Refresh token is missing")
+    try:
+        claims = decode_refresh_token(token)
+    except InvalidTokenError as e:
+        raise ApiError(401, "Invalid or expired refresh token") from e
+
+    async with session_scope() as session:
+        user = await session.get(User, claims.user_id)
+    if user is None or not user.is_active or user.token_version != claims.version:
+        raise ApiError(401, "Session is no longer valid")
+    return user
+
 
 @bp.route(route="auth/register", methods=["POST"])
+@public
 async def register(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Registering new user")
+    data = read_model(req, UserRegister)
 
-    try:
-        body = req.get_json()
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid JSON"}),
-            status_code=400,
-            mimetype="application/json"
+    async with session_scope() as session, session.begin():
+        if await session.scalar(select(User.id).where(User.email == data.email)):
+            raise ApiError(409, "Email already registered")
+        user = User(
+            email=data.email,
+            hashed_password=hash_password(data.password),
+            role=data.role,
+            country=data.country,
+            is_active=True,
         )
+        session.add(user)
+        await session.flush()
+        await session.refresh(user)
 
-    try:
-        user_data = UserRegister(**body)
-    except ValidationError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.errors()}, default=str),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT id FROM users WHERE email = :email"),
-            {"email": user_data.email}
-        )
-        if result.fetchone():
-            return func.HttpResponse(
-                json.dumps({"error": "Email already registered"}),
-                status_code=409,
-                mimetype="application/json"
-            )
-
-        user_id = uuid.uuid4()
-        await session.execute(
-            text("""
-                INSERT INTO users (id, email, hashed_password, role, country, is_active, created_at)
-                VALUES (:id, :email, :hashed_password, :role, :country, :is_active, :created_at)
-            """),
-            {
-                "id": user_id,
-                "email": user_data.email,
-                "hashed_password": hash_password(user_data.password),
-                "role": user_data.role,
-                "country": user_data.country,
-                "is_active": True,
-                "created_at": datetime.utcnow()
-            }
-        )
-        await session.commit()
-
-        result = await session.execute(
-            text("SELECT * FROM users WHERE id = :id"),
-            {"id": user_id}
-        )
-        user = result.fetchone()
-
-    access_token = create_access_token(str(user.id), user.email, user.role, user.country)
-    refresh_token = create_refresh_token(str(user.id))
-
-    response = TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            role=user.role,
-            country=user.country,
-            created_at=user.created_at
-        )
-    )
-
-    return func.HttpResponse(
-        response.model_dump_json(),
-        status_code=201,
-        mimetype="application/json"
-    )
+    return session_response(user, 201)
 
 
 @bp.route(route="auth/login", methods=["POST"])
+@public
 async def login(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("User login")
+    data = read_model(req, UserLogin)
 
-    try:
-        body = req.get_json()
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid JSON"}),
-            status_code=400,
-            mimetype="application/json"
-        )
+    async with session_scope() as session:
+        user = await session.scalar(select(User).where(User.email == data.email))
 
-    try:
-        login_data = UserLogin(**body)
-    except ValidationError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.errors()}, default=str),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT * FROM users WHERE email = :email"),
-            {"email": login_data.email}
-        )
-        user = result.fetchone()
-
-    if not user or not verify_password(login_data.password, user.hashed_password):
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid email or password"}),
-            status_code=401,
-            mimetype="application/json"
-        )
-
+    if user is None or not verify_password(data.password, user.hashed_password):
+        raise ApiError(401, "Invalid email or password")
     if not user.is_active:
-        return func.HttpResponse(
-            json.dumps({"error": "User is disabled"}),
-            status_code=403,
-            mimetype="application/json"
-        )
+        raise ApiError(403, "User is disabled")
 
-    access_token = create_access_token(str(user.id), user.email, user.role, user.country)
-    refresh_token = create_refresh_token(str(user.id))
-
-    response = TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            role=user.role,
-            country=user.country,
-            created_at=user.created_at
-        )
-    )
-
-    return func.HttpResponse(
-        response.model_dump_json(),
-        status_code=200,
-        mimetype="application/json"
-    )
+    return session_response(user)
 
 
 @bp.route(route="auth/refresh", methods=["POST"])
+@public
 async def refresh(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Refreshing token")
+    user = await user_from_refresh_token(read_cookie(req, REFRESH_COOKIE))
+    return session_response(user)
 
-    try:
-        body = req.get_json()
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid JSON"}),
-            status_code=400,
-            mimetype="application/json"
-        )
 
-    refresh_token = body.get("refresh_token")
-    if not refresh_token:
-        return func.HttpResponse(
-            json.dumps({"error": "refresh_token is required"}),
-            status_code=400,
-            mimetype="application/json"
-        )
+@bp.route(route="auth/logout", methods=["POST"])
+@public
+async def logout(req: func.HttpRequest) -> func.HttpResponse:
+    token = read_cookie(req, REFRESH_COOKIE)
+    if token:
+        try:
+            claims = decode_refresh_token(token)
+        except InvalidTokenError:
+            claims = None
+        if claims is not None:
+            async with session_scope() as session, session.begin():
+                user = await session.get(User, claims.user_id, with_for_update=True)
+                if user is not None and user.token_version == claims.version:
+                    user.token_version += 1
 
-    try:
-        payload = decode_refresh_token(refresh_token)
-    except Exception:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid or expired refresh token"}),
-            status_code=401,
-            mimetype="application/json"
-        )
-
-    if payload.get("type") != "refresh":
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid token type"}),
-            status_code=401,
-            mimetype="application/json"
-        )
-
-    user_id = payload.get("sub")
-
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT * FROM users WHERE id = :id"),
-            {"id": uuid.UUID(user_id)}
-        )
-        user = result.fetchone()
-
-    if not user or not user.is_active:
-        return func.HttpResponse(
-            json.dumps({"error": "User not found or disabled"}),
-            status_code=401,
-            mimetype="application/json"
-        )
-
-    new_access_token = create_access_token(str(user.id), user.email, user.role, user.country)
-    new_refresh_token = create_refresh_token(str(user.id))
-
-    return func.HttpResponse(
-        json.dumps({
-            "access_token": new_access_token,
-            "refresh_token": new_refresh_token,
-        }),
-        status_code=200,
-        mimetype="application/json"
-    )
+    return func.HttpResponse(status_code=204, headers={"Set-Cookie": cleared_refresh_cookie()})
 
 
 @bp.route(route="auth/me", methods=["GET"])
-async def me(req: func.HttpRequest) -> func.HttpResponse:
-    from src.infrastructure.auth.middleware import get_current_user, AuthError
-
-    try:
-        user = get_current_user(req)
-    except AuthError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.message}),
-            status_code=e.status_code,
-            mimetype="application/json"
-        )
-
-    return func.HttpResponse(
-        json.dumps(user, default=str),
-        status_code=200,
-        mimetype="application/json"
-    )
+@authenticated()
+async def me(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    async with session_scope() as session:
+        record = await session.get(User, user.id)
+    return json_response(UserResponse.model_validate(record))

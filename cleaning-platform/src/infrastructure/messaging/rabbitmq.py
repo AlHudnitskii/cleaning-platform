@@ -1,65 +1,48 @@
-import os
-import aio_pika
 import json
-import logging
-import uuid
+from typing import Any
 
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+import aio_pika
+from aio_pika.abc import AbstractChannel, AbstractExchange, AbstractQueue, AbstractRobustConnection
 
+EXCHANGE_TASK_EVENTS = "task_events"
 QUEUE_PUSH = "notifications.push"
-QUEUE_EMAIL = "notifications.email"
-QUEUE_INTEGRATIONS = "integrations"
+QUEUE_PUSH_DEAD = "notifications.push.dead"
 
 
-async def get_connection():
-    return await aio_pika.connect_robust(RABBITMQ_URL)
+async def connect(url: str) -> AbstractRobustConnection:
+    return await aio_pika.connect_robust(url)
 
 
-async def publish_message(queue_name: str, message: dict):
-    try:
-        connection = await get_connection()
-        async with connection:
-            channel = await connection.channel()
-            await channel.declare_queue(queue_name, durable=True)
-            await channel.default_exchange.publish(
-                aio_pika.Message(
-                    body=json.dumps(message, default=str).encode(),
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                    message_id=str(uuid.uuid4()),
-                ),
-                routing_key=queue_name,
-            )
-            logging.info(f"Message published to {queue_name}: {message}")
-    except Exception as e:
-        logging.error(f"Failed to publish message to {queue_name}: {e}")
+async def declare_task_events(channel: AbstractChannel) -> AbstractExchange:
+    return await channel.declare_exchange(EXCHANGE_TASK_EVENTS, aio_pika.ExchangeType.FANOUT, durable=True)
 
 
-async def publish_push_notification(user_id: str, title: str, body: str):
-    await publish_message(QUEUE_PUSH, {
-        "type": "push",
-        "user_id": user_id,
-        "title": title,
-        "body": body,
-    })
+async def declare_push_queue(channel: AbstractChannel) -> AbstractQueue:
+    exchange = await declare_task_events(channel)
+    await channel.declare_queue(QUEUE_PUSH_DEAD, durable=True)
+    queue = await channel.declare_queue(
+        QUEUE_PUSH,
+        durable=True,
+        arguments={
+            "x-dead-letter-exchange": "",
+            "x-dead-letter-routing-key": QUEUE_PUSH_DEAD,
+        },
+    )
+    await queue.bind(exchange)
+    return queue
 
 
-async def publish_task_created(task_id: str, title: str, country: str, assigned_to: str | None, location_id: str | None):
-    await publish_message(QUEUE_PUSH, {
-        "type": "task_created",
-        "task_id": task_id,
-        "title": title,
-        "country": country,
-        "assigned_to": assigned_to,
-        "location_id": location_id,
-    })
+def encode_event(event_type: str, payload: dict[str, Any], message_id: str) -> aio_pika.Message:
+    return aio_pika.Message(
+        body=json.dumps({"type": event_type, **payload}, default=str).encode(),
+        content_type="application/json",
+        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+        message_id=message_id,
+    )
 
 
-async def publish_task_status_changed(task_id: str, title: str, old_status: str, new_status: str, assigned_to: str | None):
-    await publish_message(QUEUE_PUSH, {
-        "type": "task_status_changed",
-        "task_id": task_id,
-        "title": title,
-        "old_status": old_status,
-        "new_status": new_status,
-        "assigned_to": assigned_to,
-    })
+def decode_event(body: bytes) -> dict[str, Any]:
+    data = json.loads(body.decode())
+    if not isinstance(data, dict):
+        raise ValueError("event body must be a JSON object")
+    return data

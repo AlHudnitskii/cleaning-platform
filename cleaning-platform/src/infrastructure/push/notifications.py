@@ -1,47 +1,51 @@
-import os
-import logging
-from pywebpush import webpush, WebPushException
+import asyncio
+import base64
 import json
+import logging
+from enum import StrEnum
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from py_vapid import Vapid
+from pywebpush import WebPushException, webpush
 
-VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", os.path.join(BASE_DIR, "private_key.pem"))
-VAPID_PUBLIC_KEY_FILE = os.environ.get("VAPID_PUBLIC_KEY", os.path.join(BASE_DIR, "public_key.pem"))
-VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL", "admin@cleaning.com")
+from src.settings import get_settings
+
+logger = logging.getLogger(__name__)
+
+GONE_STATUSES = frozenset({404, 410})
+PUSH_TIMEOUT_SECONDS = 10
+
+
+class PushResult(StrEnum):
+    SENT = "sent"
+    GONE = "gone"
+    FAILED = "failed"
 
 
 def get_public_key_base64() -> str:
-    from py_vapid import Vapid
-    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-    import base64
-
-    v = Vapid().from_file(VAPID_PRIVATE_KEY)
-    public_key_bytes = v.public_key.public_bytes(
-        Encoding.X962,
-        PublicFormat.UncompressedPoint
-    )
-    return base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
+    vapid = Vapid.from_file(get_settings().vapid_private_key)
+    public_key_bytes = vapid.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+    return base64.urlsafe_b64encode(public_key_bytes).decode().rstrip("=")
 
 
-async def send_push_notification(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> bool:
+def _send(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> PushResult:
+    settings = get_settings()
     try:
-        logging.info(f"Sending push to endpoint: {endpoint[:50]}...")
-        data = json.dumps({"title": title, "body": body})
         webpush(
-            subscription_info={
-                "endpoint": endpoint,
-                "keys": {"p256dh": p256dh, "auth": auth}
-            },
-            data=data,
-            vapid_private_key=VAPID_PRIVATE_KEY,
-            vapid_claims={"sub": f"mailto:{VAPID_CLAIMS_EMAIL}"}
+            subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
+            data=json.dumps({"title": title, "body": body}),
+            vapid_private_key=settings.vapid_private_key,
+            vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
+            timeout=PUSH_TIMEOUT_SECONDS,
         )
-        logging.info("Push sent successfully!")
-        return True
     except WebPushException as e:
-        logging.error(f"WebPushException: {e}")
-        logging.error(f"Response: {e.response.text if e.response else 'no response'}")
-        return False
-    except Exception as e:
-        logging.error(f"Push error: {type(e).__name__}: {e}")
-        return False
+        status = e.response.status_code if e.response is not None else None
+        if status in GONE_STATUSES:
+            return PushResult.GONE
+        logger.warning("Web push rejected", extra={"status": status})
+        return PushResult.FAILED
+    return PushResult.SENT
+
+
+async def send_push_notification(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> PushResult:
+    return await asyncio.to_thread(_send, endpoint, p256dh, auth, title, body)

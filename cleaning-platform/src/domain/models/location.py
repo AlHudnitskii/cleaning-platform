@@ -1,17 +1,16 @@
 import uuid
-import re
-from pydantic import BaseModel, field_validator
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator
 
 from src.domain.models.enums import Country, LocationLevel
 
 
 class LocationCreate(BaseModel):
-    name: str
+    name: str = Field(max_length=255)
     country: Country
     level: LocationLevel
-    parent_id: Optional[uuid.UUID] = None
+    parent_id: uuid.UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -24,10 +23,9 @@ class LocationCreate(BaseModel):
 class LocationResponse(BaseModel):
     id: uuid.UUID
     name: str
-    country: str
+    country: Country
+    level: LocationLevel
+    parent_id: uuid.UUID | None
     path: str
-    level: str
-    parent_id: Optional[uuid.UUID]
+    full_name: str
     created_at: datetime
-
-    model_config = {"from_attributes": True}

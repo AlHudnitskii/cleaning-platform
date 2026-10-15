@@ -1,47 +1,93 @@
-from pydantic import BaseModel, field_validator, model_validator
-from typing import Optional
-from datetime import datetime
 import uuid
-from src.domain.models.enums import UserRole, Country
+from dataclasses import dataclass
+from datetime import datetime
+
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
+
+from src.domain.models.enums import Country, UserRole
+
+MIN_PASSWORD_LENGTH = 6
+
+
+def _validate_password(value: str) -> str:
+    if len(value) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+    return value
+
+
+@dataclass(frozen=True)
+class CurrentUser:
+    id: uuid.UUID
+    email: str
+    role: UserRole
+    country: Country | None
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == UserRole.ADMIN
+
+    @property
+    def is_manager(self) -> bool:
+        return self.role == UserRole.MANAGER
+
+    @property
+    def is_cleaner(self) -> bool:
+        return self.role == UserRole.CLEANER
 
 
 class UserRegister(BaseModel):
-    email: str
+    email: EmailStr
     password: str
     role: UserRole
-    country: Optional[Country] = None
+    country: Country | None = None
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        if len(v) < 6:
-            raise ValueError("Password must be at least 6 characters")
-        return v
+        return _validate_password(v)
 
     @model_validator(mode="after")
     def validate_country_for_role(self) -> "UserRegister":
-        if self.role in [UserRole.MANAGER, UserRole.CLEANER] and not self.country:
+        if self.role in (UserRole.MANAGER, UserRole.CLEANER) and not self.country:
             raise ValueError("Country is required for manager and cleaner roles")
         return self
 
 
 class UserLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
+
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return _validate_password(v)
 
 
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
     role: UserRole
-    country: Optional[Country]
+    country: Country | None
+    is_active: bool = True
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AssigneeResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    country: Country | None
 
     model_config = {"from_attributes": True}
 
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse

@@ -1,24 +1,40 @@
-import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from functools import lru_cache
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://cleaning_user:cleaning_pass@localhost:5433/cleaning_db"
-)
+from sqlalchemy import MetaData
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,
-    pool_size=5,
-    max_overflow=10
-)
+from src.settings import get_settings
 
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+NAMING_CONVENTION = {
+    "ix": "ix_%(table_name)s_%(column_0_N_name)s",
+    "uq": "%(table_name)s_%(column_0_N_name)s_key",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "%(table_name)s_%(column_0_name)s_fkey",
+    "pk": "%(table_name)s_pkey",
+}
+
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+@lru_cache
+def get_engine() -> AsyncEngine:
+    settings = get_settings()
+    return create_async_engine(
+        settings.database_url,
+        echo=settings.sql_echo,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+    )
+
+
+@lru_cache
+def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(get_engine(), expire_on_commit=False)
+
+
+def session_scope() -> AsyncSession:
+    return get_sessionmaker()()

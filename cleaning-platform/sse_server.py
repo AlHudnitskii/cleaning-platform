@@ -1,83 +1,119 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
+import uuid
+from collections import defaultdict
+from contextlib import suppress
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+from aio_pika.abc import AbstractIncomingMessage
 from aiohttp import web
 
-logging.basicConfig(level=logging.INFO)
+from src.domain.models.user import CurrentUser
+from src.domain.services import task_access
+from src.infrastructure.auth.middleware import AuthError, authenticate_token
+from src.infrastructure.messaging.rabbitmq import connect, declare_task_events, decode_event
+from src.settings import get_settings
 
-connected_clients: dict[str, web.StreamResponse] = {}
+logger = logging.getLogger("sse")
+
+PING_SECONDS = 30
+CLIENT_QUEUE_SIZE = 100
+
+
+@dataclass(eq=False)
+class Client:
+    user: CurrentUser
+    queue: asyncio.Queue[str] = field(default_factory=lambda: asyncio.Queue(CLIENT_QUEUE_SIZE))
+
+
+clients: dict[uuid.UUID, set[Client]] = defaultdict(set)
+
+
+def sse_message(data: dict[str, Any]) -> str:
+    return f"data: {json.dumps(data, default=str)}\n\n"
+
+
+def can_receive(user: CurrentUser, event: dict[str, Any]) -> bool:
+    if str(user.id) == event.get("changed_by"):
+        return False
+    assigned = event.get("assigned_to")
+    assigned_to = uuid.UUID(assigned) if assigned else None
+    return task_access.can_view(user, str(event.get("country")), assigned_to)
+
+
+def dispatch(event: dict[str, Any]) -> None:
+    event_type = event.pop("type", None)
+    message = sse_message({"type": event_type, "data": event, "timestamp": datetime.now(UTC).isoformat()})
+    for user_clients in clients.values():
+        for client in user_clients:
+            if can_receive(client.user, event):
+                with suppress(asyncio.QueueFull):
+                    client.queue.put_nowait(message)
 
 
 async def stream_handler(request: web.Request) -> web.StreamResponse:
-    token = request.rel_url.query.get('token')
+    token = request.query.get("token")
     if not token:
-        return web.Response(status=401, text='Unauthorized')
-
+        raise web.HTTPUnauthorized(text="Unauthorized")
     try:
-        import jwt
-        payload = jwt.decode(token, "your-secret-key-change-in-production", algorithms=["HS256"])
-        user_id = payload["sub"]
-    except Exception:
-        return web.Response(status=401, text='Invalid token')
+        user = await authenticate_token(token)
+    except AuthError as e:
+        raise web.HTTPUnauthorized(text=e.message) from e
 
     response = web.StreamResponse(
-        status=200,
-        headers={
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-            'Access-Control-Allow-Origin': '*',
-        }
+        headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
     await response.prepare(request)
 
-    connected_clients[user_id] = response
-    logging.info(f"Client connected: {user_id}, total: {len(connected_clients)}")
-
+    client = Client(user)
+    clients[user.id].add(client)
+    logger.info("Client connected", extra={"user_id": str(user.id)})
     try:
-        await response.write(
-            f"data: {json.dumps({'type': 'connected', 'user_id': user_id})}\n\n".encode()
-        )
-
+        await response.write(sse_message({"type": "connected"}).encode())
         while True:
-            await asyncio.sleep(30)
-            await response.write(b"data: {\"type\": \"ping\"}\n\n")
-    except Exception:
+            try:
+                message = await asyncio.wait_for(client.queue.get(), timeout=PING_SECONDS)
+            except TimeoutError:
+                message = sse_message({"type": "ping"})
+            await response.write(message.encode())
+    except (ConnectionResetError, asyncio.CancelledError):
         pass
     finally:
-        connected_clients.pop(user_id, None)
-        logging.info(f"Client disconnected: {user_id}")
-
+        clients[user.id].discard(client)
+        if not clients[user.id]:
+            clients.pop(user.id, None)
+        logger.info("Client disconnected", extra={"user_id": str(user.id)})
     return response
 
 
-async def broadcast_handler(request: web.Request) -> web.Response:
-    data = await request.json()
-    event_type = data.get("type")
-    payload = data.get("data", {})
-    exclude_user = data.get("exclude_user")
-
-    message = f"data: {json.dumps({'type': event_type, 'data': payload, 'timestamp': datetime.utcnow().isoformat()})}\n\n"
-
-    disconnected = []
-    for user_id, response in connected_clients.items():
-        if user_id == exclude_user:
-            continue
-        try:
-            await response.write(message.encode())
-        except Exception:
-            disconnected.append(user_id)
-
-    for user_id in disconnected:
-        connected_clients.pop(user_id, None)
-
-    return web.json_response({"sent_to": len(connected_clients) - len(disconnected)})
+async def on_event(message: AbstractIncomingMessage) -> None:
+    async with message.process():
+        dispatch(decode_event(message.body))
 
 
-app = web.Application()
-app.router.add_get('/events/stream', stream_handler)
-app.router.add_post('/events/broadcast', broadcast_handler)
+async def consume_events(app: web.Application) -> Any:
+    settings = get_settings()
+    connection = await connect(settings.rabbitmq_url)
+    channel = await connection.channel()
+    exchange = await declare_task_events(channel)
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+    await queue.bind(exchange)
+    await queue.consume(on_event)
+    yield
+    await connection.close()
 
-if __name__ == '__main__':
-    web.run_app(app, host='0.0.0.0', port=8080)
+
+def create_app() -> web.Application:
+    app = web.Application()
+    app.router.add_get("/events/stream", stream_handler)
+    app.cleanup_ctx.append(consume_events)
+    return app
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    settings = get_settings()
+    web.run_app(create_app(), host=settings.sse_host, port=settings.sse_port, access_log=None)

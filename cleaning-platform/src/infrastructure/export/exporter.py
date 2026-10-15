@@ -1,40 +1,48 @@
 import io
+from typing import Any
+
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
-from datetime import datetime
+from openpyxl.utils import get_column_letter
+
+EXPORT_COLUMNS = [
+    "id",
+    "title",
+    "description",
+    "status",
+    "priority",
+    "country",
+    "location",
+    "assignee",
+    "created_at",
+]
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+MAX_COLUMN_WIDTH = 50
 
 
-def tasks_to_dataframe(tasks: list[dict]) -> pd.DataFrame:
-    if not tasks:
-        return pd.DataFrame(columns=[
-            "id", "title", "description", "status",
-            "country", "location_id", "assigned_to", "created_at"
-        ])
+def tasks_to_dataframe(tasks: list[dict[str, Any]]) -> pd.DataFrame:
+    return pd.DataFrame(tasks, columns=EXPORT_COLUMNS).fillna("")
 
-    return pd.DataFrame(tasks)
+
+def neutralize_formula(value: Any) -> Any:
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 def export_to_parquet(df: pd.DataFrame) -> bytes:
-    table = pa.Table.from_pandas(df)
     buffer = io.BytesIO()
-    pq.write_table(table, buffer, compression="snappy")
+    df.to_parquet(buffer, engine="pyarrow", compression="snappy", index=False)
     return buffer.getvalue()
 
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
+    safe = df.map(neutralize_formula)
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Tasks")
-
+        safe.to_excel(writer, index=False, sheet_name="Tasks")
         worksheet = writer.sheets["Tasks"]
-        for idx, col in enumerate(df.columns):
-            max_length = max(
-                df[col].astype(str).map(len).max(),
-                len(col)
-            ) + 2
-            worksheet.column_dimensions[
-                chr(65 + idx)
-            ].width = min(max_length, 50)
-
+        for idx, column in enumerate(safe.columns, start=1):
+            longest = max((len(str(v)) for v in safe[column]), default=0)
+            width = max(int(longest), len(column)) + 2
+            worksheet.column_dimensions[get_column_letter(idx)].width = min(width, MAX_COLUMN_WIDTH)
     return buffer.getvalue()

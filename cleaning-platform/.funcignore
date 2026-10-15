@@ -1,0 +1,13 @@
+venv
+.venv
+tests
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__
+local.settings.json
+.env
+seed.py
+sse_server.py
+generate_keys.py
+requirements-dev.txt

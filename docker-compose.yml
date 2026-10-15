@@ -1,3 +1,26 @@
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://cleaning_user:cleaning_pass@postgres:5432/cleaning_db
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  AzureWebJobsStorage: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+  JWT_SECRET: ${JWT_SECRET:-}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+  VAPID_PRIVATE_KEY: private_key.pem
+  VAPID_CLAIMS_EMAIL: admin@cleaning.com
+  SECURE_COOKIES: "false"
+
+x-worker: &worker
+  build:
+    context: ./cleaning-platform
+    dockerfile: Dockerfile.worker
+  environment: *backend-env
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    rabbitmq:
+      condition: service_healthy
+  restart: unless-stopped
+  profiles: ["app"]
+
 services:
   postgres:
     image: postgres:16
@@ -11,6 +34,10 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cleaning_user -d cleaning_db"]
+      interval: 5s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -21,6 +48,10 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 10
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
@@ -32,6 +63,43 @@ services:
     volumes:
       - azurite_data:/data
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck --loose
+
+  migrate:
+    <<: *worker
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./cleaning-platform
+      dockerfile: Dockerfile
+    environment: *backend-env
+    ports:
+      - "7071:80"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["app"]
+
+  sse:
+    <<: *worker
+    command: ["python", "sse_server.py"]
+    environment:
+      <<: *backend-env
+      SSE_HOST: 0.0.0.0
+    ports:
+      - "8080:8080"
+
+  consumer:
+    <<: *worker
+    command: ["python", "-m", "src.infrastructure.messaging.consumer"]
+
+  relay:
+    <<: *worker
+    command: ["python", "-m", "src.infrastructure.messaging.relay"]
 
 volumes:
   postgres_data:

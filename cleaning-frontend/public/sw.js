@@ -1,10 +1,8 @@
-const CACHE_NAME = "cleaning-platform-v2";
-const STATIC_ASSETS = ["/logo192.png", "/manifest.json"];
+const CACHE_NAME = "cleaning-platform-v3";
+const APP_SHELL = ["/", "/index.html", "/manifest.json", "/logo192.png", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
   self.skipWaiting();
 });
 
@@ -12,58 +10,61 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key)),
-        ),
-      ),
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
+function offlineApiResponse() {
+  return new Response(JSON.stringify({ error: "offline", offline: true }), {
+    status: 503,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
-  if (
-    url.pathname.includes("hot-update") ||
-    url.pathname.includes("sockjs-node") ||
-    url.pathname.endsWith(".js") ||
-    (url.pathname.endsWith(".json") && !url.pathname.includes("manifest.json"))
-  ) {
-    return;
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
   }
+  return response;
+}
+
+async function networkFirstPage(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put("/index.html", response.clone());
+    }
+    return response;
+  } catch {
+    return (await caches.match("/index.html")) ?? Response.error();
+  }
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/events/")) return;
 
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(
-      fetch(event.request).catch(
-        () =>
-          new Response(JSON.stringify({ error: "offline", offline: true }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          }),
-      ),
-    );
+    event.respondWith(fetch(request).catch(offlineApiResponse));
     return;
   }
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          if (response.ok && event.request.method === "GET") {
-            const clone = response.clone();
-            caches
-              .open(CACHE_NAME)
-              .then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match("/index.html"));
-    }),
-  );
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirstPage(request));
+    return;
+  }
+  if (url.pathname.startsWith("/assets/") || APP_SHELL.includes(url.pathname)) {
+    event.respondWith(cacheFirst(request));
+  }
 });
 
 self.addEventListener("push", (event) => {
@@ -71,8 +72,8 @@ self.addEventListener("push", (event) => {
   if (event.data) {
     try {
       data = event.data.json();
-    } catch (e) {
-      data = { title: "Cleaning Platform", body: event.data.text() };
+    } catch {
+      data = { body: event.data.text() };
     }
   }
   event.waitUntil(
@@ -86,5 +87,5 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow("/my-tasks"));
+  event.waitUntil(self.clients.openWindow("/"));
 });

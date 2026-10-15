@@ -1,199 +1,106 @@
-import azure.functions as func
-import logging
-import json
 import uuid
-from datetime import datetime
 
-from pydantic import ValidationError
-from sqlalchemy import text
+import azure.functions as func
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.infrastructure.auth.middleware import get_current_user, AuthError
-from src.infrastructure.database.connection import AsyncSessionLocal
-from src.domain.models.enums import UserRole
+from src.api.http import ApiError, authenticated, json_response, not_found, query_choice, read_model, route_uuid
+from src.domain.models.enums import Country, LocationLevel, UserRole
 from src.domain.models.location import LocationCreate, LocationResponse
+from src.domain.models.user import CurrentUser
+from src.domain.services.locations import FULL_NAME_SEPARATOR, LocationNode, build_path, child_error, full_names
+from src.infrastructure.database.connection import session_scope
+from src.infrastructure.database.models import Location
 
 bp = func.Blueprint()
 
 
-def build_path(parent_path: str | None, name: str) -> str:
-    safe_name = name.replace(" ", "_").replace("-", "_")
-    if parent_path:
-        return f"{parent_path}.{safe_name}"
-    return safe_name
+def visible_country(user: CurrentUser, requested: Country | None) -> str | None:
+    if user.is_admin:
+        return requested
+    return user.country
+
+
+def to_response(location: Location, names: dict[uuid.UUID, list[str]]) -> LocationResponse:
+    return LocationResponse(
+        id=location.id,
+        name=location.name,
+        country=Country(location.country),
+        level=LocationLevel(location.level),
+        parent_id=location.parent_id,
+        path=str(location.path),
+        full_name=FULL_NAME_SEPARATOR.join(names.get(location.id, [location.name])),
+        created_at=location.created_at,
+    )
+
+
+async def fetch_locations(session: AsyncSession, country: str | None) -> list[Location]:
+    stmt = select(Location).order_by(Location.path)
+    if country:
+        stmt = stmt.where(Location.country == country)
+    return list((await session.scalars(stmt)).all())
+
+
+def name_index(locations: list[Location]) -> dict[uuid.UUID, list[str]]:
+    return full_names(LocationNode(id=loc.id, parent_id=loc.parent_id, name=loc.name) for loc in locations)
 
 
 @bp.route(route="locations", methods=["POST"])
-async def create_location(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Creating new location")
+@authenticated(UserRole.ADMIN)
+async def create_location(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    data = read_model(req, LocationCreate)
+    location_id = uuid.uuid4()
 
-    try:
-        user = get_current_user(req)
-    except AuthError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.message}),
-            status_code=e.status_code,
-            mimetype="application/json"
-        )
-
-    if user["role"] != UserRole.ADMIN:
-        return func.HttpResponse(
-            json.dumps({"error": "Only admins can create locations"}),
-            status_code=403,
-            mimetype="application/json"
-        )
-
-    try:
-        body = req.get_json()
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid JSON"}),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    try:
-        location_data = LocationCreate(**body)
-    except ValidationError as e:
-        return func.HttpResponse(
-            json.dumps({"error": e.errors()}, default=str),
-            status_code=400,
-            mimetype="application/json"
-        )
-
-    async with AsyncSessionLocal() as session:
+    async with session_scope() as session, session.begin():
         parent_path = None
-        if location_data.parent_id:
-            result = await session.execute(
-                text("SELECT path FROM locations WHERE id = :id"),
-                {"id": location_data.parent_id}
-            )
-            parent = result.fetchone()
-            if not parent:
-                return func.HttpResponse(
-                    json.dumps({"error": "Parent location not found"}),
-                    status_code=404,
-                    mimetype="application/json"
-                )
-            parent_path = parent.path
+        if data.parent_id:
+            parent = await session.get(Location, data.parent_id)
+            if parent is None:
+                raise not_found("Parent location")
+            error = child_error(LocationLevel(parent.level), parent.country, data.level, data.country)
+            if error:
+                raise ApiError(400, error)
+            parent_path = str(parent.path)
 
-        path = build_path(parent_path, location_data.name)
-        location_id = uuid.uuid4()
-
-        await session.execute(
-            text("""
-                INSERT INTO locations (id, name, country, path, level, parent_id, created_at)
-                VALUES (:id, :name, :country, :path, :level, :parent_id, :created_at)
-            """),
-            {
-                "id": location_id,
-                "name": location_data.name,
-                "country": location_data.country,
-                "path": path,
-                "level": location_data.level,
-                "parent_id": location_data.parent_id,
-                "created_at": datetime.utcnow()
-            }
+        location = Location(
+            id=location_id,
+            name=data.name,
+            country=data.country,
+            path=build_path(parent_path, location_id),
+            level=data.level,
+            parent_id=data.parent_id,
         )
-        await session.commit()
+        session.add(location)
+        await session.flush()
+        await session.refresh(location)
+        locations = await fetch_locations(session, data.country)
 
-        result = await session.execute(
-            text("SELECT * FROM locations WHERE id = :id"),
-            {"id": location_id}
-        )
-        location = result.fetchone()
+    return json_response(to_response(location, name_index(locations)), 201)
 
-    response = LocationResponse(
-        id=location.id,
-        name=location.name,
-        country=location.country,
-        path=str(location.path),
-        level=location.level,
-        parent_id=location.parent_id,
-        created_at=location.created_at
-    )
 
-    return func.HttpResponse(
-        response.model_dump_json(),
-        status_code=201,
-        mimetype="application/json"
-    )
+@bp.route(route="locations", methods=["GET"])
+@authenticated()
+async def get_locations(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    country = visible_country(user, query_choice(req, "country", Country))
+    async with session_scope() as session:
+        locations = await fetch_locations(session, country)
+    names = name_index(locations)
+    return json_response([to_response(loc, names) for loc in locations])
 
 
 @bp.route(route="locations/{location_id}/children", methods=["GET"])
-async def get_children(req: func.HttpRequest) -> func.HttpResponse:
-    location_id = req.route_params.get("location_id")
+@authenticated()
+async def get_children(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    location_id = route_uuid(req, "location_id", "location ID")
+    country = visible_country(user, None)
 
-    try:
-        location_uuid = uuid.UUID(location_id)
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid location ID"}),
-            status_code=400,
-            mimetype="application/json"
-        )
+    async with session_scope() as session:
+        location = await session.get(Location, location_id)
+        if location is None or (country and location.country != country):
+            raise not_found("Location")
+        locations = await fetch_locations(session, location.country)
 
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT path FROM locations WHERE id = :id"),
-            {"id": location_uuid}
-        )
-        location = result.fetchone()
-
-        if not location:
-            return func.HttpResponse(
-                json.dumps({"error": "Location not found"}),
-                status_code=404,
-                mimetype="application/json"
-            )
-
-        result = await session.execute(
-            text("SELECT * FROM locations WHERE path <@ :path AND path != :path"),
-            {"path": location.path}
-        )
-        children = result.fetchall()
-
-    children_list = [
-        json.loads(LocationResponse(
-            id=row.id,
-            name=row.name,
-            country=row.country,
-            path=str(row.path),
-            level=row.level,
-            parent_id=row.parent_id,
-            created_at=row.created_at
-        ).model_dump_json())
-        for row in children
-    ]
-
-    return func.HttpResponse(
-        json.dumps(children_list),
-        status_code=200,
-        mimetype="application/json"
-    )
-
-@bp.route(route="locations", methods=["GET"])
-async def get_locations(req: func.HttpRequest) -> func.HttpResponse:
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT * FROM locations ORDER BY path")
-        )
-        locations = result.fetchall()
-
-    locations_list = [
-        json.loads(LocationResponse(
-            id=row.id,
-            name=row.name,
-            country=row.country,
-            path=str(row.path),
-            level=row.level,
-            parent_id=row.parent_id,
-            created_at=row.created_at
-        ).model_dump_json())
-        for row in locations
-    ]
-
-    return func.HttpResponse(
-        json.dumps(locations_list),
-        status_code=200,
-        mimetype="application/json"
-    )
+    names = name_index(locations)
+    root = str(location.path)
+    descendants = [loc for loc in locations if str(loc.path).startswith(root + ".")]
+    return json_response([to_response(loc, names) for loc in descendants])

@@ -1,169 +1,111 @@
-import os
 import asyncio
-import json
 import logging
 import uuid
+from typing import Any
 
-import aio_pika
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
+from aio_pika.abc import AbstractIncomingMessage
+from sqlalchemy import delete, select
 
-from src.infrastructure.push.notifications import send_push_notification
-from src.infrastructure.messaging.rabbitmq import QUEUE_PUSH
+from src.domain.models.enums import UserRole
+from src.infrastructure.database.connection import session_scope
+from src.infrastructure.database.models import PushSubscription, User
+from src.infrastructure.messaging.outbox import TASK_CREATED, TASK_STATUS_CHANGED
+from src.infrastructure.messaging.rabbitmq import connect, declare_push_queue, decode_event
+from src.infrastructure.push.notifications import PushResult, send_push_notification
+from src.settings import get_settings
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://cleaning_user:cleaning_pass@localhost:5433/cleaning_db"
-)
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-
-engine = create_async_engine(DATABASE_URL, echo=False)
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+RETRY_SECONDS = 5.0
 
 
-async def get_push_subscriptions(user_id: str) -> list[dict]:
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = :uid"),
-            {"uid": uuid.UUID(user_id)}
-        )
-        return [{"endpoint": row.endpoint, "p256dh": row.p256dh, "auth": row.auth} for row in result.fetchall()]
+async def notify_user(user_id: uuid.UUID, title: str, body: str) -> None:
+    async with session_scope() as session:
+        subscriptions = (
+            await session.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id))
+        ).all()
 
-
-async def get_user_by_id(user_id: str) -> dict | None:
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT id, email, role, country FROM users WHERE id = :uid"),
-            {"uid": uuid.UUID(user_id)}
-        )
-        row = result.fetchone()
-        if not row:
-            return None
-        return {"id": str(row.id), "email": row.email, "role": row.role, "country": row.country}
-
-
-async def get_managers_by_country(country: str) -> list[dict]:
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT id FROM users WHERE role = 'manager' AND country = :country AND is_active = true"),
-            {"country": country}
-        )
-        return [{"id": str(row.id)} for row in result.fetchall()]
-
-
-async def notify_user(user_id: str, title: str, body: str):
-    subscriptions = await get_push_subscriptions(user_id)
-    if not subscriptions:
-        logging.info(f"No push subscriptions for user {user_id}")
-        return
-
+    gone: list[uuid.UUID] = []
     for sub in subscriptions:
-        success = await send_push_notification(
-            endpoint=sub["endpoint"],
-            p256dh=sub["p256dh"],
-            auth=sub["auth"],
-            title=title,
-            body=body,
+        result = await send_push_notification(sub.endpoint, sub.p256dh, sub.auth, title, body)
+        if result == PushResult.GONE:
+            gone.append(sub.id)
+
+    if gone:
+        async with session_scope() as session, session.begin():
+            await session.execute(delete(PushSubscription).where(PushSubscription.id.in_(gone)))
+        logger.info("Removed expired push subscriptions", extra={"user_id": str(user_id), "count": len(gone)})
+
+
+async def active_managers(country: str) -> list[uuid.UUID]:
+    async with session_scope() as session:
+        rows = await session.scalars(
+            select(User.id).where(User.role == UserRole.MANAGER, User.country == country, User.is_active.is_(True))
         )
-        if success:
-            logging.info(f"Push sent to user {user_id}")
-        else:
-            logging.warning(f"Push failed for user {user_id}")
+        return list(rows)
 
 
-async def handle_task_created(data: dict):
-    logging.info(f"Handling task_created: {data['task_id']}")
+def _optional_uuid(value: Any) -> uuid.UUID | None:
+    return uuid.UUID(str(value)) if value else None
 
-    assigned_to = data.get("assigned_to")
-    title = data.get("title", "New task")
-    country = data.get("country")
 
-    if assigned_to:
-        await notify_user(
-            user_id=assigned_to,
-            title="New task assigned",
-            body=f"You have been assigned: {title}",
-        )
+async def handle_task_created(event: dict[str, Any]) -> None:
+    title = str(event.get("title") or "New task")
+    country = event.get("country")
+    assignee = _optional_uuid(event.get("assigned_to"))
 
+    if assignee:
+        await notify_user(assignee, "New task assigned", f"You have been assigned: {title}")
     if country:
-        managers = await get_managers_by_country(country)
-        for manager in managers:
-            await notify_user(
-                user_id=manager["id"],
-                title="New task created",
-                body=f"{title} ({country})",
-            )
+        for manager_id in await active_managers(str(country)):
+            await notify_user(manager_id, "New task created", f"{title} ({country})")
 
 
-async def handle_task_status_changed(data: dict):
-    logging.info(f"Handling task_status_changed: {data['task_id']}")
-
-    assigned_to = data.get("assigned_to")
-    title = data.get("title", "Task")
-    old_status = data.get("old_status", "")
-    new_status = data.get("new_status", "")
-
-    if assigned_to:
-        await notify_user(
-            user_id=assigned_to,
-            title="Task status updated",
-            body=f"{title}: {old_status} -> {new_status}",
-        )
+async def handle_task_status_changed(event: dict[str, Any]) -> None:
+    assignee = _optional_uuid(event.get("assigned_to"))
+    if assignee is None or assignee == _optional_uuid(event.get("changed_by")):
+        return
+    title = str(event.get("title") or "Task")
+    await notify_user(
+        assignee, "Task status updated", f"{title}: {event.get('old_status')} -> {event.get('new_status')}"
+    )
 
 
-async def handle_push(data: dict):
-    user_id = data.get("user_id")
-    title = data.get("title", "Notification")
-    body = data.get("body", "")
-
-    if user_id:
-        await notify_user(user_id=user_id, title=title, body=body)
+HANDLERS = {
+    TASK_CREATED: handle_task_created,
+    TASK_STATUS_CHANGED: handle_task_status_changed,
+}
 
 
-async def process_message(message: aio_pika.IncomingMessage):
-    async with message.process():
-        try:
-            data = json.loads(message.body.decode())
-            msg_type = data.get("type")
-
-            logging.info(f"Received message type={msg_type}")
-
-            if msg_type == "task_created":
-                await handle_task_created(data)
-            elif msg_type == "task_status_changed":
-                await handle_task_status_changed(data)
-            elif msg_type == "push":
-                await handle_push(data)
-            else:
-                logging.warning(f"Unknown message type: {msg_type}")
-
-        except Exception as e:
-            logging.error(f"Error processing message: {e}")
+async def process_message(message: AbstractIncomingMessage) -> None:
+    async with message.process(requeue=False):
+        event = decode_event(message.body)
+        handler = HANDLERS.get(str(event.get("type")))
+        if handler is None:
+            logger.warning("Unknown event type", extra={"type": event.get("type")})
+            return
+        await handler(event)
 
 
-async def start_consumer():
-    logging.info("Starting consumer...")
-
+async def run_consumer() -> None:
+    settings = get_settings()
     while True:
         try:
-            connection = await aio_pika.connect_robust(RABBITMQ_URL)
+            connection = await connect(settings.rabbitmq_url)
             async with connection:
                 channel = await connection.channel()
                 await channel.set_qos(prefetch_count=10)
-
-                queue = await channel.declare_queue(QUEUE_PUSH, durable=True)
-                logging.info(f"Listening on queue: {QUEUE_PUSH}")
-
+                queue = await declare_push_queue(channel)
                 await queue.consume(process_message)
+                logger.info("Push consumer started")
                 await asyncio.Future()
-
-        except Exception as e:
-            logging.error(f"Consumer error: {e}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Push consumer failed, retrying in %s seconds", RETRY_SECONDS)
+            await asyncio.sleep(RETRY_SECONDS)
 
 
 if __name__ == "__main__":
-    asyncio.run(start_consumer())
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    asyncio.run(run_consumer())

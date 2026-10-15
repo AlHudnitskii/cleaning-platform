@@ -1,13 +1,29 @@
-import jwt
-import bcrypt
-from datetime import datetime, timedelta
-from src.domain.models.enums import UserRole
+import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
-SECRET_KEY = "your-secret-key-change-in-production"
-REFRESH_SECRET_KEY = "your-refresh-secret-key-change-in-production"
+import bcrypt
+import jwt
+
+from src.settings import get_settings
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-REFRESH_TOKEN_EXPIRE_DAYS = 30
+ACCESS = "access"
+REFRESH = "refresh"
+
+
+class InvalidTokenError(Exception):
+    pass
+
+
+class ExpiredTokenError(InvalidTokenError):
+    pass
+
+
+@dataclass(frozen=True)
+class TokenClaims:
+    user_id: uuid.UUID
+    version: int
 
 
 def hash_password(password: str) -> str:
@@ -18,32 +34,49 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def create_access_token(user_id: str, email: str, role: UserRole, country: str | None) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+def _encode(user_id: uuid.UUID, version: int, token_type: str, lifetime: timedelta, secret: str) -> str:
+    now = datetime.now(UTC)
     payload = {
-        "sub": user_id,
-        "email": email,
-        "role": role,
-        "country": country,
-        "exp": expire,
-        "type": "access"
+        "sub": str(user_id),
+        "ver": version,
+        "type": token_type,
+        "iat": now,
+        "exp": now + lifetime,
+        "jti": uuid.uuid4().hex,
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, secret, algorithm=ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> str:
-    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {
-        "sub": user_id,
-        "exp": expire,
-        "type": "refresh"
-    }
-    return jwt.encode(payload, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+def _decode(token: str, token_type: str, secret: str) -> TokenClaims:
+    try:
+        payload = jwt.decode(token, secret, algorithms=[ALGORITHM], options={"require": ["sub", "exp", "type"]})
+    except jwt.ExpiredSignatureError as e:
+        raise ExpiredTokenError("token has expired") from e
+    except jwt.InvalidTokenError as e:
+        raise InvalidTokenError("invalid token") from e
+    if payload.get("type") != token_type:
+        raise InvalidTokenError("invalid token type")
+    try:
+        return TokenClaims(user_id=uuid.UUID(payload["sub"]), version=int(payload.get("ver", 0)))
+    except (ValueError, TypeError) as e:
+        raise InvalidTokenError("invalid token subject") from e
 
 
-def decode_token(token: str) -> dict:
-    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+def create_access_token(user_id: uuid.UUID, version: int) -> str:
+    settings = get_settings()
+    lifetime = timedelta(minutes=settings.access_token_minutes)
+    return _encode(user_id, version, ACCESS, lifetime, settings.jwt_secret)
 
 
-def decode_refresh_token(token: str) -> dict:
-    return jwt.decode(token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+def create_refresh_token(user_id: uuid.UUID, version: int) -> str:
+    settings = get_settings()
+    lifetime = timedelta(days=settings.refresh_token_days)
+    return _encode(user_id, version, REFRESH, lifetime, settings.jwt_refresh_secret)
+
+
+def decode_access_token(token: str) -> TokenClaims:
+    return _decode(token, ACCESS, get_settings().jwt_secret)
+
+
+def decode_refresh_token(token: str) -> TokenClaims:
+    return _decode(token, REFRESH, get_settings().jwt_refresh_secret)

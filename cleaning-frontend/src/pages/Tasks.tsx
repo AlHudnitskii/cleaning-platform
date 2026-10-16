@@ -179,7 +179,6 @@ export function Tasks() {
           <>
             <TaskTable
               tasks={tasks.data.data}
-              firstNumber={(tasks.data.pagination.page - 1) * tasks.data.pagination.limit + 1}
               showCountry={isAdmin}
               busy={tasks.isFetching}
               sort={sort}

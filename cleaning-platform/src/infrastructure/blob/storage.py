@@ -1,6 +1,7 @@
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import BlobClient, BlobSasPermissions, ContentSettings, generate_blob_sas
@@ -47,10 +48,19 @@ def _signing_key(connection_string: str) -> tuple[str, str] | None:
     return (client.account_name, key) if client.account_name and key else None
 
 
+def public_url(blob_url: str) -> str:
+    base = get_settings().blob_public_url
+    if not base:
+        return blob_url
+    parts = urlsplit(blob_url)
+    query = f"?{parts.query}" if parts.query else ""
+    return f"{base.rstrip('/')}{parts.path}{query}"
+
+
 def read_link(blob_url: str, now: datetime | None = None) -> str:
     signing = _signing_key(get_settings().storage_connection_string)
     if signing is None:
-        return blob_url
+        return public_url(blob_url)
     account, key = signing
     blob = BlobClient.from_blob_url(blob_url)
     moment = now or datetime.now(UTC)
@@ -63,4 +73,4 @@ def read_link(blob_url: str, now: datetime | None = None) -> str:
         start=moment - CLOCK_SKEW,
         expiry=moment + READ_LINK_LIFETIME,
     )
-    return f"{blob_url.split('?', 1)[0]}?{token}"
+    return public_url(f"{blob_url.split('?', 1)[0]}?{token}")

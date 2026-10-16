@@ -9,6 +9,11 @@ export default defineConfig({
     proxy: {
       "/api": "http://127.0.0.1:7071",
       "/events": { target: "http://127.0.0.1:8080", changeOrigin: true },
+      "/blob": {
+        target: "http://127.0.0.1:10000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/blob/, ""),
+      },
     },
   },
   build: {

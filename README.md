@@ -74,6 +74,7 @@ cd .. && python3 start.py                 # инфраструктура, миг
 | `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL` | нет | Web Push |
 | `SECURE_COOKIES` | нет, `true` | `false` только для локального HTTP |
 | `SSE_HOST`, `SSE_PORT` | нет | адрес SSE-сервера |
+| `BLOB_PUBLIC_URL` | нет | база ссылок на фото вместо адреса хранилища; локально `/blob` — Vite проксирует его в Azurite, и фото открываются с телефона в той же сети |
 
 Фронтенд: `VITE_API_BASE_URL` (по умолчанию `/api`), `VITE_SSE_URL` (по умолчанию `/events/stream`).
 

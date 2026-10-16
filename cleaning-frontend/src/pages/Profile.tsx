@@ -10,12 +10,16 @@ import { Select } from "../components/Select";
 import { LOCALES, setLocale, t, useLocale } from "../i18n/locale";
 import { useChangePassword } from "../features/users/api";
 import { countryName } from "../labels";
+import { setTheme, useTheme, type Theme } from "../theme";
+
+const THEMES: readonly Theme[] = ["light", "dark"];
 
 const MIN_PASSWORD = 6;
 
 export function Profile() {
   const user = useCurrentUser();
   const locale = useLocale();
+  const theme = useTheme();
   const { acceptSession } = useAuth();
   const changePassword = useChangePassword();
   const [form, setForm] = useState({ old_password: "", new_password: "", confirm: "" });
@@ -60,6 +64,13 @@ export function Profile() {
               value={locale}
               options={LOCALES.map((option) => ({ value: option, label: t().language[option] }))}
               onChange={setLocale}
+            />
+          </Field>
+          <Field label={t().profile.theme} hint={t().profile.themeHint}>
+            <Select
+              value={theme}
+              options={THEMES.map((option) => ({ value: option, label: t().theme[option] }))}
+              onChange={setTheme}
             />
           </Field>
         </section>

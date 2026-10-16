@@ -1,13 +1,18 @@
 from contextlib import suppress
+from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
-from azure.storage.blob import ContentSettings
+from azure.storage.blob import BlobClient, BlobSasPermissions, ContentSettings, generate_blob_sas
+from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
 from azure.storage.blob.aio import BlobServiceClient
 
 from src.settings import get_settings
 
 PHOTOS_CONTAINER = "task-photos"
 EXPORTS_CONTAINER = "exports"
+READ_LINK_LIFETIME = timedelta(hours=2)
+CLOCK_SKEW = timedelta(minutes=5)
 
 
 def _client() -> BlobServiceClient:
@@ -33,3 +38,29 @@ async def delete_prefix(container: str, prefix: str) -> int:
                 await container_client.delete_blob(blob.name)
                 deleted += 1
     return deleted
+
+
+@lru_cache
+def _signing_key(connection_string: str) -> tuple[str, str] | None:
+    client = SyncBlobServiceClient.from_connection_string(connection_string)
+    key = getattr(client.credential, "account_key", None)
+    return (client.account_name, key) if client.account_name and key else None
+
+
+def read_link(blob_url: str, now: datetime | None = None) -> str:
+    signing = _signing_key(get_settings().storage_connection_string)
+    if signing is None:
+        return blob_url
+    account, key = signing
+    blob = BlobClient.from_blob_url(blob_url)
+    moment = now or datetime.now(UTC)
+    token = generate_blob_sas(
+        account_name=account,
+        container_name=blob.container_name,
+        blob_name=blob.blob_name,
+        account_key=key,
+        permission=BlobSasPermissions(read=True),
+        start=moment - CLOCK_SKEW,
+        expiry=moment + READ_LINK_LIFETIME,
+    )
+    return f"{blob_url.split('?', 1)[0]}?{token}"

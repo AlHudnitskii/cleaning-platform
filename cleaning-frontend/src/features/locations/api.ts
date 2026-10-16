@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { api } from "../../api/client";
 import type { Country, LocationCreate, LocationResponse } from "../../api/types";
+import { taskKeys } from "../tasks/api";
 
 export const locationKeys = {
   all: ["locations"] as const,
@@ -21,6 +22,29 @@ export function useCreateLocation() {
   return useMutation({
     mutationFn: (data: LocationCreate) => api.post<LocationResponse>("/locations", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: locationKeys.all }),
+  });
+}
+
+function refreshLocations(queryClient: QueryClient): Promise<unknown> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: locationKeys.all }),
+    queryClient.invalidateQueries({ queryKey: taskKeys.all }),
+  ]);
+}
+
+export function useRenameLocation(locationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.patch<LocationResponse>(`/locations/${locationId}`, { name }),
+    onSuccess: () => refreshLocations(queryClient),
+  });
+}
+
+export function useDeleteLocation(locationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete(`/locations/${locationId}`),
+    onSuccess: () => refreshLocations(queryClient),
   });
 }
 

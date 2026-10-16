@@ -89,4 +89,22 @@ describe("Session restore", () => {
 
     expect(await screen.findByText("This page does not exist")).toBeInTheDocument();
   });
+
+  it("tells the user how long to wait after too many failed attempts", async () => {
+    server.use(
+      http.post("*/api/auth/login", () =>
+        HttpResponse.json(
+          { error: "Too many failed sign-in attempts. Try again later.", retry_after: 540 },
+          { status: 429, headers: { "Retry-After": "540" } },
+        ),
+      ),
+    );
+    const { user } = renderApp("/login");
+
+    await user.type(screen.getByLabelText("Email"), "someone@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrong");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many failed sign-in attempts. Try again in 9 minutes.");
+  });
 });

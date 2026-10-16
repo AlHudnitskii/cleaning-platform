@@ -9,6 +9,7 @@ export function ConfirmDialog({
   children,
   confirmLabel,
   busy = false,
+  disabled = false,
   error,
   onConfirm,
   onCancel,
@@ -17,6 +18,7 @@ export function ConfirmDialog({
   children: ReactNode;
   confirmLabel: string;
   busy?: boolean;
+  disabled?: boolean;
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
@@ -53,7 +55,7 @@ export function ConfirmDialog({
           <button type="button" className="btn btn-secondary" data-autofocus onClick={onCancel}>
             {t().common.cancel}
           </button>
-          <button type="button" className="btn btn-danger-solid" disabled={busy} onClick={onConfirm}>
+          <button type="button" className="btn btn-danger-solid" disabled={busy || disabled} onClick={onConfirm}>
             {busy ? t().common.working : confirmLabel}
           </button>
         </div>

@@ -8,6 +8,7 @@ export type ApiErrorKind =
   | "validation"
   | "conflict"
   | "too_large"
+  | "rate_limited"
   | "server"
   | "network"
   | "unknown";
@@ -37,6 +38,7 @@ function kindForStatus(status: number): ApiErrorKind {
   if (status === 400 || status === 415 || status === 422) return "validation";
   if (status === 409) return "conflict";
   if (status === 413) return "too_large";
+  if (status === 429) return "rate_limited";
   if (status === 503) return "network";
   if (status >= 500) return "server";
   return "unknown";
@@ -54,21 +56,36 @@ function readDetails(value: unknown): ValidationDetail[] {
   );
 }
 
-function readBody(data: unknown): { message: string | null; details: ValidationDetail[]; offline: boolean } {
-  if (!isRecord(data)) return { message: null, details: [], offline: false };
+interface ErrorBody {
+  message: string | null;
+  details: ValidationDetail[];
+  offline: boolean;
+  retryAfter: number | null;
+}
+
+function readBody(data: unknown): ErrorBody {
+  if (!isRecord(data)) return { message: null, details: [], offline: false, retryAfter: null };
   return {
     message: typeof data.error === "string" ? data.error : null,
     details: readDetails(data.details),
     offline: data.offline === true,
+    retryAfter: typeof data.retry_after === "number" && data.retry_after > 0 ? data.retry_after : null,
   };
+}
+
+function messageFor(kind: ApiErrorKind, body: ErrorBody): string {
+  const messages = t().errors;
+  if (kind === "server") return messages.server;
+  if (kind === "rate_limited") {
+    return body.retryAfter ? messages.tooManySignIns(Math.ceil(body.retryAfter / 60)) : messages.rate_limited;
+  }
+  return body.message ?? messages[kind];
 }
 
 export function responseError(status: number, data: unknown): ApiError {
   const body = readBody(data);
   const kind = body.offline ? "network" : kindForStatus(status);
-  const messages = t().errors;
-  const message = kind === "server" ? messages.server : (body.message ?? messages[kind]);
-  return new ApiError(kind, message, status, body.details);
+  return new ApiError(kind, messageFor(kind, body), status, body.details);
 }
 
 export function networkError(): ApiError {

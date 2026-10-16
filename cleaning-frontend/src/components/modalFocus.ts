@@ -2,16 +2,19 @@ import { useEffect, useEffectEvent, type RefObject } from "react";
 
 const FOCUSABLE = "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href]";
 
-let openModals = 0;
+function topLevel(element: HTMLElement): Element {
+  let current: Element = element;
+  while (current.parentElement && current.parentElement !== document.body) current = current.parentElement;
+  return current;
+}
 
-function hideBackground(): () => void {
-  const root = document.getElementById("root");
-  openModals += 1;
-  root?.setAttribute("inert", "");
-  return () => {
-    openModals -= 1;
-    if (openModals === 0) root?.removeAttribute("inert");
-  };
+function hideBackground(panel: HTMLElement | null): () => void {
+  const layer = panel ? topLevel(panel) : null;
+  const hidden = [...document.body.children].filter(
+    (element) => element !== layer && !element.hasAttribute("inert") && !element.classList.contains("toast-host"),
+  );
+  hidden.forEach((element) => element.setAttribute("inert", ""));
+  return () => hidden.forEach((element) => element.removeAttribute("inert"));
 }
 
 export function useModalFocus(panelRef: RefObject<HTMLElement | null>, onClose: () => void, initialFocus: string): void {
@@ -20,7 +23,7 @@ export function useModalFocus(panelRef: RefObject<HTMLElement | null>, onClose: 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const panel = panelRef.current;
-    const showBackground = hideBackground();
+    const showBackground = hideBackground(panel);
     (panel?.querySelector<HTMLElement>(initialFocus) ?? panel)?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {

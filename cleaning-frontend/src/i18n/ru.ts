@@ -107,6 +107,7 @@ export const ru: Messages = {
     recurring: "Повторяется",
   },
   nav: {
+    skipToContent: "Перейти к содержимому",
     overview: "Обзор",
     operations: "Работа",
     data: "Данные",

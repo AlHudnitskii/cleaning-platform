@@ -30,6 +30,17 @@ describe("App shell", () => {
     expect(await screen.findByRole("link", { name: "My tasks, 3 not started" })).toBeInTheDocument();
   });
 
+  it("lets keyboard users skip the navigation straight to the page", async () => {
+    const { user } = renderApp("/tasks", MANAGER);
+    await screen.findByText("No tasks yet");
+
+    await user.tab();
+    expect(screen.getByRole("link", { name: "Skip to content" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
+
   it("opens the creation panel with N and focuses search with slash", async () => {
     const { user } = renderApp("/tasks", MANAGER);
     await screen.findByText("No tasks yet");

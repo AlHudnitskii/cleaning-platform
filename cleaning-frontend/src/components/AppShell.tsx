@@ -176,6 +176,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={`app${collapsed ? " app-collapsed" : ""}${menuOpen ? " app-menu-open" : ""}`}>
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+      >
+        {t().nav.skipToContent}
+      </a>
       <aside className="sidebar" id="sidebar">
         <div className="sidebar-brand">
           <BrandMark />
@@ -259,7 +269,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="topbar-spacer" />
           <TopbarActions />
         </header>
-        <main className="content">
+        <main className="content" id="main" tabIndex={-1}>
           <div className="content-inner page-enter" key={location.pathname}>
             <PageErrorBoundary>{children}</PageErrorBoundary>
           </div>

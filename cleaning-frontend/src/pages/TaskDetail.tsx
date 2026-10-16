@@ -1,40 +1,30 @@
-import { useState, type SubmitEvent } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorMessage } from "../api/errors";
-import type { TaskResponse, UserResponse } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
 import { PriorityText, StatusBadge } from "../components/Badges";
-import { ErrorState, ListSkeleton, Loading, NotFoundState, Notice } from "../components/Feedback";
+import { ErrorState, ListSkeleton, NotFoundState, Notice } from "../components/Feedback";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Drawer } from "../components/Drawer";
-import { Field } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { Person, RelativeDate } from "../components/People";
 import { showToast } from "../components/toast";
-import { StarDisplay, StarInput } from "../components/StarRating";
 import { useOfflineSync } from "../features/offline/useOfflineSync";
-import { useDeleteTask, useOccurrences, usePhotos, useReviewQuality, useTask } from "../features/tasks/api";
+import { useDeleteTask, useTask } from "../features/tasks/api";
 import { Checklist } from "../features/tasks/Checklist";
 import { DueDate } from "../features/tasks/DueDate";
-import { PhotoUpload } from "../features/tasks/PhotoUpload";
 import { StatusActions } from "../features/tasks/StatusActions";
 import { TaskActivity } from "../features/tasks/TaskActivity";
 import { TaskForm } from "../features/tasks/TaskForm";
 import { blockerText } from "../features/tasks/workflow";
 import { t } from "../i18n/locale";
-import { countryName, formatDateTime, formatOccurrence, rruleLabel } from "../labels";
+import { countryName, rruleLabel } from "../labels";
+import { QualitySection } from "../features/tasks/TaskQuality";
+import { PhotosSection } from "../features/tasks/TaskPhotos";
+import { OccurrencesSection } from "../features/tasks/TaskOccurrences";
 
 const UUID = /^[0-9a-f-]{36}$/i;
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value, window.location.origin);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 export function TaskDetail() {
   const { id = "" } = useParams();
@@ -216,106 +206,5 @@ function TaskDetailContent({ id }: { id: string }) {
         </aside>
       </div>
     </>
-  );
-}
-
-function QualitySection({ task, user }: { task: TaskResponse; user: UserResponse }) {
-  const canReview = user.role !== "cleaner" && task.status === "completed";
-  if (canReview) return <QualityReviewForm task={task} />;
-  if (task.quality_score === null) return null;
-  return (
-    <section className="card property-card" aria-labelledby="quality-title">
-      <h2 id="quality-title" className="subsection-title">
-        {t().taskDetail.quality}
-      </h2>
-      <StarDisplay value={task.quality_score} />
-      {task.quality_comment && <p>{task.quality_comment}</p>}
-      {task.quality_reviewed_at && <p className="muted">{t().taskDetail.reviewed(formatDateTime(task.quality_reviewed_at))}</p>}
-    </section>
-  );
-}
-
-function QualityReviewForm({ task }: { task: TaskResponse }) {
-  const [score, setScore] = useState(task.quality_score ?? 0);
-  const [comment, setComment] = useState(task.quality_comment ?? "");
-  const review = useReviewQuality(task.id);
-
-  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (score === 0) return;
-    review.mutate({ score, comment: comment.trim() || undefined }, { onSuccess: () => showToast(t().taskDetail.reviewSaved) });
-  };
-
-  return (
-    <section className="card property-card" aria-labelledby="review-title">
-      <h2 id="review-title" className="subsection-title">
-        {t().taskDetail.quality}
-      </h2>
-      {review.isError && <Notice tone="error">{errorMessage(review.error)}</Notice>}
-      <form className="stack" onSubmit={handleSubmit}>
-        <StarInput legend={t().taskDetail.score} value={score} onChange={setScore} />
-        <Field label={t().taskDetail.comment}>
-          <textarea className="input" rows={3} maxLength={2000} value={comment} onChange={(e) => setComment(e.target.value)} />
-        </Field>
-        <button className="btn btn-primary" type="submit" disabled={score === 0 || review.isPending}>
-          {review.isPending ? t().common.saving : t().taskDetail.saveReview}
-        </button>
-        {score === 0 && <p className="field-hint">{t().taskDetail.chooseScore}</p>}
-      </form>
-    </section>
-  );
-}
-
-function PhotosSection({ taskId, online }: { taskId: string; online: boolean }) {
-  const photos = usePhotos(taskId);
-  return (
-    <section className="card" aria-labelledby="photos-title">
-      <h2 id="photos-title" className="section-title">
-        {t().taskDetail.photos}
-      </h2>
-      <PhotoUpload taskId={taskId} online={online} />
-      {photos.isPending ? (
-        <Loading label={t().taskDetail.loadingPhotos} />
-      ) : photos.isError ? (
-        <ErrorState error={photos.error} onRetry={() => void photos.refetch()} />
-      ) : photos.data.length === 0 ? (
-        <p className="activity-empty">{t().taskDetail.noPhotos}</p>
-      ) : (
-        <ul className="photo-grid">
-          {photos.data.filter((photo) => isHttpUrl(photo.url)).map((photo) => (
-            <li key={photo.id}>
-              <a href={photo.url} target="_blank" rel="noopener noreferrer" className="photo-thumb">
-                <img src={photo.url} alt={photo.filename} loading="lazy" />
-                <span className="muted">{formatDateTime(photo.uploaded_at)}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function OccurrencesSection({ taskId }: { taskId: string }) {
-  const occurrences = useOccurrences(taskId, true);
-  return (
-    <section className="card" aria-labelledby="occurrences-title">
-      <h2 id="occurrences-title" className="section-title">
-        {t().taskDetail.occurrences}
-      </h2>
-      {occurrences.isPending ? (
-        <Loading label={t().taskDetail.loadingSchedule} />
-      ) : occurrences.isError ? (
-        <ErrorState error={occurrences.error} onRetry={() => void occurrences.refetch()} />
-      ) : (
-        <ol className="occurrence-list">
-          {occurrences.data.next_occurrences.map((date) => (
-            <li key={date}>
-              <time dateTime={date}>{formatOccurrence(date)}</time>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
   );
 }

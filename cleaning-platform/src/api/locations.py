@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.http import ApiError, authenticated, json_response, not_found, query_choice, read_model, route_uuid
+from src.api.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from src.domain.models.enums import Country, LocationLevel, UserRole
-from src.domain.models.location import LocationCreate, LocationResponse, LocationUpdate
 from src.domain.models.user import CurrentUser
 from src.domain.services.locations import FULL_NAME_SEPARATOR, LocationNode, build_path, child_error, full_names
 from src.infrastructure.database.connection import session_scope

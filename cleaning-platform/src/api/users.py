@@ -16,17 +16,17 @@ from src.api.http import (
     read_model,
     route_uuid,
 )
-from src.api.task_queries import OPEN_STATUS_VALUES
-from src.domain.models.enums import Country, UserRole
-from src.domain.models.user import (
+from src.api.schemas.user import (
     AssigneeResponse,
-    CurrentUser,
     PasswordChange,
     PasswordReset,
     UserRegister,
     UserResponse,
     UserUpdate,
 )
+from src.api.task_queries import OPEN_STATUS_VALUES
+from src.domain.models.enums import Country, UserRole
+from src.domain.models.user import CurrentUser
 from src.infrastructure.auth.jwt_handler import hash_password, verify_password
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, Task, User

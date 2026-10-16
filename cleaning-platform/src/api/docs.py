@@ -5,8 +5,8 @@ from typing import Any
 import azure.functions as func
 from pydantic import BaseModel
 
-from src.domain.models.location import LocationCreate, LocationResponse, LocationUpdate
-from src.domain.models.task import (
+from src.api.schemas.location import LocationCreate, LocationResponse, LocationUpdate
+from src.api.schemas.task import (
     ChecklistItemCreate,
     ChecklistItemResponse,
     ChecklistItemUpdate,
@@ -21,7 +21,7 @@ from src.domain.models.task import (
     TaskStatusUpdate,
     TaskUpdate,
 )
-from src.domain.models.user import (
+from src.api.schemas.user import (
     AssigneeResponse,
     PasswordChange,
     PasswordReset,

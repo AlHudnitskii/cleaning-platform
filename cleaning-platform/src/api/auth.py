@@ -13,7 +13,8 @@ from src.api.http import (
     read_cookie,
     read_model,
 )
-from src.domain.models.user import CurrentUser, TokenResponse, UserLogin, UserResponse
+from src.api.schemas.user import TokenResponse, UserLogin, UserResponse
+from src.domain.models.user import CurrentUser
 from src.domain.services.login_throttle import retry_after, throttle_key, window_start
 from src.infrastructure.auth.jwt_handler import (
     InvalidTokenError,

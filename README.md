@@ -11,8 +11,9 @@ cleaning-frontend/   React 19 + TypeScript + Vite, TanStack Query, react-router
 cleaning-platform/   Python 3.11
   function_app.py    Azure Functions: HTTP API (/api/*)
   sse_server.py      aiohttp SSE-сервер (/events/stream), события берёт из RabbitMQ
-  src/api/           HTTP-обработчики (тонкие: разбор запроса → вызов → ответ)
-  src/domain/        DTO (Pydantic) и правила: доступ к задачам, переходы статусов, импорт, локации
+  src/api/           HTTP-обработчики, схемы запросов и ответов (src/api/schemas, Pydantic), запросы к БД
+  src/domain/        перечисления, текущий пользователь и правила: доступ к задачам, переходы статусов, импорт, локации
+  src/translations/  каталог серверных текстов на английском и русском
   src/infrastructure/ БД (SQLAlchemy ORM), JWT, Blob, RabbitMQ, outbox, push
   migrations/        Alembic
 docker-compose.yml   Postgres 16 (ltree), RabbitMQ, Azurite; профиль app — всё приложение в контейнерах

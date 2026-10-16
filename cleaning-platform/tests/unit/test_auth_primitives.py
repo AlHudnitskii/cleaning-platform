@@ -6,7 +6,7 @@ import jwt
 import pytest
 
 from src.api.http import ApiError, cookie_header, query_int, read_cookie
-from src.domain.models.task import SyncStatusChange
+from src.api.schemas.task import SyncStatusChange
 from src.infrastructure.auth.jwt_handler import (
     ExpiredTokenError,
     InvalidTokenError,

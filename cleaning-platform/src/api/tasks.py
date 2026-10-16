@@ -21,6 +21,7 @@ from src.api.http import (
     read_model,
     route_uuid,
 )
+from src.api.schemas.task import QualityReview, TaskCreate, TaskStatusUpdate, TaskUpdate
 from src.api.task_queries import (
     day_end_exclusive,
     day_start,
@@ -35,7 +36,6 @@ from src.api.task_queries import (
 from src.api.task_responses import detailed_response, to_response
 from src.api.task_workflow import change_status, ensure_assignable, load_location
 from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus, UserRole
-from src.domain.models.task import QualityReview, TaskCreate, TaskStatusUpdate, TaskUpdate
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.domain.services.recurring_tasks import get_next_occurrences

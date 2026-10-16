@@ -134,7 +134,7 @@ export function Users() {
         ) : users.data.length === 0 ? (
           <EmptyState title="No users match these filters" hint="Try another role or country." />
         ) : (
-          <div className="table-scroll">
+          <div className="table-scroll table-scroll-sticky">
             <table className="table table-rows">
               <thead>
                 <tr>

@@ -11,7 +11,6 @@ import { actionLabel, nextStep } from "./workflow";
 
 export function TaskTable({
   tasks,
-  firstNumber,
   showCountry,
   busy,
   sort,
@@ -22,7 +21,6 @@ export function TaskTable({
   onSelect,
 }: {
   tasks: TaskResponse[];
-  firstNumber: number;
   showCountry: boolean;
   busy: boolean;
   sort: SortState<TaskSort>;
@@ -35,7 +33,7 @@ export function TaskTable({
   const selectedOnPage = tasks.filter((task) => selected.has(task.id)).length;
   const allSelected = tasks.length > 0 && selectedOnPage === tasks.length;
   return (
-    <div className="table-scroll" aria-busy={busy}>
+    <div className="table-scroll table-scroll-sticky" aria-busy={busy}>
       <table className="table table-rows table-stacked">
         <thead>
           <tr>
@@ -51,9 +49,6 @@ export function TaskTable({
                 onChange={(event) => onSelect(tasks.map((task) => task.id), event.target.checked)}
               />
             </th>
-            <th scope="col" className="cell-index">
-              #
-            </th>
             <SortHeader label="Task" column="title" sort={sort} onSort={onSort} />
             <SortHeader label="Status" column="status" sort={sort} onSort={onSort} />
             <SortHeader label="Priority" column="priority" sort={sort} onSort={onSort} />
@@ -68,7 +63,7 @@ export function TaskTable({
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task, index) => (
+          {tasks.map((task) => (
             <tr key={task.id} className={selected.has(task.id) ? "is-selected" : undefined}>
               <td className="cell-select">
                 <input
@@ -79,7 +74,6 @@ export function TaskTable({
                   onChange={(event) => onSelect([task.id], event.target.checked)}
                 />
               </td>
-              <td className="cell-index">{firstNumber + index}</td>
               <td className="cell-primary">
                 <Link to={`/tasks/${task.id}`} className="cell-title row-link">
                   {task.title}

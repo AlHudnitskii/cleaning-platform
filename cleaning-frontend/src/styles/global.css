@@ -958,7 +958,7 @@ textarea.input {
 
 .table th {
   height: 44px;
-  padding: 0 16px;
+  padding: 0 12px;
   text-align: left;
   vertical-align: middle;
   font-size: 13px;
@@ -974,7 +974,7 @@ textarea.input {
 
 .table td {
   height: 58px;
-  padding: 10px 16px;
+  padding: 10px 12px;
   font-size: 15px;
   vertical-align: middle;
   border-bottom: 1px solid var(--border);
@@ -3223,16 +3223,16 @@ form.stack > .btn {
   }
 }
 
-@container (min-width: 1000px) {
-  .table-scroll {
-    overflow: visible;
-  }
+.table-scroll-sticky {
+  max-height: max(360px, calc(100vh - 330px));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
 
-  .table-scroll .table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-  }
+.table-scroll-sticky .table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .table-scroll .table thead th {
@@ -3257,10 +3257,10 @@ form.stack > .btn {
 .row-action {
   position: absolute;
   top: 50%;
-  right: 14px;
+  right: 12px;
   z-index: 1;
   transform: translateY(-50%);
-  box-shadow: -28px 0 18px 6px var(--s2);
+  box-shadow: -28px 0 18px 6px var(--s2), 0 0 0 12px var(--s2);
 }
 
 .row-action:active:not(:disabled) {
@@ -4230,4 +4230,27 @@ mark {
 .task-card-hint {
   font-size: 13.5px;
   color: var(--info);
+}
+
+@media (max-width: 700px) {
+  .table-scroll-sticky {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@container (max-width: 1000px) {
+  .table th,
+  .table td {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .table td {
+    font-size: 14px;
+  }
+
+  .table .cell-title {
+    font-size: 15px;
+  }
 }

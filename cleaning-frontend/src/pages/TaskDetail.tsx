@@ -1,21 +1,25 @@
 import { useState, type SubmitEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorMessage } from "../api/errors";
 import type { TaskResponse, UserResponse } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
 import { PriorityText, StatusBadge } from "../components/Badges";
 import { ErrorState, ListSkeleton, Loading, NotFoundState, Notice } from "../components/Feedback";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { Drawer } from "../components/Drawer";
 import { Field } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { Person, RelativeDate } from "../components/People";
 import { showToast } from "../components/toast";
 import { StarDisplay, StarInput } from "../components/StarRating";
 import { useOfflineSync } from "../features/offline/useOfflineSync";
-import { useOccurrences, usePhotos, useReviewQuality, useTask } from "../features/tasks/api";
+import { useDeleteTask, useOccurrences, usePhotos, useReviewQuality, useTask } from "../features/tasks/api";
+import { DueDate } from "../features/tasks/DueDate";
 import { PhotoUpload } from "../features/tasks/PhotoUpload";
 import { StatusActions } from "../features/tasks/StatusActions";
 import { TaskActivity } from "../features/tasks/TaskActivity";
+import { TaskForm } from "../features/tasks/TaskForm";
 import { countryName, formatDateTime, formatOccurrence, rruleLabel } from "../labels";
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -40,6 +44,11 @@ function TaskDetailContent({ id }: { id: string }) {
   const task = useTask(id);
   const offline = useOfflineSync(user.id);
   const backTo = user.role === "cleaner" ? "/my-tasks" : "/tasks";
+  const canManage = user.role !== "cleaner";
+  const navigate = useNavigate();
+  const deleteTask = useDeleteTask();
+  const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (task.isPending) return <ListSkeleton label="Loading task" rows={4} columns={3} />;
   if (task.isError) return <ErrorState error={task.error} onRetry={() => void task.refetch()} />;
@@ -59,15 +68,67 @@ function TaskDetailContent({ id }: { id: string }) {
             <StatusBadge status={data.status} />
             {data.is_recurring && <span className="badge tone-info">Recurring</span>}
             {queued && <span className="badge tone-warning">Waiting to sync</span>}
+            {data.due_date && <DueDate task={data} />}
           </div>
           <h1 className="page-title task-title">{data.title}</h1>
         </div>
-        <StatusActions
-          task={data}
-          disabled={offline.changeStatus.isPending}
-          onChange={(status) => offline.changeStatus.mutate({ taskId: data.id, target: status })}
-        />
+        <div className="task-header-actions">
+          <StatusActions
+            task={data}
+            disabled={offline.changeStatus.isPending}
+            onChange={(status) => offline.changeStatus.mutate({ taskId: data.id, target: status })}
+          />
+          {canManage && (
+            <div className="button-row">
+              <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+                <Icon name="edit" size={15} />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="icon-button icon-button-danger"
+                aria-label={`Delete ${data.title}`}
+                title="Delete task"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Icon name="trash" />
+              </button>
+            </div>
+          )}
+        </div>
       </header>
+      {editing && (
+        <Drawer title="Edit task" onClose={() => setEditing(false)}>
+          <TaskForm
+            user={user}
+            task={data}
+            onCancel={() => setEditing(false)}
+            onSaved={(updated) => {
+              setEditing(false);
+              showToast(`“${updated.title}” saved`);
+            }}
+          />
+        </Drawer>
+      )}
+      {confirmingDelete && (
+        <ConfirmDialog
+          title={`Delete “${data.title}”?`}
+          confirmLabel="Delete task"
+          busy={deleteTask.isPending}
+          error={deleteTask.isError ? errorMessage(deleteTask.error) : null}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() =>
+            deleteTask.mutate(data.id, {
+              onSuccess: () => {
+                showToast(`“${data.title}” deleted`);
+                void navigate(backTo, { replace: true });
+              },
+            })
+          }
+        >
+          <p>Its comments, status history and photos are deleted too. This cannot be undone.</p>
+        </ConfirmDialog>
+      )}
       {!offline.online && (
         <Notice tone="warning">You are offline. Status changes will be sent when the connection is back.</Notice>
       )}
@@ -98,6 +159,12 @@ function TaskDetailContent({ id }: { id: string }) {
                 <dt>Priority</dt>
                 <dd>
                   <PriorityText priority={data.priority} />
+                </dd>
+              </div>
+              <div>
+                <dt>Due date</dt>
+                <dd>
+                  <DueDate task={data} empty="Not set" />
                 </dd>
               </div>
               <div>

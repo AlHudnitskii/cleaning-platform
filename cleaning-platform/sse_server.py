@@ -39,9 +39,13 @@ def sse_message(data: dict[str, Any]) -> str:
 def can_receive(user: CurrentUser, event: dict[str, Any]) -> bool:
     if str(user.id) == event.get("changed_by"):
         return False
-    assigned = event.get("assigned_to")
-    assigned_to = uuid.UUID(assigned) if assigned else None
-    return task_access.can_view(user, str(event.get("country")), assigned_to)
+    country = str(event.get("country"))
+    for key in ("assigned_to", "previous_assigned_to"):
+        assigned = event.get(key)
+        assigned_to = uuid.UUID(assigned) if assigned else None
+        if task_access.can_view(user, country, assigned_to):
+            return True
+    return False
 
 
 def dispatch(event: dict[str, Any]) -> None:

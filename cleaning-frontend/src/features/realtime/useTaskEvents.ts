@@ -9,7 +9,7 @@ import { taskKeys } from "../tasks/api";
 
 const INITIAL_DELAY_MS = 2_000;
 const MAX_DELAY_MS = 60_000;
-const TASK_EVENTS = new Set(["task_created", "task_status_changed"]);
+const TASK_EVENTS = new Set(["task_created", "task_status_changed", "task_updated", "task_deleted"]);
 
 interface TaskEvent {
   type: string;

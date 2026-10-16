@@ -7,16 +7,19 @@ import {
   type Country,
   type TaskPriority,
   type TaskResponse,
+  type TaskUpdate,
   type UserResponse,
 } from "../../api/types";
+import { DatePicker } from "../../components/DatePicker";
 import { Notice } from "../../components/Feedback";
 import { Field } from "../../components/Field";
 import { optionList, withEmpty } from "../../components/options";
 import { Select } from "../../components/Select";
+import { today } from "../../dates";
 import { COUNTRY_NAMES, PRIORITY_LABELS, RRULE_PRESETS } from "../../labels";
 import { sortedByFullName, useLocations } from "../locations/api";
 import { useAssignees } from "../users/api";
-import { useCreateTask } from "./api";
+import { useCreateTask, useUpdateTask } from "./api";
 
 interface FormState {
   title: string;
@@ -26,9 +29,22 @@ interface FormState {
   assigneeId: string;
   priority: TaskPriority;
   rrule: string;
+  dueDate: string;
 }
 
-function initialState(user: UserResponse): FormState {
+function initialState(user: UserResponse, task?: TaskResponse): FormState {
+  if (task) {
+    return {
+      title: task.title,
+      country: task.country,
+      description: task.description ?? "",
+      locationId: task.location_id ?? "",
+      assigneeId: task.assigned_to ?? "",
+      priority: task.priority,
+      rrule: task.rrule ?? "",
+      dueDate: task.due_date ?? "",
+    };
+  }
   return {
     title: "",
     country: user.country ?? "DE",
@@ -37,28 +53,57 @@ function initialState(user: UserResponse): FormState {
     assigneeId: "",
     priority: "normal",
     rrule: "",
+    dueDate: "",
   };
 }
 
-export function TaskCreateForm({
+function changesFrom(initial: FormState, form: FormState): TaskUpdate {
+  const changes: TaskUpdate = {};
+  if (form.title.trim() !== initial.title) changes.title = form.title.trim();
+  if (form.description.trim() !== initial.description) changes.description = form.description.trim() || null;
+  if (form.locationId !== initial.locationId) changes.location_id = form.locationId || null;
+  if (form.assigneeId !== initial.assigneeId) changes.assigned_to = form.assigneeId || null;
+  if (form.priority !== initial.priority) changes.priority = form.priority;
+  if (form.rrule !== initial.rrule) changes.rrule = form.rrule || null;
+  if (form.dueDate !== initial.dueDate) changes.due_date = form.dueDate || null;
+  return changes;
+}
+
+export function TaskForm({
   user,
-  onCreated,
+  task,
+  onSaved,
   onCancel,
 }: {
   user: UserResponse;
-  onCreated: (task: TaskResponse) => void;
+  task?: TaskResponse;
+  onSaved: (task: TaskResponse) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<FormState>(() => initialState(user));
+  const [initial] = useState<FormState>(() => initialState(user, task));
+  const [form, setForm] = useState<FormState>(initial);
   const createTask = useCreateTask();
+  const updateTask = useUpdateTask(task?.id ?? "");
+  const saving = task ? updateTask : createTask;
   const locations = useLocations(form.country);
   const assignees = useAssignees(form.country);
-  const canChooseCountry = user.role === "admin";
+  const canChooseCountry = !task && user.role === "admin";
+  const changes = task ? changesFrom(initial, form) : null;
+  const unchanged = changes !== null && Object.keys(changes).length === 0;
+
+  const assigneeOptions = (assignees.data ?? []).map((cleaner) => ({ value: cleaner.id, label: cleaner.email }));
+  if (task?.assigned_to && task.assigned_to_email && !assigneeOptions.some((option) => option.value === task.assigned_to)) {
+    assigneeOptions.unshift({ value: task.assigned_to, label: `${task.assigned_to_email} (inactive)` });
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (changes) {
+      if (!unchanged) updateTask.mutate(changes, { onSuccess: onSaved });
+      return;
+    }
     createTask.mutate(
       {
         title: form.title,
@@ -68,20 +113,16 @@ export function TaskCreateForm({
         location_id: form.locationId || undefined,
         assigned_to: form.assigneeId || undefined,
         rrule: form.rrule || undefined,
+        due_date: form.dueDate || undefined,
       },
-      {
-        onSuccess: (task) => {
-          setForm(initialState(user));
-          onCreated(task);
-        },
-      },
+      { onSuccess: onSaved },
     );
   };
 
   return (
     <form className="drawer-form" onSubmit={handleSubmit}>
       <div className="drawer-body">
-        {createTask.isError && <Notice tone="error">{errorMessage(createTask.error)}</Notice>}
+        {saving.isError && <Notice tone="error">{errorMessage(saving.error)}</Notice>}
         <Field label="Title">
           <input
             className="input"
@@ -92,7 +133,16 @@ export function TaskCreateForm({
             required
           />
         </Field>
-        <Field label="Country" hint={canChooseCountry ? undefined : "Managers create tasks in their own country."}>
+        <Field
+          label="Country"
+          hint={
+            task
+              ? "The country of an existing task cannot be changed."
+              : canChooseCountry
+                ? undefined
+                : "Managers create tasks in their own country."
+          }
+        >
           <Select
             value={form.country}
             disabled={!canChooseCountry}
@@ -113,20 +163,27 @@ export function TaskCreateForm({
         <Field label="Assignee">
           <Select
             value={form.assigneeId}
-            options={withEmpty(
-              "Unassigned",
-              (assignees.data ?? []).map((cleaner) => ({ value: cleaner.id, label: cleaner.email })),
-            )}
+            options={withEmpty("Unassigned", assigneeOptions)}
             onChange={(assigneeId) => set("assigneeId", assigneeId)}
           />
         </Field>
-        <Field label="Priority">
-          <Select
-            value={form.priority}
-            options={optionList(TASK_PRIORITIES, PRIORITY_LABELS)}
-            onChange={(priority) => set("priority", priority)}
-          />
-        </Field>
+        <div className="form-row">
+          <Field label="Priority">
+            <Select
+              value={form.priority}
+              options={optionList(TASK_PRIORITIES, PRIORITY_LABELS)}
+              onChange={(priority) => set("priority", priority)}
+            />
+          </Field>
+          <Field label="Due date">
+            <DatePicker
+              value={form.dueDate}
+              placeholder="No due date"
+              min={task ? undefined : today()}
+              onChange={(dueDate) => set("dueDate", dueDate)}
+            />
+          </Field>
+        </div>
         <Field label="Repeats">
           <Select
             value={form.rrule}
@@ -148,8 +205,8 @@ export function TaskCreateForm({
         <button className="btn btn-ghost" type="button" onClick={onCancel}>
           Cancel
         </button>
-        <button className="btn btn-primary" type="submit" disabled={createTask.isPending}>
-          {createTask.isPending ? "Creating…" : "Create task"}
+        <button className="btn btn-primary" type="submit" disabled={saving.isPending || unchanged}>
+          {saving.isPending ? "Saving…" : task ? "Save changes" : "Create task"}
         </button>
       </div>
     </form>

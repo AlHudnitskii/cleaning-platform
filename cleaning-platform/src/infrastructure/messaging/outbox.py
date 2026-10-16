@@ -6,6 +6,8 @@ from src.infrastructure.database.models import OutboxMessage
 
 TASK_CREATED = "task_created"
 TASK_STATUS_CHANGED = "task_status_changed"
+TASK_UPDATED = "task_updated"
+TASK_DELETED = "task_deleted"
 
 
 def enqueue(session: AsyncSession, event_type: str, payload: dict[str, Any]) -> None:

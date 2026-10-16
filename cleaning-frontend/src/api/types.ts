@@ -3,7 +3,16 @@ export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export const USER_ROLES = ["admin", "manager", "cleaner"] as const;
 export const LOCATION_LEVELS = ["country", "city", "building", "floor", "room"] as const;
 export const COUNTRIES = ["DE", "DK", "IT", "AU", "US", "GB", "FR", "ES", "PL", "NL", "SE", "NO", "FI", "CH", "AT"] as const;
-export const TASK_SORTS = ["created_at", "priority", "status", "title", "country", "location", "assignee"] as const;
+export const TASK_SORTS = [
+  "created_at",
+  "priority",
+  "status",
+  "title",
+  "country",
+  "location",
+  "assignee",
+  "due_date",
+] as const;
 export const SORT_ORDERS = ["asc", "desc"] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
@@ -50,6 +59,7 @@ export interface TaskResponse {
   is_recurring: boolean;
   scheduled_for: string | null;
   priority: TaskPriority;
+  due_date: string | null;
   quality_score: number | null;
   quality_comment: string | null;
   quality_reviewed_by: string | null;
@@ -78,6 +88,17 @@ export interface TaskCreate {
   assigned_to?: string;
   rrule?: string;
   priority: TaskPriority;
+  due_date?: string;
+}
+
+export interface TaskUpdate {
+  title?: string;
+  description?: string | null;
+  location_id?: string | null;
+  assigned_to?: string | null;
+  rrule?: string | null;
+  priority?: TaskPriority;
+  due_date?: string | null;
 }
 
 export interface CommentResponse {
@@ -170,6 +191,7 @@ export interface DashboardStats {
   avg_quality: number | null;
   reviewed_count: number;
   recurring_count: number;
+  overdue_count: number;
   total_users: number;
   total_tasks: number;
 }

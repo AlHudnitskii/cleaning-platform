@@ -8,6 +8,7 @@ import type {
   OccurrencesResponse,
   PhotoResponse,
   TaskCreate,
+  TaskUpdate,
   TaskPage,
   TaskPriority,
   TaskResponse,
@@ -29,6 +30,7 @@ export interface TaskListParams {
   date_from?: string;
   date_to?: string;
   search?: string;
+  overdue?: "true";
 }
 
 export const taskKeys = {
@@ -105,6 +107,31 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: async (data: TaskCreate) => (await client.post<TaskResponse>("/tasks", data)).data,
     onSuccess: () => invalidateTaskData(queryClient),
+  });
+}
+
+export function useUpdateTask(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (changes: TaskUpdate) => (await client.patch<TaskResponse>(`/tasks/${id}`, changes)).data,
+    onSuccess: (task) => {
+      queryClient.setQueryData(taskKeys.detail(task.id), task);
+      void invalidateTaskData(queryClient);
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await client.delete(`/tasks/${id}`);
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.removeQueries({ queryKey: taskKeys.detail(id) });
+      void invalidateTaskData(queryClient);
+    },
   });
 }
 

@@ -7,7 +7,7 @@ from sqlalchemy import func as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.http import ApiError, authenticated, json_response, optional_date, query_choice
-from src.api.task_store import day_end_exclusive, day_start
+from src.api.task_store import day_end_exclusive, day_start, overdue_condition
 from src.domain.models.enums import Country, TaskPriority, TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 from src.infrastructure.database.connection import session_scope
@@ -91,6 +91,9 @@ async def get_dashboard(req: func.HttpRequest, user: CurrentUser) -> func.HttpRe
         recurring = await session.scalar(
             select(sql.count()).select_from(Task).where(*task_conditions, Task.is_recurring.is_(True))
         )
+        overdue = await session.scalar(
+            select(sql.count()).select_from(Task).where(*task_conditions, overdue_condition())
+        )
 
         task_count = sql.count(Task.id).label("count")
         location_stmt = (
@@ -122,6 +125,7 @@ async def get_dashboard(req: func.HttpRequest, user: CurrentUser) -> func.HttpRe
             "avg_quality": quality["avg"],
             "reviewed_count": quality["reviewed_count"],
             "recurring_count": recurring or 0,
+            "overdue_count": overdue or 0,
             "total_users": total_users or 0,
             "total_tasks": sum(status_stats.values()),
         }

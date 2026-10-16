@@ -27,7 +27,7 @@ import { showToast } from "../components/toast";
 import { useLocations } from "../features/locations/api";
 import { useBulkStatus, useChangeStatus, useTasks, type TaskListParams } from "../features/tasks/api";
 import { BulkBar } from "../features/tasks/BulkBar";
-import { TaskCreateForm } from "../features/tasks/TaskCreateForm";
+import { TaskForm } from "../features/tasks/TaskForm";
 import { ActiveFilters, FilterMenu, SearchBox } from "../features/tasks/TaskFilters";
 import { TaskTable } from "../features/tasks/TaskTable";
 import { SORT_LABELS, STATUS_LABELS, countryName } from "../labels";
@@ -62,6 +62,7 @@ export function Tasks() {
     date_from: readDate(params, "date_from"),
     date_to: readDate(params, "date_to"),
     search: params.get("search")?.trim().slice(0, MAX_SEARCH) || undefined,
+    overdue: params.get("overdue") === "true" ? "true" : undefined,
   };
   const tasks = useTasks(filters);
   const changeStatus = useChangeStatus();
@@ -136,10 +137,10 @@ export function Tasks() {
 
       {creating && (
         <Drawer title="New task" description="The assignee gets a notification right away." onClose={() => setCreating(false)}>
-          <TaskCreateForm
+          <TaskForm
             user={user}
             onCancel={() => setCreating(false)}
-            onCreated={(task) => {
+            onSaved={(task) => {
               setCreating(false);
               showToast(`Task “${task.title}” created`);
             }}

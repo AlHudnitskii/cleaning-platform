@@ -560,6 +560,10 @@ span.cell-title {
   transition: opacity 0.12s ease;
 }
 
+.row-actions > * + * {
+  margin-left: 8px;
+}
+
 .table-rows tbody tr:hover .row-actions > *,
 .table-rows tbody tr:focus-within .row-actions > *,
 .row-actions > .badge {
@@ -810,6 +814,10 @@ span.cell-title {
 
   .table-stacked td.cell-actions:empty {
     display: none;
+  }
+
+  .table-stacked td.cell-actions > * + * {
+    margin-left: 0;
   }
 }
 

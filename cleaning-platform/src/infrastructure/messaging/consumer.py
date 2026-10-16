@@ -61,7 +61,7 @@ async def handle_task_created(event: TaskEvent) -> None:
         await notify_user(event.assigned_to, assigned_message(event))
     if not event.country:
         return
-    body = phrases.PUSH_CREATED_BODY(title=event.title, country=event.country)
+    body = phrases.PUSH_CREATED_BODY(title=event.title, country=phrases.country_name(event.country))
     created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, str(event.task_id))
     for manager_id in await active_managers(event.country):
         if manager_id != event.changed_by:

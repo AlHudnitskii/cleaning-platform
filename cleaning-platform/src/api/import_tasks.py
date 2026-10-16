@@ -134,7 +134,12 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
                 matches = locations.get((row.country.value, row.location_name.lower()), [])
                 if not matches:
                     errors.append(
-                        row_error(row, phrases.ROW_LOCATION_MISSING(name=row.location_name, country=row.country.value))
+                        row_error(
+                            row,
+                            phrases.ROW_LOCATION_MISSING(
+                                name=row.location_name, country=phrases.country_name(row.country)
+                            ),
+                        )
                     )
                     continue
                 if len(matches) > 1:

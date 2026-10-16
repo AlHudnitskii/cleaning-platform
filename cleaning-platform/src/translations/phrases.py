@@ -1,4 +1,4 @@
-from src.domain.models.enums import LocationLevel, TaskStatus
+from src.domain.models.enums import Country, LocationLevel, TaskStatus
 from src.translations import Phrase, Plural, Text
 
 AND = Phrase(" and ", " и ")
@@ -10,6 +10,24 @@ STATUS = {
     TaskStatus.COMPLETED: Phrase("Completed", "Выполнена"),
     TaskStatus.ON_HOLD: Phrase("On hold", "Приостановлена"),
     TaskStatus.CANCELLED: Phrase("Cancelled", "Отменена"),
+}
+
+COUNTRY = {
+    Country.DE: Phrase("Germany", "Германия"),
+    Country.DK: Phrase("Denmark", "Дания"),
+    Country.IT: Phrase("Italy", "Италия"),
+    Country.AU: Phrase("Australia", "Австралия"),
+    Country.US: Phrase("United States", "США"),
+    Country.GB: Phrase("United Kingdom", "Великобритания"),
+    Country.FR: Phrase("France", "Франция"),
+    Country.ES: Phrase("Spain", "Испания"),
+    Country.PL: Phrase("Poland", "Польша"),
+    Country.NL: Phrase("Netherlands", "Нидерланды"),
+    Country.SE: Phrase("Sweden", "Швеция"),
+    Country.NO: Phrase("Norway", "Норвегия"),
+    Country.FI: Phrase("Finland", "Финляндия"),
+    Country.CH: Phrase("Switzerland", "Швейцария"),
+    Country.AT: Phrase("Austria", "Австрия"),
 }
 
 LEVEL = {
@@ -243,6 +261,13 @@ PUSH_STATUS_BODY = Phrase("{title}: {old} → {new}", "{title}: {old} → {new}"
 
 def tasks_count(n: int) -> Plural:
     return Plural(n, en=("task", "tasks"), ru=("задаче", "задачах", "задачах"))
+
+
+def country_name(code: str) -> object:
+    try:
+        return COUNTRY[Country(code)]()
+    except ValueError:
+        return code
 
 
 def status_name(status: TaskStatus | str) -> Text:

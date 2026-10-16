@@ -10,6 +10,7 @@ import { useTaskCount } from "../features/tasks/api";
 import { ROLE_LABELS } from "../labels";
 import { focusPageSearch, shortcutsBlocked, useShortcut } from "../shortcuts";
 import { BrandMark } from "./BrandMark";
+import { PageErrorBoundary } from "./ErrorBoundary";
 import { Icon, type IconName } from "./Icon";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -241,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="content">
           <div className="content-inner page-enter" key={location.pathname}>
-            {children}
+            <PageErrorBoundary>{children}</PageErrorBoundary>
           </div>
         </main>
       </div>

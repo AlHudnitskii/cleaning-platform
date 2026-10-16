@@ -2,7 +2,7 @@ import { useState, type SubmitEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import type { TaskResponse } from "../../api/types";
-import { ErrorState, Loading } from "../../components/Feedback";
+import { Loading, Notice } from "../../components/Feedback";
 import { Icon } from "../../components/Icon";
 import { showToast } from "../../components/toast";
 import { useAddChecklistItem, useChecklist, useDeleteChecklistItem, useToggleChecklistItem } from "./api";
@@ -58,7 +58,12 @@ export function Checklist({ task, canTick, canEdit }: { task: TaskResponse; canT
       {checklist.isPending ? (
         <Loading label="Loading checklist" />
       ) : checklist.isError ? (
-        <ErrorState error={checklist.error} onRetry={() => void checklist.refetch()} />
+        <Notice tone="error">
+          <span>Could not load the checklist: {errorMessage(checklist.error)}</span>
+          <button type="button" className="btn btn-secondary btn-small" onClick={() => void checklist.refetch()}>
+            Try again
+          </button>
+        </Notice>
       ) : (
         <ul className="checklist">
           {items.map((item) => (

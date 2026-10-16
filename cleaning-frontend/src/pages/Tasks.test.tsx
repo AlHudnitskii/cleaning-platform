@@ -228,6 +228,45 @@ describe("Tasks page", () => {
     expect(await screen.findByRole("table")).toBeInTheDocument();
   });
 
+  it("explains a failed cleaner list and loads it again on request", async () => {
+    let failing = true;
+    server.use(
+      http.get("*/api/users/assignees", () =>
+        failing
+          ? HttpResponse.json({ error: "boom" }, { status: 500 })
+          : HttpResponse.json([{ id: "55555555-5555-4555-8555-555555555555", email: "cleaner2@cleaning.com", country: "DE" }]),
+      ),
+    );
+    const { user } = renderApp("/tasks", MANAGER);
+    await screen.findByText("No tasks yet");
+    await user.click(screen.getByRole("button", { name: "Create task" }));
+    const panel = screen.getByRole("dialog", { name: "New task" });
+
+    expect(
+      await within(panel).findByText("Could not load the list: The server failed to process the request. Try again later."),
+    ).toBeInTheDocument();
+    failing = false;
+    await user.click(within(panel).getByRole("button", { name: "Try again" }));
+
+    await chooseOption(user, "Assignee", "cleaner2@cleaning.com", panel);
+    expect(within(panel).queryByText(/Could not load the list/)).not.toBeInTheDocument();
+  });
+
+  it("says when the country has no active cleaners to assign", async () => {
+    const { user } = renderApp("/tasks", MANAGER);
+    await screen.findByText("No tasks yet");
+
+    await user.click(screen.getByRole("button", { name: "Create task" }));
+    const panel = screen.getByRole("dialog", { name: "New task" });
+
+    expect(
+      await within(panel).findByText("No active cleaners in Germany yet. Add one on the Users page."),
+    ).toBeInTheDocument();
+    expect(within(panel).getByRole("combobox", { name: "Assignee" })).toHaveAccessibleDescription(
+      "No active cleaners in Germany yet. Add one on the Users page.",
+    );
+  });
+
   it("creates a task with an assignee chosen from the list", async () => {
     let created: unknown = null;
     server.use(

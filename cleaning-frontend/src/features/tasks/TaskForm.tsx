@@ -1,4 +1,4 @@
-import { useId, useState, type SubmitEvent } from "react";
+import { useId, useState, type ReactNode, type SubmitEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import {
@@ -162,7 +162,10 @@ export function TaskForm({
             onChange={(country) => setForm((prev) => ({ ...prev, country, locationId: "", assigneeId: "" }))}
           />
         </Field>
-        <Field label={t().taskForm.location}>
+        <Field
+          label={t().taskForm.location}
+          hint={listHint(locations, t().taskForm.noLocations(countryNames()[form.country]))}
+        >
           <Select
             value={form.locationId}
             options={withEmpty(
@@ -172,7 +175,10 @@ export function TaskForm({
             onChange={(locationId) => set("locationId", locationId)}
           />
         </Field>
-        <Field label={t().taskForm.assignee}>
+        <Field
+          label={t().taskForm.assignee}
+          hint={listHint(assignees, t().taskForm.noCleaners(countryNames()[form.country]))}
+        >
           <Select
             value={form.assigneeId}
             options={withEmpty(t().common.unassigned, assigneeOptions)}
@@ -296,4 +302,27 @@ function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (item
       </div>
     </fieldset>
   );
+}
+
+interface ListQuery {
+  data?: readonly unknown[];
+  isPending: boolean;
+  isError: boolean;
+  error: unknown;
+  refetch: () => Promise<unknown>;
+}
+
+function listHint(query: ListQuery, emptyText: string): ReactNode {
+  if (query.isPending) return t().common.loading;
+  if (query.isError) {
+    return (
+      <>
+        {t().taskForm.listFailed(errorMessage(query.error))}{" "}
+        <button type="button" className="link-button" onClick={() => void query.refetch()}>
+          {t().common.tryAgain}
+        </button>
+      </>
+    );
+  }
+  return query.data?.length === 0 ? emptyText : undefined;
 }

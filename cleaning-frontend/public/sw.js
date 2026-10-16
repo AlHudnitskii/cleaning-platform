@@ -1,4 +1,4 @@
-const CACHE_NAME = "cleaning-platform-v4";
+const CACHE_NAME = "cleaning-platform-v5";
 const APP_SHELL = ["/", "/index.html", "/manifest.json", "/favicon.svg", "/favicon-32.png", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {

@@ -83,6 +83,7 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("post", "/auth/refresh", "Rotate the session using the refresh_token cookie", None, "TokenResponse", False),
     ("post", "/auth/logout", "Revoke all sessions of the cookie owner", None, None, False),
     ("get", "/auth/me", "Current user", None, "UserResponse", True),
+    ("post", "/events/ticket", "Single-use 30-second ticket for the event stream", None, None, True),
     ("get", "/users", "List users (admin)", None, "UserResponse", True),
     ("post", "/users", "Create a user (admin)", "UserRegister", "UserResponse", True),
     ("get", "/users/assignees", "Active cleaners available for assignment", None, "AssigneeResponse", True),

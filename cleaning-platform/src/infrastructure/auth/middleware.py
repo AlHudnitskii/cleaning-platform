@@ -5,7 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.models.enums import Country, UserRole
 from src.domain.models.user import CurrentUser
-from src.infrastructure.auth.jwt_handler import ExpiredTokenError, InvalidTokenError, decode_access_token
+from src.infrastructure.auth.jwt_handler import (
+    ExpiredTokenError,
+    InvalidTokenError,
+    TokenClaims,
+    decode_access_token,
+    decode_stream_ticket,
+)
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import User
 from src.translations import Text, phrases
@@ -52,6 +58,17 @@ async def authenticate_token(token: str) -> CurrentUser:
         raise AuthError(phrases.TOKEN_INVALID()) from e
     async with session_scope() as session:
         return await load_active_user(session, claims.user_id, claims.version)
+
+
+async def authenticate_ticket(ticket: str) -> tuple[CurrentUser, TokenClaims]:
+    try:
+        claims = decode_stream_ticket(ticket)
+    except ExpiredTokenError as e:
+        raise AuthError(phrases.TOKEN_EXPIRED()) from e
+    except InvalidTokenError as e:
+        raise AuthError(phrases.TOKEN_INVALID()) from e
+    async with session_scope() as session:
+        return await load_active_user(session, claims.user_id, claims.version), claims
 
 
 async def authenticate(authorization: str | None) -> CurrentUser:

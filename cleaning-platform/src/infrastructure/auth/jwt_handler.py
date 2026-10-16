@@ -10,6 +10,8 @@ from src.settings import get_settings
 ALGORITHM = "HS256"
 ACCESS = "access"
 REFRESH = "refresh"
+STREAM_TICKET = "stream_ticket"
+STREAM_TICKET_LIFETIME = timedelta(seconds=30)
 
 
 class InvalidTokenError(Exception):
@@ -24,6 +26,7 @@ class ExpiredTokenError(InvalidTokenError):
 class TokenClaims:
     user_id: uuid.UUID
     version: int
+    token_id: str = ""
 
 
 def hash_password(password: str) -> str:
@@ -57,7 +60,9 @@ def _decode(token: str, token_type: str, secret: str) -> TokenClaims:
     if payload.get("type") != token_type:
         raise InvalidTokenError("invalid token type")
     try:
-        return TokenClaims(user_id=uuid.UUID(payload["sub"]), version=int(payload.get("ver", 0)))
+        return TokenClaims(
+            user_id=uuid.UUID(payload["sub"]), version=int(payload.get("ver", 0)), token_id=str(payload.get("jti", ""))
+        )
     except (ValueError, TypeError) as e:
         raise InvalidTokenError("invalid token subject") from e
 
@@ -72,6 +77,14 @@ def create_refresh_token(user_id: uuid.UUID, version: int) -> str:
     settings = get_settings()
     lifetime = timedelta(days=settings.refresh_token_days)
     return _encode(user_id, version, REFRESH, lifetime, settings.jwt_refresh_secret)
+
+
+def create_stream_ticket(user_id: uuid.UUID, version: int) -> str:
+    return _encode(user_id, version, STREAM_TICKET, STREAM_TICKET_LIFETIME, get_settings().jwt_secret)
+
+
+def decode_stream_ticket(token: str) -> TokenClaims:
+    return _decode(token, STREAM_TICKET, get_settings().jwt_secret)
 
 
 def decode_access_token(token: str) -> TokenClaims:

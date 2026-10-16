@@ -1,9 +1,18 @@
 import { useState, type SubmitEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
-import { COUNTRIES, TASK_PRIORITIES, type Country, type TaskPriority, type UserResponse } from "../../api/types";
+import {
+  COUNTRIES,
+  TASK_PRIORITIES,
+  type Country,
+  type TaskPriority,
+  type TaskResponse,
+  type UserResponse,
+} from "../../api/types";
 import { Notice } from "../../components/Feedback";
-import { Field, Options } from "../../components/Field";
+import { Field } from "../../components/Field";
+import { optionList, withEmpty } from "../../components/options";
+import { Select } from "../../components/Select";
 import { COUNTRY_NAMES, PRIORITY_LABELS, RRULE_PRESETS } from "../../labels";
 import { sortedByFullName, useLocations } from "../locations/api";
 import { useAssignees } from "../users/api";
@@ -31,7 +40,15 @@ function initialState(user: UserResponse): FormState {
   };
 }
 
-export function TaskCreateForm({ user, onCreated }: { user: UserResponse; onCreated: () => void }) {
+export function TaskCreateForm({
+  user,
+  onCreated,
+  onCancel,
+}: {
+  user: UserResponse;
+  onCreated: (task: TaskResponse) => void;
+  onCancel: () => void;
+}) {
   const [form, setForm] = useState<FormState>(() => initialState(user));
   const createTask = useCreateTask();
   const locations = useLocations(form.country);
@@ -53,95 +70,88 @@ export function TaskCreateForm({ user, onCreated }: { user: UserResponse; onCrea
         rrule: form.rrule || undefined,
       },
       {
-        onSuccess: () => {
+        onSuccess: (task) => {
           setForm(initialState(user));
-          onCreated();
+          onCreated(task);
         },
       },
     );
   };
 
   return (
-    <section className="card" aria-labelledby="new-task-title">
-      <h2 id="new-task-title" className="section-title">
-        New task
-      </h2>
-      {createTask.isError && <Notice tone="error">{errorMessage(createTask.error)}</Notice>}
-      <form onSubmit={handleSubmit}>
-        <div className="form-grid">
-          <Field label="Title">
-            <input
-              className="input"
-              value={form.title}
-              onChange={(e) => set("title", e.target.value)}
-              minLength={3}
-              maxLength={255}
-              required
-            />
-          </Field>
-          <Field label="Country" hint={canChooseCountry ? undefined : "Managers create tasks in their own country."}>
-            <select
-              className="input"
-              value={form.country}
-              disabled={!canChooseCountry}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, country: e.target.value as Country, locationId: "", assigneeId: "" }))
-              }
-            >
-              <Options values={COUNTRIES} labels={COUNTRY_NAMES} />
-            </select>
-          </Field>
-          <Field label="Location">
-            <select className="input" value={form.locationId} onChange={(e) => set("locationId", e.target.value)}>
-              <option value="">No location</option>
-              {sortedByFullName(locations.data ?? []).map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.full_name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Assignee">
-            <select className="input" value={form.assigneeId} onChange={(e) => set("assigneeId", e.target.value)}>
-              <option value="">Unassigned</option>
-              {(assignees.data ?? []).map((cleaner) => (
-                <option key={cleaner.id} value={cleaner.id}>
-                  {cleaner.email}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Priority">
-            <select className="input" value={form.priority} onChange={(e) => set("priority", e.target.value as TaskPriority)}>
-              <Options values={TASK_PRIORITIES} labels={PRIORITY_LABELS} />
-            </select>
-          </Field>
-          <Field label="Repeats">
-            <select className="input" value={form.rrule} onChange={(e) => set("rrule", e.target.value)}>
-              <option value="">Does not repeat</option>
-              {RRULE_PRESETS.map((preset) => (
-                <option key={preset.value} value={preset.value}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <div className="form-grid-wide">
-            <Field label="Description">
-              <textarea
-                className="input"
-                rows={2}
-                maxLength={5000}
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
-            </Field>
-          </div>
-        </div>
+    <form className="drawer-form" onSubmit={handleSubmit}>
+      <div className="drawer-body">
+        {createTask.isError && <Notice tone="error">{errorMessage(createTask.error)}</Notice>}
+        <Field label="Title">
+          <input
+            className="input"
+            value={form.title}
+            onChange={(e) => set("title", e.target.value)}
+            minLength={3}
+            maxLength={255}
+            required
+          />
+        </Field>
+        <Field label="Country" hint={canChooseCountry ? undefined : "Managers create tasks in their own country."}>
+          <Select
+            value={form.country}
+            disabled={!canChooseCountry}
+            options={optionList(COUNTRIES, COUNTRY_NAMES)}
+            onChange={(country) => setForm((prev) => ({ ...prev, country, locationId: "", assigneeId: "" }))}
+          />
+        </Field>
+        <Field label="Location">
+          <Select
+            value={form.locationId}
+            options={withEmpty(
+              "No location",
+              sortedByFullName(locations.data ?? []).map((location) => ({ value: location.id, label: location.full_name })),
+            )}
+            onChange={(locationId) => set("locationId", locationId)}
+          />
+        </Field>
+        <Field label="Assignee">
+          <Select
+            value={form.assigneeId}
+            options={withEmpty(
+              "Unassigned",
+              (assignees.data ?? []).map((cleaner) => ({ value: cleaner.id, label: cleaner.email })),
+            )}
+            onChange={(assigneeId) => set("assigneeId", assigneeId)}
+          />
+        </Field>
+        <Field label="Priority">
+          <Select
+            value={form.priority}
+            options={optionList(TASK_PRIORITIES, PRIORITY_LABELS)}
+            onChange={(priority) => set("priority", priority)}
+          />
+        </Field>
+        <Field label="Repeats">
+          <Select
+            value={form.rrule}
+            options={withEmpty<string>("Does not repeat", [...RRULE_PRESETS])}
+            onChange={(rrule) => set("rrule", rrule)}
+          />
+        </Field>
+        <Field label="Description">
+          <textarea
+            className="input"
+            rows={3}
+            maxLength={5000}
+            value={form.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </div>
+      <div className="drawer-footer">
+        <button className="btn btn-ghost" type="button" onClick={onCancel}>
+          Cancel
+        </button>
         <button className="btn btn-primary" type="submit" disabled={createTask.isPending}>
           {createTask.isPending ? "Creating…" : "Create task"}
         </button>
-      </form>
-    </section>
+      </div>
+    </form>
   );
 }

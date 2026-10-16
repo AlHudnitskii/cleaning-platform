@@ -10,6 +10,7 @@ export interface ReportParams {
 }
 
 export const statsKeys = {
+  all: ["stats"] as const,
   dashboard: ["stats", "dashboard"] as const,
   report: (params: ReportParams) => ["stats", "report", params] as const,
 };

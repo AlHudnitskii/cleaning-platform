@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { client, getJson } from "../../api/client";
 import type {
@@ -11,20 +11,24 @@ import type {
   TaskPage,
   TaskPriority,
   TaskResponse,
+  SortOrder,
   TaskSort,
   TaskStatus,
 } from "../../api/types";
+import { statsKeys } from "../stats/api";
 
 export interface TaskListParams {
   page: number;
   limit: number;
   sort?: TaskSort;
+  order?: SortOrder;
   status?: TaskStatus;
   priority?: TaskPriority;
   country?: Country;
   location_id?: string;
   date_from?: string;
   date_to?: string;
+  search?: string;
 }
 
 export const taskKeys = {
@@ -37,6 +41,22 @@ export const taskKeys = {
   photos: (id: string) => [...taskKeys.detail(id), "photos"] as const,
   occurrences: (id: string) => [...taskKeys.detail(id), "occurrences"] as const,
 };
+
+export async function invalidateTaskData(queryClient: QueryClient): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: taskKeys.lists() }),
+    queryClient.invalidateQueries({ queryKey: statsKeys.all }),
+  ]);
+}
+
+export function useTaskCount(status: TaskStatus, enabled = true) {
+  return useQuery({
+    queryKey: taskKeys.list({ page: 1, limit: 1, status }),
+    queryFn: () => fetchTasks({ page: 1, limit: 1, status }),
+    select: (page) => page.pagination.total,
+    enabled,
+  });
+}
 
 export function fetchTasks(params: TaskListParams): Promise<TaskPage> {
   return getJson<TaskPage>("/tasks", { ...params });
@@ -84,7 +104,7 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: TaskCreate) => (await client.post<TaskResponse>("/tasks", data)).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: taskKeys.lists() }),
+    onSuccess: () => invalidateTaskData(queryClient),
   });
 }
 
@@ -99,7 +119,7 @@ export function useChangeStatus() {
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.history(task.id) });
-      void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      void invalidateTaskData(queryClient);
     },
   });
 }
@@ -131,7 +151,34 @@ export function useReviewQuality(id: string) {
       (await client.post<TaskResponse>(`/tasks/${id}/quality`, review)).data,
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(id), task);
-      void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      void invalidateTaskData(queryClient);
     },
+  });
+}
+
+const BULK_CONCURRENCY = 5;
+
+export interface BulkStatusResult {
+  updated: number;
+  failed: number;
+  skipped: number;
+}
+
+export function useBulkStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tasks, status }: { tasks: TaskResponse[]; status: TaskStatus }): Promise<BulkStatusResult> => {
+      const eligible = tasks.filter((task) => task.allowed_statuses.includes(status));
+      let updated = 0;
+      let failed = 0;
+      for (let start = 0; start < eligible.length; start += BULK_CONCURRENCY) {
+        const batch = eligible.slice(start, start + BULK_CONCURRENCY);
+        const results = await Promise.allSettled(batch.map((task) => patchStatus(task.id, status)));
+        updated += results.filter((result) => result.status === "fulfilled").length;
+        failed += results.filter((result) => result.status === "rejected").length;
+      }
+      return { updated, failed, skipped: tasks.length - eligible.length };
+    },
+    onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: taskKeys.all }), invalidateTaskData(queryClient)]),
   });
 }

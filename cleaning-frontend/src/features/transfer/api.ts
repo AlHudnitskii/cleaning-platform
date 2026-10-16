@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { client, cleanParams } from "../../api/client";
 import type { Country, ImportResult } from "../../api/types";
-import { taskKeys } from "../tasks/api";
+import { invalidateTaskData } from "../tasks/api";
 
 export type ExportFormat = "excel" | "parquet";
 
@@ -48,16 +48,23 @@ export function useDownloadTemplate() {
   });
 }
 
+async function uploadImport(file: File, dryRun: boolean): Promise<ImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const params = dryRun ? { dry_run: "true" } : undefined;
+  return (await client.post<ImportResult>("/import/tasks", form, { params })).data;
+}
+
+export function useImportPreview() {
+  return useMutation({ mutationFn: (file: File) => uploadImport(file, true) });
+}
+
 export function useImportTasks() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData();
-      form.append("file", file);
-      return (await client.post<ImportResult>("/import/tasks", form)).data;
-    },
+    mutationFn: (file: File) => uploadImport(file, false),
     onSuccess: (result) => {
-      if (result.imported > 0) void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      if (result.imported > 0) void invalidateTaskData(queryClient);
     },
   });
 }

@@ -4,10 +4,12 @@ import { Link, useParams } from "react-router-dom";
 import { errorMessage } from "../api/errors";
 import type { TaskResponse, UserResponse } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
-import { PriorityBadge, StatusBadge } from "../components/Badges";
-import { EmptyState, ErrorState, Loading, NotFoundState, Notice } from "../components/Feedback";
+import { PriorityText, StatusBadge } from "../components/Badges";
+import { ErrorState, ListSkeleton, Loading, NotFoundState, Notice } from "../components/Feedback";
 import { Field } from "../components/Field";
-import { PageHeader } from "../components/PageHeader";
+import { Icon } from "../components/Icon";
+import { Person, RelativeDate } from "../components/People";
+import { showToast } from "../components/toast";
 import { StarDisplay, StarInput } from "../components/StarRating";
 import { useOfflineSync } from "../features/offline/useOfflineSync";
 import { useOccurrences, usePhotos, useReviewQuality, useTask } from "../features/tasks/api";
@@ -39,7 +41,7 @@ function TaskDetailContent({ id }: { id: string }) {
   const offline = useOfflineSync(user.id);
   const backTo = user.role === "cleaner" ? "/my-tasks" : "/tasks";
 
-  if (task.isPending) return <Loading label="Loading task" />;
+  if (task.isPending) return <ListSkeleton label="Loading task" rows={4} columns={3} />;
   if (task.isError) return <ErrorState error={task.error} onRetry={() => void task.refetch()} />;
 
   const data = task.data;
@@ -48,58 +50,96 @@ function TaskDetailContent({ id }: { id: string }) {
   return (
     <>
       <Link to={backTo} className="back-link">
-        ← Back to tasks
+        <Icon name="back" size={15} />
+        Back to tasks
       </Link>
-      <PageHeader
-        title={data.title}
-        description={
-          <span className="badge-group">
+      <header className="task-header">
+        <div className="task-header-main">
+          <div className="badge-group">
             <StatusBadge status={data.status} />
-            <PriorityBadge priority={data.priority} />
+            {data.is_recurring && <span className="badge tone-info">Recurring</span>}
             {queued && <span className="badge tone-warning">Waiting to sync</span>}
-          </span>
-        }
-      />
+          </div>
+          <h1 className="page-title task-title">{data.title}</h1>
+        </div>
+        <StatusActions
+          task={data}
+          disabled={offline.changeStatus.isPending}
+          onChange={(status) => offline.changeStatus.mutate({ taskId: data.id, target: status })}
+        />
+      </header>
       {!offline.online && (
         <Notice tone="warning">You are offline. Status changes will be sent when the connection is back.</Notice>
       )}
       {offline.changeStatus.isError && <Notice tone="error">{errorMessage(offline.changeStatus.error)}</Notice>}
 
-      <div className="detail-grid">
-        <div className="stack">
-          <section className="card" aria-labelledby="details-title">
-            <h2 id="details-title" className="section-title">
-              Details
-            </h2>
-            {data.description && <p>{data.description}</p>}
-            <dl className="detail-list">
-              <dt>Country</dt>
-              <dd>{countryName(data.country)}</dd>
-              <dt>Location</dt>
-              <dd>{data.location_path.length > 0 ? data.location_path.join(" / ") : "Not set"}</dd>
-              <dt>Assignee</dt>
-              <dd>{data.assigned_to_email ?? "Unassigned"}</dd>
-              <dt>Created</dt>
-              <dd>{formatDateTime(data.created_at)}</dd>
-              {data.rrule && (
-                <>
-                  <dt>Repeats</dt>
-                  <dd>{rruleLabel(data.rrule)}</dd>
-                </>
-              )}
-            </dl>
-            <StatusActions
-              task={data}
-              disabled={offline.changeStatus.isPending}
-              onChange={(status) => offline.changeStatus.mutate({ taskId: data.id, target: status })}
-            />
-          </section>
-
-          <QualitySection task={data} user={user} />
+      <div className="task-layout">
+        <div className="task-main">
+          {data.description && (
+            <section className="card" aria-labelledby="description-title">
+              <h2 id="description-title" className="section-title">
+                Description
+              </h2>
+              <p className="task-description">{data.description}</p>
+            </section>
+          )}
           <PhotosSection taskId={data.id} online={offline.online} />
+          <TaskActivity taskId={data.id} online={offline.online} />
           {data.is_recurring && <OccurrencesSection taskId={data.id} />}
         </div>
-        <TaskActivity taskId={data.id} online={offline.online} />
+
+        <aside className="task-aside" aria-label="Task properties">
+          <section className="card property-card" aria-labelledby="properties-title">
+            <h2 id="properties-title" className="subsection-title">
+              Properties
+            </h2>
+            <dl className="property-list">
+              <div>
+                <dt>Priority</dt>
+                <dd>
+                  <PriorityText priority={data.priority} />
+                </dd>
+              </div>
+              <div>
+                <dt>Assignee</dt>
+                <dd>
+                  <Person email={data.assigned_to_email} />
+                </dd>
+              </div>
+              <div>
+                <dt>Location</dt>
+                <dd>
+                  {data.location_path.length > 0 ? (
+                    <span className="location-path">
+                      {data.location_path.map((part, index) => (
+                        <span key={`${part}-${index}`}>{part}</span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="muted">Not set</span>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Country</dt>
+                <dd>{countryName(data.country)}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>
+                  <RelativeDate value={data.created_at} />
+                </dd>
+              </div>
+              {data.rrule && (
+                <div>
+                  <dt>Repeats</dt>
+                  <dd>{rruleLabel(data.rrule)}</dd>
+                </div>
+              )}
+            </dl>
+          </section>
+          <QualitySection task={data} user={user} />
+        </aside>
       </div>
     </>
   );
@@ -110,8 +150,8 @@ function QualitySection({ task, user }: { task: TaskResponse; user: UserResponse
   if (canReview) return <QualityReviewForm task={task} />;
   if (task.quality_score === null) return null;
   return (
-    <section className="card" aria-labelledby="quality-title">
-      <h2 id="quality-title" className="section-title">
+    <section className="card property-card" aria-labelledby="quality-title">
+      <h2 id="quality-title" className="subsection-title">
         Quality review
       </h2>
       <StarDisplay value={task.quality_score} />
@@ -128,15 +168,15 @@ function QualityReviewForm({ task }: { task: TaskResponse }) {
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (score > 0) review.mutate({ score, comment: comment.trim() || undefined });
+    if (score === 0) return;
+    review.mutate({ score, comment: comment.trim() || undefined }, { onSuccess: () => showToast("Review saved.") });
   };
 
   return (
-    <section className="card" aria-labelledby="review-title">
-      <h2 id="review-title" className="section-title">
+    <section className="card property-card" aria-labelledby="review-title">
+      <h2 id="review-title" className="subsection-title">
         Quality review
       </h2>
-      {review.isSuccess && <Notice tone="success">Review saved.</Notice>}
       {review.isError && <Notice tone="error">{errorMessage(review.error)}</Notice>}
       <form className="stack" onSubmit={handleSubmit}>
         <StarInput legend="Score" value={score} onChange={setScore} />
@@ -165,7 +205,7 @@ function PhotosSection({ taskId, online }: { taskId: string; online: boolean }) 
       ) : photos.isError ? (
         <ErrorState error={photos.error} onRetry={() => void photos.refetch()} />
       ) : photos.data.length === 0 ? (
-        <EmptyState title="No photos yet" />
+        <p className="activity-empty">No photos yet. Photos show the result of the work.</p>
       ) : (
         <ul className="photo-grid">
           {photos.data.filter((photo) => isHttpUrl(photo.url)).map((photo) => (

@@ -31,23 +31,14 @@ export function Field({
   );
 }
 
-export function Options<T extends string>({
-  values,
-  labels,
-  empty,
-}: {
-  values: readonly T[];
-  labels: Record<T, string>;
-  empty?: string;
-}) {
+export function FilterControl({ label, children }: { label: ReactNode; children: ReactElement<ControlProps> }) {
+  const id = useId();
   return (
-    <>
-      {empty !== undefined && <option value="">{empty}</option>}
-      {values.map((value) => (
-        <option key={value} value={value}>
-          {labels[value]}
-        </option>
-      ))}
-    </>
+    <div className="filter-control">
+      <label className="filter-control-label" htmlFor={id}>
+        {label}
+      </label>
+      {cloneElement(children, { id })}
+    </div>
   );
 }

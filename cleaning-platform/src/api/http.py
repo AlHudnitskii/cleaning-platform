@@ -125,6 +125,20 @@ def query_int(req: func.HttpRequest, name: str, default: int, minimum: int, maxi
     return value
 
 
+def query_text(req: func.HttpRequest, name: str, max_length: int) -> str | None:
+    value = (req.params.get(name) or "").strip()
+    if not value:
+        return None
+    if len(value) > max_length:
+        raise ApiError(400, f"{name} must be at most {max_length} characters")
+    return value
+
+
+def like_pattern(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 def query_choice(req: func.HttpRequest, name: str, choices: type[Any]) -> Any:
     raw = req.params.get(name)
     if not raw:

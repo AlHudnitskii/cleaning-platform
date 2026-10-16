@@ -5,7 +5,9 @@ import { errorMessage } from "../api/errors";
 import { useAuth } from "../auth/useAuth";
 import { homePath } from "../auth/homePath";
 import { Notice } from "../components/Feedback";
+import { BrandMark } from "../components/BrandMark";
 import { Field } from "../components/Field";
+import { ThemeSwitch } from "../components/ThemeSwitch";
 
 export function Login() {
   const { state, login } = useAuth();
@@ -33,11 +35,18 @@ export function Login() {
 
   return (
     <main className="login">
+      <div className="login-theme">
+        <ThemeSwitch />
+      </div>
       <section className="login-card" aria-labelledby="login-title">
+        <div className="login-brand">
+          <BrandMark />
+          <span className="brand-name">Cleaning Platform</span>
+        </div>
         <h1 id="login-title" className="login-title">
-          Cleaning Platform
+          Sign in
         </h1>
-        <p className="login-subtitle">Sign in to continue</p>
+        <p className="login-subtitle">Use your work email and password.</p>
         {error && <Notice tone="error">{error}</Notice>}
         <form onSubmit={handleSubmit} className="stack">
           <Field label="Email">

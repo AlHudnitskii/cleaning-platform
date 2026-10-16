@@ -2,7 +2,7 @@ import { useId, useState, type SubmitEvent, type KeyboardEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import { RoleBadge, StatusBadge } from "../../components/Badges";
-import { EmptyState, ErrorState, Loading, Notice } from "../../components/Feedback";
+import { ErrorState, Loading, Notice } from "../../components/Feedback";
 import { formatDateTime } from "../../labels";
 import { useAddComment, useComments, useHistory } from "./api";
 
@@ -78,7 +78,7 @@ function Comments({
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : query.data.length === 0 ? (
-        <EmptyState title="No comments yet" />
+        <p className="activity-empty">No comments yet. Start the conversation below.</p>
       ) : (
         <ul className="comment-list">
           {query.data.map((comment) => (
@@ -95,7 +95,7 @@ function Comments({
           ))}
         </ul>
       )}
-      <form className="stack" onSubmit={handleSubmit}>
+      <form className="stack comment-form" onSubmit={handleSubmit}>
         {addComment.isError && <Notice tone="error">{errorMessage(addComment.error)}</Notice>}
         <label className="field-label" htmlFor={textId}>
           New comment
@@ -103,16 +103,18 @@ function Comments({
         <textarea
           id={textId}
           className="input"
-          rows={3}
+          rows={2}
           maxLength={2000}
           value={text}
           disabled={!online}
           placeholder={online ? undefined : "Comments are unavailable offline"}
           onChange={(e) => setText(e.target.value)}
         />
-        <button className="btn btn-primary" type="submit" disabled={!online || !text.trim() || addComment.isPending}>
-          {addComment.isPending ? "Sending…" : "Send"}
-        </button>
+        <div className="form-actions form-actions-end">
+          <button className="btn btn-primary btn-small" type="submit" disabled={!online || !text.trim() || addComment.isPending}>
+            {addComment.isPending ? "Sending…" : "Send"}
+          </button>
+        </div>
       </form>
     </>
   );
@@ -121,7 +123,7 @@ function Comments({
 function History({ query }: { query: ReturnType<typeof useHistory> }) {
   if (query.isPending) return <Loading label="Loading history" />;
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
-  if (query.data.length === 0) return <EmptyState title="No status changes yet" />;
+  if (query.data.length === 0) return <p className="activity-empty">No status changes yet.</p>;
   return (
     <ol className="timeline">
       {query.data.map((entry) => (

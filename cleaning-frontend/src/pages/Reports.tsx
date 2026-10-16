@@ -1,13 +1,18 @@
-import { useState, type SubmitEvent } from "react";
+import { useState } from "react";
 
 import { COUNTRIES, TASK_PRIORITIES, TASK_STATUSES, type Country } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
-import { BarList, LineChart, StatCard } from "../components/Charts";
-import { EmptyState, ErrorState, Loading } from "../components/Feedback";
-import { Field, Options } from "../components/Field";
+import { BarList, LineChart, StatCard, StatusBreakdown } from "../components/Charts";
+import { EmptyState, ErrorState, StatsSkeleton } from "../components/Feedback";
+import { DatePicker } from "../components/DatePicker";
+import { FilterControl } from "../components/Field";
+import { optionList, withEmpty } from "../components/options";
 import { PageHeader } from "../components/PageHeader";
+import { Select } from "../components/Select";
+import { daysAgo, today } from "../dates";
+import { Person } from "../components/People";
 import { useReport } from "../features/stats/api";
-import { COUNTRY_NAMES, PRIORITY_LABELS, STATUS_LABELS, countryName, daysAgo, isoDate } from "../labels";
+import { COUNTRY_NAMES, PRIORITY_LABELS, STATUS_LABELS, countryName } from "../labels";
 import { readDate, readEnum, useUrlState } from "../urlState";
 
 type ChartMode = "daily" | "weekly";
@@ -18,69 +23,78 @@ export function Reports() {
   const { params, update } = useUrlState();
   const applied = {
     date_from: readDate(params, "date_from") ?? daysAgo(30),
-    date_to: readDate(params, "date_to") ?? isoDate(new Date()),
+    date_to: readDate(params, "date_to") ?? today(),
     country: isAdmin ? readEnum<Country>(params, "country", COUNTRIES) : undefined,
   };
-  const [draft, setDraft] = useState(applied);
   const [mode, setMode] = useState<ChartMode>("daily");
   const report = useReport(applied);
-
-  const handleApply = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    update({ date_from: draft.date_from, date_to: draft.date_to, country: draft.country }, false);
-  };
 
   return (
     <>
       <PageHeader title="Reports" description="Task volume, outcomes and quality for a chosen period." />
-      <form className="filters" aria-label="Report period" onSubmit={handleApply}>
-        <Field label="From">
-          <input className="input" type="date" value={draft.date_from} onChange={(e) => setDraft({ ...draft, date_from: e.target.value })} />
-        </Field>
-        <Field label="To">
-          <input className="input" type="date" value={draft.date_to} onChange={(e) => setDraft({ ...draft, date_to: e.target.value })} />
-        </Field>
+      <div className="toolbar toolbar-plain" role="group" aria-label="Report period">
+        <FilterControl label="From">
+          <DatePicker
+            variant="inline"
+            clearable={false}
+            value={applied.date_from}
+            max={applied.date_to}
+            onChange={(date_from) => update({ date_from }, false)}
+          />
+        </FilterControl>
+        <FilterControl label="To">
+          <DatePicker
+            variant="inline"
+            clearable={false}
+            value={applied.date_to}
+            min={applied.date_from}
+            onChange={(date_to) => update({ date_to }, false)}
+          />
+        </FilterControl>
         {isAdmin && (
-          <Field label="Country">
-            <select
-              className="input"
-              value={draft.country ?? ""}
-              onChange={(e) => setDraft({ ...draft, country: (e.target.value || undefined) as Country | undefined })}
-            >
-              <Options values={COUNTRIES} labels={COUNTRY_NAMES} empty="All countries" />
-            </select>
-          </Field>
+          <FilterControl label="Country">
+            <Select
+              variant="inline"
+              value={applied.country ?? ""}
+              options={withEmpty("All", optionList(COUNTRIES, COUNTRY_NAMES))}
+              onChange={(country) => update({ country }, false)}
+            />
+          </FilterControl>
         )}
-        <div className="filters-summary">
-          <button className="btn btn-primary" type="submit">
-            Apply
-          </button>
-        </div>
-      </form>
+      </div>
 
       {report.isPending ? (
-        <Loading label="Building report" />
+        <StatsSkeleton label="Building report" />
       ) : report.isError ? (
         <ErrorState error={report.error} onRetry={() => void report.refetch()} />
       ) : report.data.total_tasks === 0 ? (
         <EmptyState title="No tasks in this period" hint="Choose a wider period or another country." />
       ) : (
-        <div aria-busy={report.isFetching}>
-          <div className="stat-grid">
-            <StatCard label="Total tasks" value={report.data.total_tasks} tone="accent" />
-            <StatCard label="Completed" value={report.data.status_stats.completed} tone="success" />
+        <div className="page-section" aria-busy={report.isFetching}>
+          <div className="stat-grid stat-grid-4">
+            <StatCard
+              label="Total tasks"
+              value={report.data.total_tasks}
+              tone="accent"
+              sub={`${report.data.status_stats.cancelled} cancelled`}
+            />
             <StatCard
               label="Completion rate"
               value={`${Math.round((report.data.status_stats.completed / report.data.total_tasks) * 100)}%`}
               tone="success"
+              sub={`${report.data.status_stats.completed} completed`}
+            />
+            <StatCard
+              label="Waiting for review"
+              value={report.data.status_stats.on_review}
+              tone="status-on_review"
             />
             <StatCard
               label="Average quality"
               value={report.data.quality_stats.avg !== null ? report.data.quality_stats.avg.toFixed(1) : "—"}
               tone="warning"
-              sub={report.data.quality_stats.reviewed_count > 0 ? `${report.data.quality_stats.reviewed_count} reviews` : undefined}
+              sub={report.data.quality_stats.reviewed_count > 0 ? `${report.data.quality_stats.reviewed_count} reviews` : "No reviews yet"}
             />
-            <StatCard label="Cancelled" value={report.data.status_stats.cancelled} tone="danger" />
           </div>
 
           <div className="two-columns">
@@ -88,7 +102,8 @@ export function Reports() {
               <h2 id="report-status" className="section-title">
                 By status
               </h2>
-              <BarList
+              <StatusBreakdown
+                title="Share of tasks in each status"
                 items={TASK_STATUSES.map((status) => ({
                   key: status,
                   label: STATUS_LABELS[status],
@@ -117,12 +132,12 @@ export function Reports() {
               <h2 id="report-timeline" className="section-title">
                 Tasks over time
               </h2>
-              <div className="segmented" role="group" aria-label="Chart granularity">
+              <div className="pager-group" role="group" aria-label="Chart granularity">
                 {(["daily", "weekly"] as const).map((value) => (
                   <button
                     key={value}
                     type="button"
-                    className={mode === value ? "btn btn-primary btn-small" : "btn btn-secondary btn-small"}
+                    className="pager-size"
                     aria-pressed={mode === value}
                     onClick={() => setMode(value)}
                   >
@@ -160,11 +175,11 @@ export function Reports() {
             {report.data.top_cleaners.length === 0 ? (
               <p className="muted">No cleaners in this scope.</p>
             ) : (
-              <div className="table-wrap">
+              <div className="table-scroll">
                 <table className="table">
                   <thead>
                     <tr>
-                      <th scope="col">Email</th>
+                      <th scope="col">Cleaner</th>
                       <th scope="col">Country</th>
                       <th scope="col" className="numeric">
                         Assigned
@@ -180,7 +195,9 @@ export function Reports() {
                   <tbody>
                     {report.data.top_cleaners.map((cleaner) => (
                       <tr key={cleaner.email}>
-                        <td>{cleaner.email}</td>
+                        <td>
+                          <Person email={cleaner.email} />
+                        </td>
                         <td>{countryName(cleaner.country)}</td>
                         <td className="numeric">{cleaner.task_count}</td>
                         <td className="numeric">{cleaner.completed_count}</td>

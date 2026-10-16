@@ -1,10 +1,12 @@
 import { errorMessage } from "../api/errors";
-import { TASK_SORTS, TASK_STATUSES, type TaskSort, type TaskStatus } from "../api/types";
+import { TASK_STATUSES, type TaskSort, type TaskStatus } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
-import { EmptyState, ErrorState, Loading, Notice } from "../components/Feedback";
-import { Field, Options } from "../components/Field";
+import { EmptyState, ErrorState, ListSkeleton, Notice } from "../components/Feedback";
+import { FilterControl } from "../components/Field";
+import { optionList, withEmpty } from "../components/options";
 import { PageHeader } from "../components/PageHeader";
 import { Pagination } from "../components/Pagination";
+import { Select } from "../components/Select";
 import { useMyTasks } from "../features/offline/useMyTasks";
 import { useOfflineSync } from "../features/offline/useOfflineSync";
 import { PhotoUpload } from "../features/tasks/PhotoUpload";
@@ -14,6 +16,7 @@ import { SORT_LABELS, STATUS_LABELS } from "../labels";
 import { readEnum, readPage, useUrlState } from "../urlState";
 
 const PAGE_SIZE = 20;
+const MY_TASK_SORTS: readonly TaskSort[] = ["priority", "created_at", "status"];
 
 export function MyTasks() {
   const user = useCurrentUser();
@@ -24,7 +27,7 @@ export function MyTasks() {
     page: readPage(params),
     limit: PAGE_SIZE,
     status: readEnum<TaskStatus>(params, "status", TASK_STATUSES),
-    sort: readEnum<TaskSort>(params, "sort", TASK_SORTS) ?? "priority",
+    sort: readEnum<TaskSort>(params, "sort", MY_TASK_SORTS) ?? "priority",
   };
   const tasks = useMyTasks(user.id, filters);
   const queuedIds = new Set(offline.pending.map((change) => change.task_id));
@@ -35,22 +38,29 @@ export function MyTasks() {
 
       <SyncStatus offline={offline} fromCache={tasks.data?.fromCache ?? false} />
 
-      <section className="filters" aria-label="Filters">
-        <Field label="Status">
-          <select className="input" value={filters.status ?? ""} onChange={(e) => update({ status: e.target.value })}>
-            <Options values={TASK_STATUSES} labels={STATUS_LABELS} empty="All statuses" />
-          </select>
-        </Field>
-        <Field label="Sort by">
-          <select className="input" value={filters.sort} onChange={(e) => update({ sort: e.target.value })}>
-            <Options values={TASK_SORTS} labels={SORT_LABELS} />
-          </select>
-        </Field>
-        {tasks.data && <span className="filters-summary muted">Total: {tasks.data.page.pagination.total}</span>}
-      </section>
+      <div className="toolbar toolbar-plain" role="group" aria-label="Filters">
+        <FilterControl label="Status">
+          <Select
+            variant="inline"
+            value={filters.status ?? ""}
+            options={withEmpty("All", optionList(TASK_STATUSES, STATUS_LABELS))}
+            onChange={(status) => update({ status })}
+          />
+        </FilterControl>
+        <FilterControl label="Sort">
+          <Select
+            variant="inline"
+            value={filters.sort}
+            options={optionList(MY_TASK_SORTS, SORT_LABELS)}
+            onChange={(sort) => update({ sort })}
+          />
+        </FilterControl>
+        <span className="toolbar-spacer" />
+        {tasks.data && <span className="toolbar-count">{tasks.data.page.pagination.total} total</span>}
+      </div>
 
       {tasks.isPending ? (
-        <Loading label="Loading your tasks" />
+        <ListSkeleton label="Loading your tasks" columns={4} />
       ) : tasks.isError ? (
         <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
       ) : tasks.data.page.data.length === 0 ? (
@@ -79,7 +89,12 @@ export function MyTasks() {
               />
             ))}
           </div>
-          <Pagination info={tasks.data.page.pagination} onChange={(page) => update({ page }, false)} />
+          <Pagination
+            info={tasks.data.page.pagination}
+            shown={tasks.data.page.data.length}
+            noun="tasks"
+            onPageChange={(page) => update({ page }, false)}
+          />
         </>
       )}
     </>

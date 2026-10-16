@@ -53,3 +53,13 @@ export function buildTree(locations: LocationResponse[]): LocationNode[] {
 export function sortedByFullName(locations: LocationResponse[]): LocationResponse[] {
   return [...locations].sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
+
+export function filterTree(nodes: LocationNode[], query: string): LocationNode[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return nodes;
+  return nodes.flatMap((node) => {
+    const children = filterTree(node.children, needle);
+    if (node.name.toLowerCase().includes(needle) || children.length > 0) return [{ ...node, children }];
+    return [];
+  });
+}

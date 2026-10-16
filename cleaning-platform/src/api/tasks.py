@@ -9,11 +9,13 @@ from src.api.http import (
     authenticated,
     forbidden,
     json_response,
+    like_pattern,
     not_found,
     optional_date,
     optional_uuid,
     query_choice,
     query_int,
+    query_text,
     read_model,
     route_uuid,
 )
@@ -30,7 +32,7 @@ from src.api.task_store import (
     task_rows,
     to_response,
 )
-from src.domain.models.enums import Country, TaskPriority, TaskSort, TaskStatus, UserRole
+from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus, UserRole
 from src.domain.models.task import QualityReview, TaskCreate, TaskStatusUpdate
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
@@ -43,6 +45,7 @@ bp = func.Blueprint()
 
 MAX_PAGE = 10_000
 MAX_LIMIT = 100
+MAX_SEARCH = 200
 OCCURRENCES_COUNT = 10
 
 
@@ -101,14 +104,18 @@ async def get_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
     page = query_int(req, "page", 1, 1, MAX_PAGE)
     limit = query_int(req, "limit", 10, 1, MAX_LIMIT)
     sort = query_choice(req, "sort", TaskSort) or TaskSort.CREATED_AT
+    order = query_choice(req, "order", SortOrder)
     status = query_choice(req, "status", TaskStatus)
     priority = query_choice(req, "priority", TaskPriority)
     country = query_choice(req, "country", Country)
     location_id = optional_uuid(req, "location_id")
     date_from = optional_date(req, "date_from")
     date_to = optional_date(req, "date_to")
+    search = query_text(req, "search", MAX_SEARCH)
 
     conditions = scope_conditions(user)
+    if search:
+        conditions.append(Task.title.ilike(like_pattern(search), escape="\\"))
     if country and user.is_admin:
         conditions.append(Task.country == country)
     if status:
@@ -126,7 +133,7 @@ async def get_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
         total = await session.scalar(select(sql.count()).select_from(Task).where(*conditions)) or 0
         rows = (
             await session.execute(
-                task_rows().where(*conditions).order_by(*ordering(sort)).limit(limit).offset((page - 1) * limit)
+                task_rows().where(*conditions).order_by(*ordering(sort, order)).limit(limit).offset((page - 1) * limit)
             )
         ).all()
 

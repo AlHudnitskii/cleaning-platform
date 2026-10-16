@@ -6,8 +6,8 @@ import { AuthProvider } from "./auth/AuthContext";
 import { homePath } from "./auth/homePath";
 import { RequireRole } from "./auth/RequireRole";
 import { useAuth } from "./auth/useAuth";
+import { AppShell } from "./components/AppShell";
 import { Loading, NotFoundState } from "./components/Feedback";
-import { Navbar } from "./components/Navbar";
 import { useTaskEvents } from "./features/realtime/useTaskEvents";
 import { Dashboard } from "./pages/Dashboard";
 import { Export } from "./pages/Export";
@@ -27,12 +27,9 @@ function AppLayout() {
   const { state } = useAuth();
   useTaskEvents(state.status === "authenticated" && !state.offline);
   return (
-    <>
-      <Navbar />
-      <main className="page">
-        <Outlet />
-      </main>
-    </>
+    <AppShell>
+      <Outlet />
+    </AppShell>
   );
 }
 

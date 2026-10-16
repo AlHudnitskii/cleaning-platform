@@ -3,10 +3,14 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { createQueryClient } from "./queryClient";
+import { applyTheme } from "./theme";
+import "@fontsource-variable/manrope";
 import "./styles/global.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element #root is missing");
+
+applyTheme();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

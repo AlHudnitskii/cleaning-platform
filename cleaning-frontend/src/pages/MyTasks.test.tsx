@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 
 import type { SyncStatusChange } from "../api/types";
 import { CLEANER, makePage, makeTask } from "../test/fixtures";
-import { renderApp } from "../test/render";
+import { chooseOption, renderApp } from "../test/render";
 import { server } from "../test/server";
 
 const QUEUE_KEY = `offline_changes:${CLEANER.id}`;
@@ -21,14 +21,15 @@ describe("My tasks", () => {
         return HttpResponse.json(makePage([makeTask()]));
       }),
     );
+    const listRequests = () => requests.filter((params) => params.get("limit") !== "1");
     const { user } = renderApp("/my-tasks", CLEANER);
     await screen.findByRole("article");
 
-    expect(requests[0]?.get("sort")).toBe("priority");
-    expect(requests[0]?.get("limit")).toBe("20");
+    expect(listRequests()[0]?.get("sort")).toBe("priority");
+    expect(listRequests()[0]?.get("limit")).toBe("20");
 
-    await user.selectOptions(screen.getByLabelText("Status"), "in_progress");
-    await waitFor(() => expect(requests.at(-1)?.get("status")).toBe("in_progress"));
+    await chooseOption(user, "Status", "In progress");
+    await waitFor(() => expect(listRequests().at(-1)?.get("status")).toBe("in_progress"));
   });
 
   it("queues a status change when the network is down and syncs it later", async () => {

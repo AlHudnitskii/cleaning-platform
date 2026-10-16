@@ -221,6 +221,7 @@ export const en = {
     password: "Password",
     submit: "Sign in",
     submitting: "Signing in…",
+    switchedTo: (email: string) => `You are now signed in as ${email} — the session changed in another tab.`,
   },
   profile: {
     title: "Profile",

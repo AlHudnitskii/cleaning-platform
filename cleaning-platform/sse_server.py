@@ -14,6 +14,7 @@ from aiohttp import web
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.infrastructure.auth.middleware import AuthError, authenticate_token
+from src.infrastructure.messaging.events import TaskEvent
 from src.infrastructure.messaging.rabbitmq import connect, declare_task_events, decode_event
 from src.settings import get_settings
 
@@ -36,21 +37,18 @@ def sse_message(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
 
 
-def can_receive(user: CurrentUser, event: dict[str, Any]) -> bool:
-    if str(user.id) == event.get("changed_by"):
+def can_receive(user: CurrentUser, event: TaskEvent) -> bool:
+    if user.id == event.changed_by:
         return False
-    country = str(event.get("country"))
-    for key in ("assigned_to", "previous_assigned_to"):
-        assigned = event.get(key)
-        assigned_to = uuid.UUID(assigned) if assigned else None
-        if task_access.can_view(user, country, assigned_to):
-            return True
-    return False
+    return any(
+        task_access.can_view(user, event.country, assignee)
+        for assignee in (event.assigned_to, event.previous_assigned_to)
+    )
 
 
-def dispatch(event: dict[str, Any]) -> None:
-    event_type = event.pop("type", None)
-    message = sse_message({"type": event_type, "data": event, "timestamp": datetime.now(UTC).isoformat()})
+def dispatch(event: TaskEvent) -> None:
+    data = {"type": event.type.value, "data": event.payload(), "timestamp": datetime.now(UTC).isoformat()}
+    message = sse_message(data)
     for user_clients in clients.values():
         for client in user_clients:
             if can_receive(client.user, event):
@@ -95,7 +93,9 @@ async def stream_handler(request: web.Request) -> web.StreamResponse:
 
 async def on_event(message: AbstractIncomingMessage) -> None:
     async with message.process():
-        dispatch(decode_event(message.body))
+        event = TaskEvent.from_message(decode_event(message.body))
+        if event is not None:
+            dispatch(event)
 
 
 async def consume_events(app: web.Application) -> Any:

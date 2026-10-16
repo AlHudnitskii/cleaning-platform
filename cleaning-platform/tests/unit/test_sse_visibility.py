@@ -2,6 +2,7 @@ import uuid
 
 from src.domain.models.enums import Country, UserRole
 from src.domain.models.user import CurrentUser
+from src.infrastructure.messaging.events import TaskEvent
 from sse_server import can_receive
 
 FIRST = CurrentUser(id=uuid.uuid4(), email="first@cleaning.com", role=UserRole.CLEANER, country=Country.DE)
@@ -9,8 +10,19 @@ SECOND = CurrentUser(id=uuid.uuid4(), email="second@cleaning.com", role=UserRole
 OTHER = CurrentUser(id=uuid.uuid4(), email="other@cleaning.com", role=UserRole.CLEANER, country=Country.DE)
 
 
-def reassignment() -> dict[str, object]:
-    return {"country": "DE", "assigned_to": str(SECOND.id), "previous_assigned_to": str(FIRST.id)}
+def reassignment(**overrides: object) -> TaskEvent:
+    event = TaskEvent.from_message(
+        {
+            "type": "task_updated",
+            "task_id": str(uuid.uuid4()),
+            "country": "DE",
+            "assigned_to": str(SECOND.id),
+            "previous_assigned_to": str(FIRST.id),
+            **overrides,
+        }
+    )
+    assert event is not None
+    return event
 
 
 def test_reassignment_reaches_both_the_previous_and_the_new_assignee():
@@ -23,4 +35,4 @@ def test_reassignment_does_not_reach_unrelated_cleaners():
 
 
 def test_author_does_not_receive_their_own_change():
-    assert not can_receive(SECOND, {**reassignment(), "changed_by": str(SECOND.id)})
+    assert not can_receive(SECOND, reassignment(changed_by=str(SECOND.id)))

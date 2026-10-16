@@ -12,7 +12,7 @@ import { useOfflineSync } from "../features/offline/useOfflineSync";
 import { PhotoUpload } from "../features/tasks/PhotoUpload";
 import { StatusActions } from "../features/tasks/StatusActions";
 import { TaskCard } from "../features/tasks/TaskCard";
-import { SORT_LABELS, STATUS_LABELS } from "../labels";
+import { t } from "../i18n/locale";
 import { readEnum, readPage, useUrlState } from "../urlState";
 
 const PAGE_SIZE = 20;
@@ -34,39 +34,39 @@ export function MyTasks() {
 
   return (
     <>
-      <PageHeader title="My tasks" description="Tasks assigned to you. Status changes made offline sync automatically." />
+      <PageHeader title={t().myTasks.title} description={t().myTasks.description} />
 
       <SyncStatus offline={offline} fromCache={tasks.data?.fromCache ?? false} />
 
-      <div className="toolbar toolbar-plain" role="group" aria-label="Filters">
-        <FilterControl label="Status">
+      <div className="toolbar toolbar-plain" role="group" aria-label={t().common.filters}>
+        <FilterControl label={t().myTasks.status}>
           <Select
             variant="inline"
             value={filters.status ?? ""}
-            options={withEmpty("All", optionList(TASK_STATUSES, STATUS_LABELS))}
+            options={withEmpty(t().common.all, optionList(TASK_STATUSES, t().status))}
             onChange={(status) => update({ status })}
           />
         </FilterControl>
-        <FilterControl label="Sort">
+        <FilterControl label={t().myTasks.sort}>
           <Select
             variant="inline"
             value={filters.sort}
-            options={optionList(MY_TASK_SORTS, SORT_LABELS)}
+            options={optionList(MY_TASK_SORTS, t().sort)}
             onChange={(sort) => update({ sort })}
           />
         </FilterControl>
         <span className="toolbar-spacer" />
-        {tasks.data && <span className="toolbar-count">{tasks.data.page.pagination.total} total</span>}
+        {tasks.data && <span className="toolbar-count">{t().myTasks.total(tasks.data.page.pagination.total)}</span>}
       </div>
 
       {tasks.isPending ? (
-        <ListSkeleton label="Loading your tasks" columns={4} />
+        <ListSkeleton label={t().myTasks.loading} columns={4} />
       ) : tasks.isError ? (
         <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
       ) : tasks.data.page.data.length === 0 ? (
         <EmptyState
-          title={filters.status ? "No tasks with this status" : "No tasks assigned to you"}
-          hint="New assignments appear here automatically."
+          title={filters.status ? t().myTasks.noneWithStatus : t().myTasks.none}
+          hint={t().myTasks.noneHint}
         />
       ) : (
         <>
@@ -92,7 +92,7 @@ export function MyTasks() {
           <Pagination
             info={tasks.data.page.pagination}
             shown={tasks.data.page.data.length}
-            noun="tasks"
+            noun={t().nouns.tasks(tasks.data.page.pagination.total)}
             onPageChange={(page) => update({ page }, false)}
           />
         </>
@@ -105,23 +105,23 @@ function SyncStatus({ offline, fromCache }: { offline: ReturnType<typeof useOffl
   const pendingCount = offline.pending.length;
   return (
     <>
-      {!offline.online && <Notice tone="warning">You are offline. Changes will sync when the connection is back.</Notice>}
-      {fromCache && <Notice tone="info">Showing the last saved copy of your tasks.</Notice>}
+      {!offline.online && <Notice tone="warning">{t().myTasks.offline}</Notice>}
+      {fromCache && <Notice tone="info">{t().myTasks.fromCache}</Notice>}
       {offline.changeStatus.isError && <Notice tone="error">{errorMessage(offline.changeStatus.error)}</Notice>}
       {offline.online && pendingCount > 0 && (
         <Notice tone="info">
-          {offline.sync.isPending ? "Syncing changes…" : `${pendingCount} change(s) waiting to sync.`}{" "}
+          {offline.sync.isPending ? t().myTasks.syncing : t().myTasks.waiting(pendingCount)}{" "}
           {!offline.sync.isPending && (
             <button type="button" className="btn btn-secondary btn-small" onClick={() => offline.sync.mutate()}>
-              Sync now
+              {t().myTasks.syncNow}
             </button>
           )}
         </Notice>
       )}
-      {offline.sync.isError && <Notice tone="error">Sync failed: {errorMessage(offline.sync.error)}</Notice>}
+      {offline.sync.isError && <Notice tone="error">{t().myTasks.syncFailed(errorMessage(offline.sync.error))}</Notice>}
       {offline.rejected.length > 0 && (
         <Notice tone="error">
-          <p>Some offline changes were rejected by the server:</p>
+          <p>{t().myTasks.rejected}</p>
           <ul>
             {offline.rejected.map((rejection, index) => (
               <li key={`${rejection.task_id ?? "unknown"}-${index}`}>{rejection.error}</li>

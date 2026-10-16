@@ -3,7 +3,8 @@ import { BarList, ColumnChart, StatCard, StatusBreakdown } from "../components/C
 import { EmptyState, ErrorState, StatsSkeleton } from "../components/Feedback";
 import { PageHeader } from "../components/PageHeader";
 import { useDashboard } from "../features/stats/api";
-import { COUNTRY_NAMES, PRIORITY_LABELS, STATUS_LABELS } from "../labels";
+import { countryNames } from "../labels";
+import { t } from "../i18n/locale";
 
 function tasksLink(params: Record<string, string>): string {
   return `/tasks?${new URLSearchParams(params).toString()}`;
@@ -15,8 +16,8 @@ export function Dashboard() {
   if (stats.isPending) {
     return (
       <>
-        <PageHeader title="Dashboard" description="Current state of cleaning tasks in your area." />
-        <StatsSkeleton label="Loading dashboard" />
+        <PageHeader title={t().stats.dashboard} description={t().stats.dashboardHint} />
+        <StatsSkeleton label={t().stats.loadingDashboard} />
       </>
     );
   }
@@ -27,56 +28,56 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Current state of cleaning tasks in your area." />
+      <PageHeader title={t().stats.dashboard} description={t().stats.dashboardHint} />
       {data.total_tasks === 0 ? (
-        <EmptyState title="No tasks yet" hint="Statistics appear once tasks are created or imported." />
+        <EmptyState title={t().stats.noTasks} hint={t().stats.noTasksHint} />
       ) : (
         <>
           <div className="stat-grid stat-grid-5">
             <StatCard
-              label="Total tasks"
+              label={t().stats.totalTasks}
               value={data.total_tasks}
               tone="accent"
               to="/tasks"
-              sub={`${data.recurring_count} recurring · ${data.total_users} users`}
+              sub={t().stats.recurringUsers(data.recurring_count, data.total_users)}
             />
             <StatCard
-              label="To review"
+              label={t().stats.toReview}
               value={data.status_stats.on_review}
               tone="status-on_review"
               to={tasksLink({ status: "on_review" })}
-              sub={data.status_stats.on_review > 0 ? "Need your approval" : "Nothing to review"}
+              sub={data.status_stats.on_review > 0 ? t().stats.needApproval : t().stats.nothingToReview}
             />
             <StatCard
-              label="Overdue"
+              label={t().stats.overdue}
               value={data.overdue_count}
               tone="danger"
               to={tasksLink({ overdue: "true" })}
-              sub={data.overdue_count > 0 ? "Past their due date" : "Everything is on time"}
+              sub={data.overdue_count > 0 ? t().stats.pastDue : t().stats.onTime}
             />
             <StatCard
-              label="Completion rate"
+              label={t().stats.completionRate}
               value={`${completionRate}%`}
               tone="success"
-              sub={`${data.status_stats.completed} of ${data.total_tasks} completed`}
+              sub={t().stats.completedOf(data.status_stats.completed, data.total_tasks)}
             />
             <StatCard
-              label="Average quality"
+              label={t().stats.averageQuality}
               value={data.avg_quality !== null ? data.avg_quality.toFixed(1) : "—"}
               tone="warning"
-              sub={data.reviewed_count > 0 ? `${data.reviewed_count} reviews` : "No reviews yet"}
+              sub={data.reviewed_count > 0 ? t().stats.reviews(data.reviewed_count) : t().stats.noReviews}
             />
           </div>
 
           <section className="card" aria-labelledby="by-status">
             <h2 id="by-status" className="section-title">
-              Tasks by status
+              {t().stats.byStatus}
             </h2>
             <StatusBreakdown
-              title="Share of tasks in each status"
+              title={t().stats.statusShare}
               items={TASK_STATUSES.map((status) => ({
                 key: status,
-                label: STATUS_LABELS[status],
+                label: t().status[status],
                 value: data.status_stats[status],
                 tone: `status-${status}`,
                 to: tasksLink({ status }),
@@ -87,12 +88,12 @@ export function Dashboard() {
           <div className="three-columns">
             <section className="card" aria-labelledby="by-country">
               <h2 id="by-country" className="section-title">
-                By country
+                {t().stats.byCountry}
               </h2>
               <BarList
                 items={data.country_stats.map((item) => ({
                   key: item.country,
-                  label: COUNTRY_NAMES[item.country],
+                  label: countryNames()[item.country],
                   value: item.count,
                   to: tasksLink({ country: item.country }),
                 }))}
@@ -100,12 +101,12 @@ export function Dashboard() {
             </section>
             <section className="card" aria-labelledby="by-priority">
               <h2 id="by-priority" className="section-title">
-                By priority
+                {t().stats.byPriority}
               </h2>
               <BarList
                 items={TASK_PRIORITIES.map((priority) => ({
                   key: priority,
-                  label: PRIORITY_LABELS[priority],
+                  label: t().priority[priority],
                   value: data.priority_stats[priority],
                   tone: `priority-${priority}`,
                   to: tasksLink({ priority }),
@@ -114,7 +115,7 @@ export function Dashboard() {
             </section>
             <section className="card" aria-labelledby="top-locations">
               <h2 id="top-locations" className="section-title">
-                Busiest locations
+                {t().stats.busiestLocations}
               </h2>
               <BarList
                 items={data.top_locations.map((location) => ({
@@ -129,10 +130,10 @@ export function Dashboard() {
 
           <section className="card" aria-labelledby="last-days">
             <h2 id="last-days" className="section-title">
-              Tasks created in the last 7 days
+              {t().stats.lastWeek}
             </h2>
             <ColumnChart
-              emptyText="No tasks in the last 7 days"
+              emptyText={t().stats.noLastWeek}
               points={data.daily_stats.map((day) => ({
                 key: day.date,
                 label: day.date.slice(5),

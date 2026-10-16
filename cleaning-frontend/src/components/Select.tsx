@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
+import { t } from "../i18n/locale";
 import { Icon } from "./Icon";
 import type { SelectOption } from "./options";
 import { Popover } from "./Popover";
@@ -17,7 +18,7 @@ export function Select<T extends string>({
   value,
   options,
   onChange,
-  placeholder = "Select…",
+  placeholder = t().select.placeholder,
   disabled = false,
   variant = "field",
   "aria-describedby": describedBy,
@@ -60,6 +61,7 @@ export function Select<T extends string>({
   const choose = (index: number) => {
     const option = options[index];
     setOpen(false);
+    triggerRef.current?.focus();
     if (option && option.value !== value) onChange(option.value);
   };
 

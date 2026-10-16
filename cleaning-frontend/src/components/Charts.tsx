@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { t } from "../i18n/locale";
+import { Icon } from "./Icon";
 export function StatCard({
   label,
   value,
@@ -19,8 +21,8 @@ export function StatCard({
       <span className="stat-head">
         <span className="stat-label">{label}</span>
         {to && (
-          <span className="stat-open" aria-hidden="true">
-            Open
+          <span className="stat-open">
+            <Icon name="chevronRight" size={15} />
           </span>
         )}
       </span>
@@ -45,7 +47,7 @@ export interface BarItem {
   to?: string;
 }
 
-export function BarList({ items, emptyText = "No data" }: { items: BarItem[]; emptyText?: string }) {
+export function BarList({ items, emptyText = t().common.noData }: { items: BarItem[]; emptyText?: string }) {
   if (items.length === 0) return <p className="muted">{emptyText}</p>;
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
@@ -101,7 +103,7 @@ export function ColumnChart({ points, emptyText }: { points: SeriesPoint[]; empt
         return (
           <li key={point.key} className="column">
             {point.to ? (
-              <Link to={point.to} className="column-link" aria-label={`${point.label}: ${point.value} tasks`}>
+              <Link to={point.to} className="column-link" aria-label={`${point.label}: ${t().counts.tasks(point.value)}`}>
                 {column}
               </Link>
             ) : (
@@ -184,7 +186,7 @@ export interface BreakdownItem {
 
 export function StatusBreakdown({ items, title }: { items: BreakdownItem[]; title: string }) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
-  if (total === 0) return <p className="muted">No tasks yet</p>;
+  if (total === 0) return <p className="muted">{t().charts.noTasks}</p>;
   return (
     <div className="breakdown">
       <div className="breakdown-bar" role="img" aria-label={title}>

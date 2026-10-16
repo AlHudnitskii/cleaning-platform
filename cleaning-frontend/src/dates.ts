@@ -1,3 +1,5 @@
+import { dateFormatter } from "./i18n/format";
+
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 export function parseDay(value: string): Date | null {
@@ -41,11 +43,9 @@ export function monthGrid(month: Date): Date[] {
   return Array.from({ length: 42 }, (_, index) => addDays(start, index));
 }
 
-const dayFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
-
 export function formatDay(value: string): string {
   const date = parseDay(value);
-  return date ? dayFormat.format(date) : value;
+  return date ? dateFormatter("day", { day: "numeric", month: "short", year: "numeric" }).format(date) : value;
 }
 
 export function daysBetween(from: string, to: string): number | null {

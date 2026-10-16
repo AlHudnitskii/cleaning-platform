@@ -30,7 +30,8 @@ import { BulkBar } from "../features/tasks/BulkBar";
 import { TaskForm } from "../features/tasks/TaskForm";
 import { ActiveFilters, FilterMenu, SearchBox } from "../features/tasks/TaskFilters";
 import { TaskTable } from "../features/tasks/TaskTable";
-import { SORT_LABELS, STATUS_LABELS, countryName } from "../labels";
+import { countryName } from "../labels";
+import { t } from "../i18n/locale";
 import { useShortcut } from "../shortcuts";
 import { nextSort, type SortDirection, type SortState } from "../sorting";
 import { PAGE_SIZES, readDate, readEnum, readId, readPage, readPageSize, useUrlState } from "../urlState";
@@ -88,9 +89,9 @@ export function Tasks() {
       { tasks: selectedTasks, status },
       {
         onSuccess: (result) => {
-          const parts = [`${result.updated} moved to ${STATUS_LABELS[status]}`];
-          if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
-          if (result.failed > 0) parts.push(`${result.failed} failed`);
+          const parts = [t().tasks.bulkMoved(result.updated, t().status[status])];
+          if (result.skipped > 0) parts.push(t().tasks.bulkSkipped(result.skipped));
+          if (result.failed > 0) parts.push(t().tasks.bulkFailed(result.failed));
           showToast(parts.join(" · "), result.failed > 0 ? "error" : "success");
           clearSelection();
         },
@@ -104,7 +105,7 @@ export function Tasks() {
     changeStatus.mutate(
       { id: task.id, status },
       {
-        onSuccess: (updated) => showToast(`“${updated.title}” moved to ${STATUS_LABELS[updated.status]}`),
+        onSuccess: (updated) => showToast(t().tasks.movedTo(updated.title, t().status[updated.status])),
         onError: (error) => showToast(errorMessage(error), "error"),
       },
     );
@@ -125,40 +126,40 @@ export function Tasks() {
   return (
     <>
       <PageHeader
-        title="Tasks"
-        description={isAdmin ? "All cleaning tasks across countries." : `Cleaning tasks in ${countryName(user.country)}.`}
+        title={t().tasks.title}
+        description={isAdmin ? t().tasks.allCountries : t().tasks.inCountry(countryName(user.country))}
         actions={
           <button type="button" className="btn btn-primary" aria-keyshortcuts="n" onClick={() => setCreating(true)}>
             <Icon name="plus" size={15} />
-            Create task
+            {t().tasks.create}
           </button>
         }
       />
 
       {creating && (
-        <Drawer title="New task" description="The assignee gets a notification right away." onClose={() => setCreating(false)}>
+        <Drawer title={t().tasks.newTask} description={t().tasks.newTaskHint} onClose={() => setCreating(false)}>
           <TaskForm
             user={user}
             onCancel={() => setCreating(false)}
             onSaved={(task) => {
               setCreating(false);
-              showToast(`Task “${task.title}” created`);
+              showToast(t().tasks.created(task.title));
             }}
           />
         </Drawer>
       )}
 
-      <section className="list-card" aria-label="Task list">
+      <section className="list-card" aria-label={t().tasks.list}>
         <div className="toolbar">
           <SearchBox value={filters.search ?? ""} onSearch={(search) => update({ search })} />
           <FilterMenu filters={filters} locations={locationList} showCountry={isAdmin} onChange={update} />
           <span className="toolbar-spacer" />
           <div className="toolbar-compact-sort">
-            <FilterControl label="Sort">
+            <FilterControl label={t().tasks.sort}>
               <Select
                 variant="inline"
                 value={sortKey}
-                options={optionList(TASK_SORTS, SORT_LABELS)}
+                options={optionList(TASK_SORTS, t().sort)}
                 onChange={(key) => applySort({ key, direction: naturalDirection(key) })}
               />
             </FilterControl>
@@ -167,13 +168,13 @@ export function Tasks() {
         <ActiveFilters filters={filters} locations={locationList} onChange={update} onClear={clear} />
 
         {tasks.isPending ? (
-          <ListSkeleton label="Loading tasks" columns={isAdmin ? 8 : 7} />
+          <ListSkeleton label={t().tasks.loading} columns={isAdmin ? 8 : 7} />
         ) : tasks.isError ? (
           <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
         ) : tasks.data.data.length === 0 ? (
           <EmptyState
-            title={hasFilters ? "No tasks match these filters" : "No tasks yet"}
-            hint={hasFilters ? "Try another search or remove some filters." : "Create the first task with the button above."}
+            title={hasFilters ? t().tasks.noMatch : t().tasks.none}
+            hint={hasFilters ? t().tasks.noMatchHint : t().tasks.noneHint}
           />
         ) : (
           <>
@@ -199,7 +200,7 @@ export function Tasks() {
             <Pagination
               info={tasks.data.pagination}
               shown={tasks.data.data.length}
-              noun="tasks"
+              noun={t().nouns.tasks(tasks.data.pagination.total)}
               onPageChange={(page) => update({ page }, false)}
               pageSizes={PAGE_SIZES}
               onPageSizeChange={(limit) => update({ limit })}

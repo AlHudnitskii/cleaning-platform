@@ -1,19 +1,26 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { addDays, addMonths, formatDay, monthGrid, mondayIndex, parseDay, toDay, today } from "../dates";
+import { dateFormatter } from "../i18n/format";
+import { t } from "../i18n/locale";
 import { Icon } from "./Icon";
 import { Popover } from "./Popover";
 
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const monthTitle = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
-const dayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+function monthTitle(date: Date): string {
+  const title = dateFormatter("month", { month: "long", year: "numeric" }).format(date);
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
+function dayLabel(date: Date): string {
+  return dateFormatter("weekday", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(date);
+}
 const FOCUSABLE = "button:not([disabled])";
 
 export function DatePicker({
   id,
   value,
   onChange,
-  placeholder = "Any date",
+  placeholder = t().calendar.anyDate,
   min,
   max,
   clearable = true,
@@ -142,24 +149,29 @@ export function DatePicker({
             <button
               type="button"
               className="calendar-nav"
-              aria-label="Previous month"
+              aria-label={t().calendar.previousMonth}
               onClick={() => setFocused(addMonths(focused, -1))}
             >
               <Icon name="back" size={14} />
             </button>
             <h2 id={titleId} className="calendar-title" aria-live="polite">
-              {monthTitle.format(focused)}
+              {monthTitle(focused)}
             </h2>
-            <button type="button" className="calendar-nav" aria-label="Next month" onClick={() => setFocused(addMonths(focused, 1))}>
+            <button
+              type="button"
+              className="calendar-nav"
+              aria-label={t().calendar.nextMonth}
+              onClick={() => setFocused(addMonths(focused, 1))}
+            >
               <Icon name="chevronRight" size={14} />
             </button>
           </div>
           <div className="calendar-weekdays" aria-hidden="true">
-            {WEEKDAYS.map((weekday) => (
+            {t().calendar.weekdays.map((weekday) => (
               <span key={weekday}>{weekday}</span>
             ))}
           </div>
-          <div className="calendar-grid" ref={gridRef} role="group" aria-label={monthTitle.format(focused)}>
+          <div className="calendar-grid" ref={gridRef} role="group" aria-label={monthTitle(focused)}>
             {days.map((date) => {
               const day = toDay(date);
               const outside = date.getMonth() !== focused.getMonth();
@@ -174,7 +186,7 @@ export function DatePicker({
                   data-day={day}
                   className={classes.join(" ")}
                   tabIndex={day === focusedDay ? 0 : -1}
-                  aria-label={dayLabel.format(date)}
+                  aria-label={dayLabel(date)}
                   aria-pressed={day === value}
                   aria-current={day === todayValue ? "date" : undefined}
                   disabled={isDisabled(day)}
@@ -188,7 +200,7 @@ export function DatePicker({
           </div>
           <div className="calendar-footer">
             <button type="button" className="link-button" disabled={isDisabled(todayValue)} onClick={() => pick(todayValue)}>
-              Today
+              {t().calendar.today}
             </button>
             {clearable && value && (
               <button
@@ -199,7 +211,7 @@ export function DatePicker({
                   close();
                 }}
               >
-                Clear
+                {t().common.clear}
               </button>
             )}
           </div>

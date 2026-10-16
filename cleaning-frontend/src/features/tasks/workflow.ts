@@ -1,6 +1,6 @@
 import type { TaskResponse, TaskStatus } from "../../api/types";
 import { daysBetween, formatDay, today } from "../../dates";
-import { STATUS_ACTIONS } from "../../labels";
+import { t } from "../../i18n/locale";
 
 const NEXT_STEP: Partial<Record<TaskStatus, TaskStatus>> = {
   pending: "in_progress",
@@ -21,22 +21,23 @@ export function isBlocked(task: Pick<TaskResponse, "review_blockers">, target: T
 
 export function blockerText(task: Pick<TaskResponse, "review_blockers" | "checklist_done" | "checklist_total">): string {
   const parts: string[] = [];
-  if (task.review_blockers.includes("photo")) parts.push("upload a photo of the result");
+  const messages = t().workflow;
+  if (task.review_blockers.includes("photo")) parts.push(messages.uploadPhoto);
   if (task.review_blockers.includes("checklist")) {
-    parts.push(`finish the checklist (${task.checklist_done} of ${task.checklist_total} done)`);
+    parts.push(messages.finishChecklist(task.checklist_done, task.checklist_total));
   }
-  return parts.length > 0 ? `To send for review, ${parts.join(" and ")}.` : "";
+  return parts.length > 0 ? messages.toSendForReview(parts) : "";
 }
 
 const REOPEN_FROM: readonly TaskStatus[] = ["completed", "cancelled"];
 
 export function actionLabel(from: TaskStatus, to: TaskStatus): string {
   if (to === "in_progress") {
-    if (REOPEN_FROM.includes(from)) return "Reopen";
-    if (from === "on_review") return "Return for rework";
-    if (from === "on_hold") return "Resume";
+    if (REOPEN_FROM.includes(from)) return t().workflow.reopen;
+    if (from === "on_review") return t().workflow.returnForRework;
+    if (from === "on_hold") return t().workflow.resume;
   }
-  return STATUS_ACTIONS[to];
+  return t().statusAction[to];
 }
 
 export type DueState = "overdue" | "today" | "soon" | "later";
@@ -55,8 +56,9 @@ export function dueState(task: Pick<TaskResponse, "due_date" | "status">, todayV
 
 export function dueLabel(dueDate: string, state: DueState | null, todayValue: string = today()): string {
   const days = daysBetween(todayValue, dueDate) ?? 0;
-  if (state === "overdue") return days === -1 ? "Overdue by 1 day" : `Overdue by ${-days} days`;
-  if (state === "today") return "Due today";
-  if (days === 1 && state === "soon") return "Due tomorrow";
-  return `Due ${formatDay(dueDate)}`;
+  const messages = t().workflow;
+  if (state === "overdue") return messages.overdueBy(-days);
+  if (state === "today") return messages.dueToday;
+  if (days === 1 && state === "soon") return messages.dueTomorrow;
+  return messages.dueOn(formatDay(dueDate));
 }

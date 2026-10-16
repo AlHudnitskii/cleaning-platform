@@ -1,6 +1,7 @@
 import { useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { t } from "../i18n/locale";
 import { useModalFocus } from "./modalFocus";
 
 export function ConfirmDialog({
@@ -27,7 +28,7 @@ export function ConfirmDialog({
 
   return createPortal(
     <div className="drawer-layer dialog-layer">
-      <button type="button" className="drawer-backdrop" aria-label="Cancel" tabIndex={-1} onClick={onCancel} />
+      <button type="button" className="drawer-backdrop" aria-label={t().common.cancel} tabIndex={-1} onClick={onCancel} />
       <div
         ref={panelRef}
         className="dialog"
@@ -50,10 +51,10 @@ export function ConfirmDialog({
         )}
         <div className="dialog-actions">
           <button type="button" className="btn btn-secondary" data-autofocus onClick={onCancel}>
-            Cancel
+            {t().common.cancel}
           </button>
           <button type="button" className="btn btn-danger-solid" disabled={busy} onClick={onConfirm}>
-            {busy ? "Working…" : confirmLabel}
+            {busy ? t().common.working : confirmLabel}
           </button>
         </div>
       </div>

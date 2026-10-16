@@ -21,7 +21,8 @@ import {
   useLocations,
   type LocationNode,
 } from "../features/locations/api";
-import { COUNTRY_NAMES, LEVEL_LABELS } from "../labels";
+import { countryNames } from "../labels";
+import { t } from "../i18n/locale";
 import { useShortcut } from "../shortcuts";
 import { readEnum, useUrlState } from "../urlState";
 
@@ -62,8 +63,8 @@ export function Locations() {
   return (
     <>
       <PageHeader
-        title="Locations"
-        description="Countries, cities, buildings, floors and rooms where tasks are performed."
+        title={t().locations.title}
+        description={t().locations.description}
         actions={
           isAdmin && (
             <button
@@ -73,58 +74,58 @@ export function Locations() {
               onClick={startRoot}
             >
               <Icon name="plus" size={15} />
-              Create location
+              {t().locations.create}
             </button>
           )
         }
       />
       {isAdmin && draft && (
-        <Drawer title="New location" onClose={() => setDraft(null)}>
+        <Drawer title={t().locations.newLocation} onClose={() => setDraft(null)}>
           <LocationForm
             initial={draft}
             onCancel={() => setDraft(null)}
             onCreated={(location) => {
               setDraft(null);
-              showToast(`${location.name} created`);
+              showToast(t().locations.created(location.name));
             }}
           />
         </Drawer>
       )}
 
-      <div className="toolbar toolbar-plain" role="group" aria-label="Filters">
-        <SearchField value={query} onChange={setQuery} label="Search locations" shortcut="/" />
+      <div className="toolbar toolbar-plain" role="group" aria-label={t().common.filters}>
+        <SearchField value={query} onChange={setQuery} label={t().locations.search} shortcut="/" />
         {isAdmin && (
-          <FilterControl label="Country">
+          <FilterControl label={t().locations.country}>
             <Select
               variant="inline"
               value={country ?? ""}
-              options={withEmpty("All", optionList(COUNTRIES, COUNTRY_NAMES))}
+              options={withEmpty(t().common.all, optionList(COUNTRIES, countryNames()))}
               onChange={(value) => update({ country: value })}
             />
           </FilterControl>
         )}
         <span className="toolbar-spacer" />
-        {locations.data && <span className="toolbar-count">{locations.data.length} locations</span>}
-        <div className="pager-group" role="group" aria-label="Tree view">
+        {locations.data && <span className="toolbar-count">{t().locations.count(locations.data.length)}</span>}
+        <div className="pager-group" role="group" aria-label={t().locations.treeView}>
           <button type="button" className="pager-size" disabled={searching} onClick={() => setOpenMode("all")}>
-            Expand all
+            {t().locations.expandAll}
           </button>
           <button type="button" className="pager-size" disabled={searching} onClick={() => setOpenMode("none")}>
-            Collapse all
+            {t().locations.collapseAll}
           </button>
         </div>
       </div>
 
       {locations.isPending ? (
-        <ListSkeleton label="Loading locations" columns={3} />
+        <ListSkeleton label={t().locations.loading} columns={3} />
       ) : locations.isError ? (
         <ErrorState error={locations.error} onRetry={() => void locations.refetch()} />
       ) : locations.data.length === 0 ? (
-        <EmptyState title="No locations yet" hint={isAdmin ? "Start by creating a country." : undefined} />
+        <EmptyState title={t().locations.none} hint={isAdmin ? t().locations.noneHint : undefined} />
       ) : visible.length === 0 ? (
-        <EmptyState title={`Nothing matches “${query.trim()}”`} hint="Check the spelling or search for a parent location." />
+        <EmptyState title={t().locations.noMatch(query.trim())} hint={t().locations.noMatchHint} />
       ) : (
-        <ul className="tree list-card" aria-label="Location tree" key={searching ? "search" : openMode}>
+        <ul className="tree list-card" aria-label={t().locations.tree} key={searching ? "search" : openMode}>
           {visible.map((node) => (
             <TreeNode
               key={node.id}
@@ -185,7 +186,7 @@ function TreeNode({
             type="button"
             className="tree-toggle"
             aria-expanded={expanded}
-            aria-label={`${expanded ? "Collapse" : "Expand"} ${node.name}`}
+            aria-label={expanded ? t().locations.collapse(node.name) : t().locations.expand(node.name)}
             onClick={() => setExpanded((v) => !v)}
           >
             <Icon name={expanded ? "chevronDown" : "chevronRight"} size={13} />
@@ -197,13 +198,13 @@ function TreeNode({
           <Highlighted text={node.name} highlight={highlight} />
         </span>
         <LevelBadge level={node.level} />
-        {nested > 0 && <span className="tree-count">{nested} inside</span>}
+        {nested > 0 && <span className="tree-count">{t().locations.inside(nested)}</span>}
         {onAddChild && canHaveChildren && (
           <button
             type="button"
             className="icon-button tree-add"
-            aria-label={`Add location inside ${node.name}`}
-            title={`Add inside ${node.name}`}
+            aria-label={t().locations.addInside(node.name)}
+            title={t().locations.addInsideShort(node.name)}
             onClick={() => onAddChild(childDraft(node))}
           >
             <Icon name="plus" size={14} />
@@ -257,34 +258,34 @@ function LocationForm({
     <form className="drawer-form" onSubmit={handleSubmit}>
       <div className="drawer-body">
         {create.isError && <Notice tone="error">{errorMessage(create.error)}</Notice>}
-        <Field label="Name">
+        <Field label={t().locations.name}>
           <input className="input" value={name} minLength={2} maxLength={255} onChange={(e) => setName(e.target.value)} required />
         </Field>
-        <Field label="Country">
+        <Field label={t().locations.country}>
           <Select
             value={country}
-            options={optionList(COUNTRIES, COUNTRY_NAMES)}
+            options={optionList(COUNTRIES, countryNames())}
             onChange={(value) => {
               setCountry(value);
               setParentId("");
             }}
           />
         </Field>
-        <Field label="Level">
+        <Field label={t().locations.level}>
           <Select
             value={level}
-            options={optionList(LOCATION_LEVELS, LEVEL_LABELS)}
+            options={optionList(LOCATION_LEVELS, t().level)}
             onChange={(value) => {
               setLevel(value);
               setParentId("");
             }}
           />
         </Field>
-        <Field label="Parent location" hint="Only locations of a higher level in the same country are listed.">
+        <Field label={t().locations.parent} hint={t().locations.parentHint}>
           <Select
             value={parentId}
             options={withEmpty(
-              "No parent",
+              t().locations.noParent,
               parentOptions.map((location) => ({ value: location.id, label: location.full_name })),
             )}
             onChange={setParentId}
@@ -293,10 +294,10 @@ function LocationForm({
       </div>
       <div className="drawer-footer">
         <button className="btn btn-ghost" type="button" onClick={onCancel}>
-          Cancel
+          {t().common.cancel}
         </button>
         <button className="btn btn-primary" type="submit" disabled={create.isPending}>
-          {create.isPending ? "Creating…" : "Create location"}
+          {create.isPending ? t().common.creating : t().locations.create}
         </button>
       </div>
     </form>

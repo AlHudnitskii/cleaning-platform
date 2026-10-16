@@ -17,7 +17,8 @@ import { Icon } from "../../components/Icon";
 import { optionList, withEmpty } from "../../components/options";
 import { Select } from "../../components/Select";
 import { today } from "../../dates";
-import { COUNTRY_NAMES, PRIORITY_LABELS, RRULE_PRESETS } from "../../labels";
+import { countryNames, rruleOptions } from "../../labels";
+import { t } from "../../i18n/locale";
 import { sortedByFullName, useLocations } from "../locations/api";
 import { useAssignees } from "../users/api";
 import { useCreateTask, useUpdateTask } from "./api";
@@ -102,7 +103,7 @@ export function TaskForm({
 
   const assigneeOptions = (assignees.data ?? []).map((cleaner) => ({ value: cleaner.id, label: cleaner.email }));
   if (task?.assigned_to && task.assigned_to_email && !assigneeOptions.some((option) => option.value === task.assigned_to)) {
-    assigneeOptions.unshift({ value: task.assigned_to, label: `${task.assigned_to_email} (inactive)` });
+    assigneeOptions.unshift({ value: task.assigned_to, label: t().taskForm.inactive(task.assigned_to_email) });
   }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -134,7 +135,7 @@ export function TaskForm({
     <form className="drawer-form" onSubmit={handleSubmit}>
       <div className="drawer-body">
         {saving.isError && <Notice tone="error">{errorMessage(saving.error)}</Notice>}
-        <Field label="Title">
+        <Field label={t().taskForm.title}>
           <input
             className="input"
             value={form.title}
@@ -145,60 +146,60 @@ export function TaskForm({
           />
         </Field>
         <Field
-          label="Country"
+          label={t().taskForm.country}
           hint={
             task
-              ? "The country of an existing task cannot be changed."
+              ? t().taskForm.countryLocked
               : canChooseCountry
                 ? undefined
-                : "Managers create tasks in their own country."
+                : t().taskForm.countryOwn
           }
         >
           <Select
             value={form.country}
             disabled={!canChooseCountry}
-            options={optionList(COUNTRIES, COUNTRY_NAMES)}
+            options={optionList(COUNTRIES, countryNames())}
             onChange={(country) => setForm((prev) => ({ ...prev, country, locationId: "", assigneeId: "" }))}
           />
         </Field>
-        <Field label="Location">
+        <Field label={t().taskForm.location}>
           <Select
             value={form.locationId}
             options={withEmpty(
-              "No location",
+              t().taskForm.noLocation,
               sortedByFullName(locations.data ?? []).map((location) => ({ value: location.id, label: location.full_name })),
             )}
             onChange={(locationId) => set("locationId", locationId)}
           />
         </Field>
-        <Field label="Assignee">
+        <Field label={t().taskForm.assignee}>
           <Select
             value={form.assigneeId}
-            options={withEmpty("Unassigned", assigneeOptions)}
+            options={withEmpty(t().common.unassigned, assigneeOptions)}
             onChange={(assigneeId) => set("assigneeId", assigneeId)}
           />
         </Field>
         <div className="form-row">
-          <Field label="Priority">
+          <Field label={t().taskForm.priority}>
             <Select
               value={form.priority}
-              options={optionList(TASK_PRIORITIES, PRIORITY_LABELS)}
+              options={optionList(TASK_PRIORITIES, t().priority)}
               onChange={(priority) => set("priority", priority)}
             />
           </Field>
-          <Field label="Due date">
+          <Field label={t().taskForm.dueDate}>
             <DatePicker
               value={form.dueDate}
-              placeholder="No due date"
+              placeholder={t().taskForm.noDueDate}
               min={task ? undefined : today()}
               onChange={(dueDate) => set("dueDate", dueDate)}
             />
           </Field>
         </div>
-        <Field label="Repeats">
+        <Field label={t().taskForm.repeats}>
           <Select
             value={form.rrule}
-            options={withEmpty<string>("Does not repeat", [...RRULE_PRESETS])}
+            options={withEmpty<string>(t().taskForm.noRepeat, rruleOptions())}
             onChange={(rrule) => set("rrule", rrule)}
           />
         </Field>
@@ -214,13 +215,13 @@ export function TaskForm({
               aria-describedby={photoHintId}
               onChange={(e) => set("photoRequired", e.target.checked)}
             />
-            Require a photo of the result
+            {t().taskForm.requirePhoto}
           </label>
           <p className="field-hint" id={photoHintId}>
-            The cleaner cannot send the task for review without a photo.
+            {t().taskForm.requirePhotoHint}
           </p>
         </div>
-        <Field label="Description">
+        <Field label={t().taskForm.description}>
           <textarea
             className="input"
             rows={3}
@@ -232,10 +233,10 @@ export function TaskForm({
       </div>
       <div className="drawer-footer">
         <button className="btn btn-ghost" type="button" onClick={onCancel}>
-          Cancel
+          {t().common.cancel}
         </button>
         <button className="btn btn-primary" type="submit" disabled={saving.isPending || unchanged}>
-          {saving.isPending ? "Saving…" : task ? "Save changes" : "Create task"}
+          {saving.isPending ? t().common.saving : task ? t().taskForm.saveChanges : t().taskForm.create}
         </button>
       </div>
     </form>
@@ -256,7 +257,7 @@ function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (item
 
   return (
     <fieldset className="checklist-editor">
-      <legend className="field-label">Checklist</legend>
+      <legend className="field-label">{t().taskForm.checklist}</legend>
       {items.length > 0 && (
         <ol className="checklist-editor-items">
           {items.map((item, index) => (
@@ -265,7 +266,7 @@ function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (item
               <button
                 type="button"
                 className="icon-button"
-                aria-label={`Remove “${item}”`}
+                aria-label={t().taskForm.removeStep(item)}
                 onClick={() => onChange(items.filter((_, position) => position !== index))}
               >
                 <Icon name="close" size={13} />
@@ -279,8 +280,8 @@ function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (item
           className="input"
           value={draft}
           maxLength={255}
-          placeholder="Add a step and press Enter"
-          aria-label="New checklist step"
+          placeholder={t().taskForm.stepPlaceholder}
+          aria-label={t().taskForm.newStep}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -290,7 +291,7 @@ function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (item
           }}
         />
         <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={addDraft}>
-          Add
+          {t().common.add}
         </button>
       </div>
     </fieldset>

@@ -14,28 +14,31 @@ import { showToast } from "../components/toast";
 import { daysAgo, daysBetween, formatDay, startOfMonth, startOfYear, today } from "../dates";
 import { useTasks } from "../features/tasks/api";
 import { useExportTasks, type ExportFormat } from "../features/transfer/api";
-import { COUNTRY_NAMES } from "../labels";
+import { t } from "../i18n/locale";
+import { countryNames } from "../labels";
 
 const MAX_EXPORT_DAYS = 366;
 const FORMATS: readonly ExportFormat[] = ["excel", "parquet"];
 const FORMAT_LABELS: Record<ExportFormat, string> = { excel: "Excel (.xlsx)", parquet: "Parquet" };
-const FORMAT_HINTS: Record<ExportFormat, string> = {
-  excel: "Opens in Excel, Numbers or Google Sheets. Best for reading and sharing.",
-  parquet: "Compact columnar file for analytics tools such as pandas or Power BI.",
-};
+function formatHint(format: ExportFormat): string {
+  return format === "excel" ? t().exporting.excelHint : t().exporting.parquetHint;
+}
 
-const PRESETS = [
-  { label: "Last 7 days", from: () => daysAgo(7) },
-  { label: "Last 30 days", from: () => daysAgo(30) },
-  { label: "This month", from: startOfMonth },
-  { label: "This year", from: startOfYear },
-];
+function presets(): { label: string; from: () => string }[] {
+  const messages = t().exporting;
+  return [
+    { label: messages.last7, from: () => daysAgo(7) },
+    { label: messages.last30, from: () => daysAgo(30) },
+    { label: messages.thisMonth, from: startOfMonth },
+    { label: messages.thisYear, from: startOfYear },
+  ];
+}
 
 function rangeError(from: string, to: string): string | null {
   const days = daysBetween(from, to);
-  if (days === null) return "Choose both dates.";
-  if (days < 0) return "The start date must not be after the end date.";
-  if (days > MAX_EXPORT_DAYS) return `The period must not exceed ${MAX_EXPORT_DAYS} days.`;
+  if (days === null) return t().exporting.chooseDates;
+  if (days < 0) return t().exporting.startAfterEnd;
+  if (days > MAX_EXPORT_DAYS) return t().exporting.tooLong(MAX_EXPORT_DAYS);
   return null;
 }
 
@@ -55,7 +58,7 @@ export function Export() {
     if (invalid) return;
     exportTasks.mutate(
       { date_from: dateFrom, date_to: dateTo, format, country: country || undefined },
-      { onSuccess: (result) => showToast(`Downloaded ${result.filename} (${result.total} tasks)`) },
+      { onSuccess: (result) => showToast(t().exporting.downloaded(result.filename, result.total)) },
     );
   };
 
@@ -66,14 +69,14 @@ export function Export() {
 
   return (
     <>
-      <PageHeader title="Export tasks" description="Download the tasks created in a period as a spreadsheet or an analytics file." />
+      <PageHeader title={t().exporting.title} description={t().exporting.description} />
       <form className="export-layout" onSubmit={handleSubmit}>
         <section className="card" aria-labelledby="export-period">
           <h2 id="export-period" className="section-title">
-            Period
+            {t().exporting.period}
           </h2>
-          <div className="pager-group preset-group" role="group" aria-label="Quick periods">
-            {PRESETS.map((preset) => {
+          <div className="pager-group preset-group" role="group" aria-label={t().exporting.quickPeriods}>
+            {presets().map((preset) => {
               const from = preset.from();
               return (
                 <button
@@ -89,25 +92,25 @@ export function Export() {
             })}
           </div>
           <div className="form-grid form-grid-tight">
-            <Field label="From">
+            <Field label={t().exporting.from}>
               <DatePicker clearable={false} value={dateFrom} max={dateTo} onChange={setDateFrom} />
             </Field>
-            <Field label="To">
+            <Field label={t().exporting.to}>
               <DatePicker clearable={false} value={dateTo} min={dateFrom} onChange={setDateTo} />
             </Field>
           </div>
           {invalid && <Notice tone="error">{invalid}</Notice>}
 
-          <h2 className="section-title section-title-spaced">File</h2>
+          <h2 className="section-title section-title-spaced">{t().exporting.file}</h2>
           <div className="form-grid form-grid-tight">
-            <Field label="Format" hint={FORMAT_HINTS[format]}>
+            <Field label={t().exporting.format} hint={formatHint(format)}>
               <Select value={format} options={optionList(FORMATS, FORMAT_LABELS)} onChange={setFormat} />
             </Field>
             {user.role === "admin" && (
-              <Field label="Country">
+              <Field label={t().exporting.country}>
                 <Select
                   value={country}
-                  options={withEmpty("All countries", optionList(COUNTRIES, COUNTRY_NAMES))}
+                  options={withEmpty(t().common.allCountries, optionList(COUNTRIES, countryNames()))}
                   onChange={setCountry}
                 />
               </Field>
@@ -117,36 +120,36 @@ export function Export() {
 
         <aside className="card export-summary" aria-labelledby="export-summary">
           <h2 id="export-summary" className="subsection-title">
-            Summary
+            {t().exporting.summary}
           </h2>
           <div className="export-count" aria-live="polite">
             {invalid ? (
-              <span className="muted">Fix the period to see how many tasks will be exported.</span>
+              <span className="muted">{t().exporting.fixPeriod}</span>
             ) : preview.isPending ? (
-              <span className="skeleton-cell skeleton-figure" aria-label="Counting tasks" />
+              <span className="skeleton-cell skeleton-figure" aria-label={t().exporting.counting} />
             ) : preview.isError ? (
-              <span className="muted">Could not count tasks: {errorMessage(preview.error)}</span>
+              <span className="muted">{t().exporting.couldNotCount(errorMessage(preview.error))}</span>
             ) : (
               <>
                 <span className="export-count-value">{total}</span>
-                <span className="export-count-label">{total === 1 ? "task" : "tasks"} will be exported</span>
+                <span className="export-count-label">{t().exporting.willBeExported(total ?? 0)}</span>
               </>
             )}
           </div>
           <dl className="summary-list">
             <div>
-              <dt>Period</dt>
+              <dt>{t().exporting.period}</dt>
               <dd>
                 {formatDay(dateFrom)} – {formatDay(dateTo)}
               </dd>
             </div>
             <div>
-              <dt>Format</dt>
+              <dt>{t().exporting.format}</dt>
               <dd>{FORMAT_LABELS[format]}</dd>
             </div>
             <div>
-              <dt>Country</dt>
-              <dd>{user.role === "admin" ? (country ? COUNTRY_NAMES[country] : "All countries") : "Your country"}</dd>
+              <dt>{t().exporting.country}</dt>
+              <dd>{user.role === "admin" ? (country ? countryNames()[country] : t().common.allCountries) : t().exporting.yourCountry}</dd>
             </div>
           </dl>
           {exportTasks.isError && <Notice tone="error">{errorMessage(exportTasks.error)}</Notice>}
@@ -156,9 +159,13 @@ export function Export() {
             disabled={exportTasks.isPending || invalid !== null || total === 0}
           >
             <Icon name="export" size={15} />
-            {exportTasks.isPending ? "Exporting…" : total ? `Download ${total} ${total === 1 ? "task" : "tasks"}` : "Download"}
+            {exportTasks.isPending
+              ? t().exporting.exporting
+              : total
+                ? t().exporting.downloadCount(total)
+                : t().exporting.download}
           </button>
-          {total === 0 && <p className="field-hint">No tasks were created in this period.</p>}
+          {total === 0 && <p className="field-hint">{t().exporting.empty}</p>}
         </aside>
       </form>
     </>

@@ -1,4 +1,5 @@
 import type { TaskResponse, TaskStatus } from "../../api/types";
+import { t } from "../../i18n/locale";
 import { actionLabel, blockerText, isBlocked, nextStep } from "./workflow";
 
 function buttonClass(status: TaskStatus, next: TaskStatus | null): string {
@@ -19,7 +20,7 @@ export function StatusActions({
   const next = nextStep(task) ?? (task.status === "in_progress" ? "on_review" : null);
   const ordered = [...task.allowed_statuses].sort((a, b) => Number(b === next) - Number(a === next));
   return (
-    <div className="button-row" role="group" aria-label={`Change status of ${task.title}`}>
+    <div className="button-row" role="group" aria-label={t().workflow.changeStatusOf(task.title)}>
       {ordered.map((status) => (
         <button
           key={status}

@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
-const TUNNEL_HOSTS = [".trycloudflare.com"];
+const TUNNEL_HOSTS = [".trycloudflare.com", ".lhr.life"];
 
 export default defineConfig({
   plugins: [react()],

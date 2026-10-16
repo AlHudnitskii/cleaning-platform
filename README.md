@@ -82,13 +82,13 @@ cd .. && python3 start.py                 # инфраструктура, миг
 
 В одной Wi-Fi сети приложение открывается по адресу Mac: `http://<ip>:3000` (адрес — `ipconfig getifaddr en0`). Так работают задачи, фото и смена языка/темы, но не офлайн-режим и не push: браузеры разрешают service worker только на HTTPS.
 
-Для полного режима — временный HTTPS-туннель (`brew install cloudflared`), пока запущен `python3 start.py`:
+Для полного режима — временный HTTPS-туннель, пока запущен `python3 start.py`. Без установки, через SSH:
 
 ```bash
-cloudflared tunnel --url http://localhost:3000
+ssh -R 80:localhost:3000 nokey@localhost.run
 ```
 
-Он напечатает адрес `https://….trycloudflare.com` — его и открывать на телефоне (работает и с мобильного интернета). Пока туннель запущен, приложение доступно любому, у кого есть ссылка; остановка — Ctrl+C. На iPhone push приходят только после «На экран «Домой»» (iOS 16.4+).
+Он напечатает адрес `https://….lhr.life` — его и открывать на телефоне (работает и с мобильного интернета). Если сеть пропускает Cloudflare, подойдёт и `cloudflared tunnel --url http://localhost:3000` (`brew install cloudflared`, адрес `https://….trycloudflare.com`). Пока туннель запущен, приложение доступно любому, у кого есть ссылка; остановка — Ctrl+C. На iPhone push приходят только после «На экран «Домой»» (iOS 16.4+).
 
 ## Проверки
 

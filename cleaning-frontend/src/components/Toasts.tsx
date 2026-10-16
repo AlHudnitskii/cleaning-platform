@@ -1,10 +1,12 @@
+import { createPortal } from "react-dom";
+
 import { t } from "../i18n/locale";
 import { Icon } from "./Icon";
 import { dismissToast, useToasts } from "./toast";
 
 export function ToastHost() {
   const toasts = useToasts();
-  return (
+  return createPortal(
     <div className="toast-host" role="status" aria-live="polite">
       {toasts.map((toast) => (
         <div key={toast.id} className={`toast toast-${toast.tone}`}>
@@ -15,6 +17,7 @@ export function ToastHost() {
           </button>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

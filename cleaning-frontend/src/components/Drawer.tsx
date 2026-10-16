@@ -24,7 +24,7 @@ export function Drawer({
     <div className="drawer-layer">
       <button type="button" className="drawer-backdrop" aria-label={t().feedback.closePanel} tabIndex={-1} onClick={onClose} />
       <div ref={panelRef} className="drawer" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <header className="drawer-header">
+        <div className="drawer-header">
           <div>
             <h2 id={titleId} className="drawer-title">
               {title}
@@ -34,7 +34,7 @@ export function Drawer({
           <button type="button" className="icon-button" aria-label={t().feedback.closePanel} onClick={onClose}>
             <Icon name="close" />
           </button>
-        </header>
+        </div>
         {children}
       </div>
     </div>,

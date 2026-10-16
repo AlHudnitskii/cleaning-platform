@@ -102,6 +102,7 @@ export const en = {
     recurring: "Recurring",
   },
   nav: {
+    skipToContent: "Skip to content",
     overview: "Overview",
     operations: "Operations",
     data: "Data",

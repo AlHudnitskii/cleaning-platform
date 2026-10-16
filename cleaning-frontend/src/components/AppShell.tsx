@@ -5,11 +5,14 @@ import { errorMessage } from "../api/errors";
 import type { UserRole } from "../api/types";
 import { useAuth, useCurrentUser } from "../auth/useAuth";
 import { homePath } from "../auth/homePath";
+import { clearOfflineData, pendingChanges } from "../features/offline/offlineStore";
+import { sendPendingChanges } from "../features/offline/useOfflineSync";
 import { usePushNotifications } from "../features/push/usePushNotifications";
 import { useTaskCount } from "../features/tasks/api";
 import { t } from "../i18n/locale";
 import { focusPageSearch, shortcutsBlocked, useShortcut } from "../shortcuts";
 import { BrandMark } from "./BrandMark";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { PageErrorBoundary } from "./ErrorBoundary";
 import { Icon, type IconName } from "./Icon";
 import { LanguageSwitch } from "./LanguageSwitch";
@@ -334,11 +337,26 @@ function TopbarActions() {
   const navigate = useNavigate();
   const push = usePushNotifications();
   const offline = state.status === "authenticated" && state.offline;
+  const [unsent, setUnsent] = useState<number | null>(null);
+  const [leaving, setLeaving] = useState(false);
 
-  const handleLogout = async () => {
+  const finishLogout = async () => {
+    clearOfflineData(user.id);
     await push.forget();
     await logout();
     void navigate("/login");
+  };
+
+  const handleLogout = async () => {
+    setLeaving(true);
+    await sendPendingChanges(user.id).catch(() => null);
+    const left = pendingChanges(user.id).length;
+    if (left > 0) {
+      setLeaving(false);
+      setUnsent(left);
+      return;
+    }
+    await finishLogout();
   };
 
   return (
@@ -380,10 +398,21 @@ function TopbarActions() {
         className="icon-button"
         aria-label={t().nav.logOut}
         title={t().nav.logOut}
-        onClick={handleLogout}
+        disabled={leaving}
+        onClick={() => void handleLogout()}
       >
         <Icon name="logout" />
       </button>
+      {unsent !== null && (
+        <ConfirmDialog
+          title={t().nav.unsentTitle(unsent)}
+          confirmLabel={t().nav.logOutAnyway}
+          onConfirm={() => void finishLogout()}
+          onCancel={() => setUnsent(null)}
+        >
+          {t().nav.unsentHint}
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

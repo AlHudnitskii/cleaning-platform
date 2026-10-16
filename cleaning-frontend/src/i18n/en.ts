@@ -138,6 +138,9 @@ export const en = {
     notificationsOff: "Notifications are off. Click to turn them on",
     profileOf: (email: string, role: string) => `Profile of ${email} (${role})`,
     logOut: "Log out",
+    logOutAnyway: "Log out anyway",
+    unsentTitle: (n: number) => `${count(n, "change", "changes")} not sent yet`,
+    unsentHint: "These status changes were made without a connection and could not be sent. If you log out now, they are lost.",
   },
   theme: {
     group: "Colour theme",

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 import uuid
 from collections import defaultdict
 from contextlib import suppress
@@ -13,7 +14,7 @@ from aiohttp import web
 
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
-from src.infrastructure.auth.middleware import AuthError, authenticate_token
+from src.infrastructure.auth.middleware import AuthError, authenticate_ticket
 from src.infrastructure.messaging.events import TaskEvent
 from src.infrastructure.messaging.rabbitmq import connect, declare_task_events, decode_event
 from src.settings import get_settings
@@ -22,6 +23,19 @@ logger = logging.getLogger("sse")
 
 PING_SECONDS = 30
 CLIENT_QUEUE_SIZE = 100
+TICKET_MEMORY_SECONDS = 120.0
+
+used_tickets: dict[str, float] = {}
+
+
+def claim_ticket(token_id: str, now: float) -> bool:
+    for known, forget_at in list(used_tickets.items()):
+        if forget_at <= now:
+            del used_tickets[known]
+    if not token_id or token_id in used_tickets:
+        return False
+    used_tickets[token_id] = now + TICKET_MEMORY_SECONDS
+    return True
 
 
 @dataclass(eq=False)
@@ -57,13 +71,16 @@ def dispatch(event: TaskEvent) -> None:
 
 
 async def stream_handler(request: web.Request) -> web.StreamResponse:
-    token = request.query.get("token")
-    if not token:
+    ticket = request.query.get("ticket")
+    if not ticket:
         raise web.HTTPUnauthorized(text="Unauthorized")
     try:
-        user = await authenticate_token(token)
+        user, claims = await authenticate_ticket(ticket)
     except AuthError as e:
         raise web.HTTPUnauthorized(text=str(e.message)) from e
+    if not claim_ticket(claims.token_id, time.monotonic()):
+        logger.warning("Stream ticket reused", extra={"user_id": str(user.id)})
+        raise web.HTTPUnauthorized(text="Unauthorized")
 
     response = web.StreamResponse(
         headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}

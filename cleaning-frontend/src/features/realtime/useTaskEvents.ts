@@ -1,8 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { refreshSession } from "../../api/client";
-import { getAccessToken } from "../../auth/session";
+import { api } from "../../api/client";
 import { config } from "../../config";
 import { statsKeys } from "../stats/api";
 import { taskKeys } from "../tasks/api";
@@ -40,8 +39,8 @@ export function useTaskEvents(enabled: boolean): void {
     let delay = INITIAL_DELAY_MS;
     let stopped = false;
 
-    const connect = (token: string) => {
-      source = new EventSource(`${config.sseUrl}?token=${encodeURIComponent(token)}`);
+    const connect = (ticket: string) => {
+      source = new EventSource(`${config.sseUrl}?ticket=${encodeURIComponent(ticket)}`);
       source.onopen = () => {
         delay = INITIAL_DELAY_MS;
       };
@@ -62,9 +61,10 @@ export function useTaskEvents(enabled: boolean): void {
     };
 
     const reconnect = () => {
-      refreshSession()
-        .then((session) => {
-          if (!stopped) connect(session.access_token);
+      api
+        .post<{ ticket: string }>("/events/ticket")
+        .then(({ ticket }) => {
+          if (!stopped) connect(ticket);
         })
         .catch(() => {
           if (!stopped) timer = setTimeout(reconnect, delay);
@@ -72,9 +72,7 @@ export function useTaskEvents(enabled: boolean): void {
         });
     };
 
-    const token = getAccessToken();
-    if (token) connect(token);
-    else reconnect();
+    reconnect();
 
     return () => {
       stopped = true;

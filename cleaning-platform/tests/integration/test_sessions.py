@@ -2,7 +2,8 @@ import azure.functions as func
 import pytest
 from sqlalchemy import select
 
-from src.api import auth, tasks, users
+from src.api import auth, events, tasks, users
+from src.infrastructure.auth.jwt_handler import decode_stream_ticket
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, User
 from src.infrastructure.messaging import consumer
@@ -165,3 +166,14 @@ async def test_push_is_not_sent_to_inactive_users(account, monkeypatch):
     await consumer.notify_user(cleaner.user.id, PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.TASK()))
 
     assert sent == []
+
+
+async def test_the_event_stream_ticket_belongs_to_the_caller(account):
+    cleaner = await account("cleaner", "DE", PASSWORD)
+
+    response = await call(events.stream_ticket, "POST", headers=cleaner.headers)
+
+    assert response.status_code == 201
+    body = payload(response)
+    assert body["expires_in"] == 30
+    assert decode_stream_ticket(body["ticket"]).user_id == cleaner.user.id

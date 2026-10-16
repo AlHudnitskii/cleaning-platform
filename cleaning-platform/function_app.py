@@ -5,6 +5,7 @@ import azure.functions as func
 from src.api.auth import bp as auth_bp
 from src.api.checklists import bp as checklists_bp
 from src.api.docs import bp as docs_bp
+from src.api.events import bp as events_bp
 from src.api.export import bp as export_bp
 from src.api.import_tasks import bp as import_bp
 from src.api.locations import bp as locations_bp
@@ -35,5 +36,6 @@ for blueprint in (
     sync_bp,
     push_bp,
     docs_bp,
+    events_bp,
 ):
     app.register_functions(blueprint)

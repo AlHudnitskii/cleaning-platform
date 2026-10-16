@@ -49,7 +49,7 @@ flowchart TB
     blob[(Azure Blob Storage<br/>фото, выгрузки)]
 
     spa -- "/api, JSON + JWT" --> api
-    spa -- "/events/stream, SSE" --> sse
+    spa -- "/events/stream?ticket=…, SSE" --> sse
     spa -. "фото по SAS-ссылке" .-> blob
     sw --- spa
 
@@ -67,7 +67,7 @@ flowchart TB
 | HTTP API | REST-эндпоинты, авторизация, валидация, бизнес-правила, запись событий в outbox в той же транзакции | `function_app.py`, `src/api/` |
 | Outbox relay | Пачками по 100 забирает неопубликованные события (`FOR UPDATE SKIP LOCKED`), публикует с подтверждением, отмечает `published_at` | `src/infrastructure/messaging/relay.py` |
 | Push consumer | Из очереди решает, кого уведомить, рендерит текст на языке устройства, отправляет Web Push, удаляет протухшие подписки | `src/infrastructure/messaging/consumer.py` |
-| SSE-сервер | Держит открытые соединения и рассылает события только тем, кто имеет право видеть задачу | `sse_server.py` |
+| SSE-сервер | Пускает по одноразовому билету на 30 секунд (`POST /events/ticket`), держит открытые соединения и рассылает события только тем, кто имеет право видеть задачу | `sse_server.py`, `src/api/events.py` |
 | SPA | Интерфейс, кеш серверного состояния, URL как источник фильтров, офлайн-очередь уборщика | `cleaning-frontend/src/` |
 | Service worker | Кеш оболочки приложения, офлайн-ответ API, показ push и открытие задачи по клику | `cleaning-frontend/public/sw.js` |
 

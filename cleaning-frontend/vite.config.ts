@@ -1,11 +1,14 @@
 import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
+const TUNNEL_HOSTS = [".trycloudflare.com"];
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
     port: 3000,
+    allowedHosts: TUNNEL_HOSTS,
     proxy: {
       "/api": "http://127.0.0.1:7071",
       "/events": { target: "http://127.0.0.1:8080", changeOrigin: true },
@@ -30,6 +33,7 @@ export default defineConfig({
   },
   preview: {
     port: 3000,
+    allowedHosts: TUNNEL_HOSTS,
   },
   test: {
     environment: "jsdom",

@@ -7,7 +7,7 @@ from sqlalchemy import func as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.http import ApiError, authenticated, json_response, optional_date, query_choice
-from src.api.task_store import day_end_exclusive, day_start, overdue_condition
+from src.api.task_queries import day_end_exclusive, day_start, overdue_condition
 from src.domain.models.enums import Country, TaskPriority, TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 from src.infrastructure.database.connection import session_scope

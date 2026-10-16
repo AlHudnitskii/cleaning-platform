@@ -16,7 +16,7 @@ from src.api.http import (
     read_model,
     route_uuid,
 )
-from src.api.task_store import OPEN_STATUSES
+from src.api.task_queries import OPEN_STATUS_VALUES
 from src.domain.models.enums import Country, UserRole
 from src.domain.models.user import (
     AssigneeResponse,
@@ -97,7 +97,7 @@ async def forget_devices(session: AsyncSession, user_id: uuid.UUID) -> None:
 
 
 async def open_assigned_tasks(session: AsyncSession, user_id: uuid.UUID) -> int:
-    stmt = select(sql.count()).where(Task.assigned_to == user_id, Task.status.in_(OPEN_STATUSES))
+    stmt = select(sql.count()).where(Task.assigned_to == user_id, Task.status.in_(OPEN_STATUS_VALUES))
     return await session.scalar(stmt) or 0
 
 

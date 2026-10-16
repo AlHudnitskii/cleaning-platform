@@ -4,7 +4,17 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { api, applySession, refreshSession } from "../api/client";
 import { toApiError } from "../api/errors";
 import type { TokenResponse } from "../api/types";
-import { loadProfile, onSessionExpired, saveProfile, setAccessToken } from "./session";
+import { showToast } from "../components/toast";
+import { t } from "../i18n/locale";
+import {
+  loadProfile,
+  onSessionExpired,
+  onSessionUserChanged,
+  PROFILE_KEY,
+  saveProfile,
+  setAccessToken,
+  setSessionUser,
+} from "./session";
 import { AuthContext, type AuthState } from "./useAuth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -13,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearSession = useCallback(() => {
     setAccessToken(null);
+    setSessionUser(null);
     saveProfile(null);
     queryClient.clear();
     setState({ status: "anonymous" });
@@ -37,6 +48,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   useEffect(() => onSessionExpired(clearSession), [clearSession]);
+
+  useEffect(
+    () =>
+      onSessionUserChanged((user) => {
+        queryClient.clear();
+        setState({ status: "authenticated", user, offline: false });
+        showToast(t().auth.switchedTo(user.email), "info");
+      }),
+    [queryClient],
+  );
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== PROFILE_KEY) return;
+      const profile = loadProfile();
+      if (!profile) {
+        clearSession();
+        return;
+      }
+      if (state.status === "authenticated" && state.user.id === profile.id) return;
+      refreshSession()
+        .then((session) => setState({ status: "authenticated", user: session.user, offline: false }))
+        .catch(clearSession);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [clearSession, state]);
 
   const acceptSession = useCallback((session: TokenResponse) => {
     applySession(session);

@@ -1,11 +1,14 @@
 import { COUNTRIES, USER_ROLES, type UserResponse } from "../api/types";
 
-const PROFILE_KEY = "profile";
+export const PROFILE_KEY = "profile";
 
 type ExpiredListener = () => void;
+type UserChangedListener = (user: UserResponse) => void;
 
 let accessToken: string | null = null;
+let sessionUserId: string | null = null;
 const expiredListeners = new Set<ExpiredListener>();
+const userChangedListeners = new Set<UserChangedListener>();
 
 export function getAccessToken(): string | null {
   return accessToken;
@@ -20,8 +23,23 @@ export function onSessionExpired(listener: ExpiredListener): () => void {
   return () => expiredListeners.delete(listener);
 }
 
+export function onSessionUserChanged(listener: UserChangedListener): () => void {
+  userChangedListeners.add(listener);
+  return () => userChangedListeners.delete(listener);
+}
+
+export function setSessionUser(user: UserResponse | null): void {
+  const previous = sessionUserId;
+  sessionUserId = user?.id ?? null;
+  if (!user || previous === null || previous === user.id) return;
+  userChangedListeners.forEach((listener) => {
+    listener(user);
+  });
+}
+
 export function expireSession(): void {
   accessToken = null;
+  sessionUserId = null;
   expiredListeners.forEach((listener) => {
     listener();
   });

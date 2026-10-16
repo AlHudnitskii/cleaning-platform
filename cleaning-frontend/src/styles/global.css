@@ -2797,6 +2797,10 @@ body.has-drawer {
   background: var(--danger);
 }
 
+.toast-info .toast-mark {
+  background: var(--info);
+}
+
 .toast-close {
   width: 26px;
   height: 26px;

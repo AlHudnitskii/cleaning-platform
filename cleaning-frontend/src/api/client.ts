@@ -1,4 +1,4 @@
-import { expireSession, getAccessToken, saveProfile, setAccessToken } from "../auth/session";
+import { expireSession, getAccessToken, saveProfile, setAccessToken, setSessionUser } from "../auth/session";
 import { config } from "../config";
 import { networkError, responseError, toApiError } from "./errors";
 import type { TokenResponse } from "./types";
@@ -19,6 +19,7 @@ let refreshInFlight: Promise<TokenResponse> | null = null;
 export function applySession(session: TokenResponse): TokenResponse {
   setAccessToken(session.access_token);
   saveProfile(session.user);
+  setSessionUser(session.user);
   return session;
 }
 

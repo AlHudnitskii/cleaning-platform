@@ -225,6 +225,7 @@ export const ru: Messages = {
     password: "Пароль",
     submit: "Войти",
     submitting: "Входим…",
+    switchedTo: (email) => `Теперь вы вошли как ${email}: сессия сменилась в другой вкладке.`,
   },
   profile: {
     title: "Профиль",

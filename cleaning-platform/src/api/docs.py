@@ -5,7 +5,7 @@ from typing import Any
 import azure.functions as func
 from pydantic import BaseModel
 
-from src.domain.models.location import LocationCreate, LocationResponse
+from src.domain.models.location import LocationCreate, LocationResponse, LocationUpdate
 from src.domain.models.task import (
     ChecklistItemCreate,
     ChecklistItemResponse,
@@ -24,10 +24,12 @@ from src.domain.models.task import (
 from src.domain.models.user import (
     AssigneeResponse,
     PasswordChange,
+    PasswordReset,
     TokenResponse,
     UserLogin,
     UserRegister,
     UserResponse,
+    UserUpdate,
 )
 
 bp = func.Blueprint()
@@ -39,7 +41,9 @@ SCHEMAS: list[type[BaseModel]] = [
     HistoryEntryResponse,
     LocationCreate,
     LocationResponse,
+    LocationUpdate,
     PasswordChange,
+    PasswordReset,
     PhotoResponse,
     QualityReview,
     SyncStatusChange,
@@ -54,6 +58,7 @@ SCHEMAS: list[type[BaseModel]] = [
     UserLogin,
     UserRegister,
     UserResponse,
+    UserUpdate,
 ]
 
 PATH_PARAMS = {
@@ -67,13 +72,22 @@ CHECKLIST = "/tasks/{task_id}/checklist"
 CHECKLIST_ITEM = "/tasks/{task_id}/checklist/{item_id}"
 
 ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
-    ("post", "/auth/login", "Sign in; sets the refresh_token cookie", "UserLogin", "TokenResponse", False),
+    (
+        "post",
+        "/auth/login",
+        "Sign in; sets the refresh_token cookie. 429 with Retry-After after 5 failures in 15 minutes",
+        "UserLogin",
+        "TokenResponse",
+        False,
+    ),
     ("post", "/auth/refresh", "Rotate the session using the refresh_token cookie", None, "TokenResponse", False),
     ("post", "/auth/logout", "Revoke all sessions of the cookie owner", None, None, False),
     ("get", "/auth/me", "Current user", None, "UserResponse", True),
     ("get", "/users", "List users (admin)", None, "UserResponse", True),
     ("post", "/users", "Create a user (admin)", "UserRegister", "UserResponse", True),
     ("get", "/users/assignees", "Active cleaners available for assignment", None, "AssigneeResponse", True),
+    ("patch", "/users/{user_id}", "Edit email, role and country (admin)", "UserUpdate", "UserResponse", True),
+    ("post", "/users/{user_id}/password", "Reset password, sign the user out (admin)", "PasswordReset", None, True),
     ("patch", "/users/{user_id}/toggle-active", "Activate or deactivate a user (admin)", None, "UserResponse", True),
     ("patch", "/users/me/password", "Change own password", "PasswordChange", "TokenResponse", True),
     ("get", "/tasks", "List tasks visible to the caller", None, "TaskResponse", True),
@@ -102,6 +116,8 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ),
     ("get", "/locations", "Locations visible to the caller", None, "LocationResponse", True),
     ("post", "/locations", "Create a location (admin)", "LocationCreate", "LocationResponse", True),
+    ("patch", "/locations/{location_id}", "Rename a location (admin)", "LocationUpdate", "LocationResponse", True),
+    ("delete", "/locations/{location_id}", "Delete an unused location (admin)", None, None, True),
     ("get", "/locations/{location_id}/children", "Descendants of a location", None, "LocationResponse", True),
     ("get", "/locations/{location_id}/tasks", "Tasks in a location subtree", None, "TaskResponse", True),
     ("get", "/stats/dashboard", "Dashboard statistics", None, None, True),

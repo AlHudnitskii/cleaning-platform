@@ -4,6 +4,7 @@ import { getAccessToken, onSessionExpired, setAccessToken } from "../auth/sessio
 import { makeSession, MANAGER } from "../test/fixtures";
 import { server } from "../test/server";
 import { api } from "./client";
+import { setLocale } from "../i18n/locale";
 import { ApiError, errorMessage, toApiError } from "./errors";
 
 async function failure(request: Promise<unknown>): Promise<ApiError> {
@@ -121,7 +122,7 @@ describe("toApiError", () => {
 
     const message = errorMessage(await failure(api.get("/x")));
 
-    expect(message).toBe("title: Title must be at least 3 characters");
+    expect(message).toBe("Title must be at least 3 characters");
   });
 
   it("treats a dropped connection as a network error", async () => {
@@ -149,6 +150,21 @@ describe("toApiError", () => {
     await expect(api.post("/x", { title: "Clean" })).resolves.toEqual({ id: "1" });
 
     expect(received).toEqual({ auth: "Bearer token", type: "application/json", body: { title: "Clean" } });
+  });
+
+  it("asks the server to answer in the interface language", async () => {
+    let language: string | null = null;
+    server.use(
+      http.get("*/api/x", ({ request }) => {
+        language = request.headers.get("Accept-Language");
+        return HttpResponse.json({});
+      }),
+    );
+
+    setLocale("ru");
+    await api.get("/x");
+
+    expect(language).toBe("ru");
   });
 
   it("resolves empty replies such as 204 without failing", async () => {

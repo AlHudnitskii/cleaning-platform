@@ -5,13 +5,14 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 from src.domain.models.enums import Country, UserRole
+from src.translations import phrases
 
 MIN_PASSWORD_LENGTH = 6
 
 
 def _validate_password(value: str) -> str:
     if len(value) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+        raise ValueError(phrases.PASSWORD_TOO_SHORT(length=MIN_PASSWORD_LENGTH))
     return value
 
 
@@ -37,7 +38,7 @@ class CurrentUser:
 
 def _validate_country_for_role(role: UserRole, country: Country | None) -> None:
     if role in (UserRole.MANAGER, UserRole.CLEANER) and not country:
-        raise ValueError("Country is required for manager and cleaner roles")
+        raise ValueError(phrases.COUNTRY_REQUIRED_FOR_ROLE())
 
 
 class UserRegister(BaseModel):

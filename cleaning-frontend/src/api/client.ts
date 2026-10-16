@@ -1,5 +1,6 @@
 import { expireSession, getAccessToken, saveProfile, setAccessToken, setSessionUser } from "../auth/session";
 import { config } from "../config";
+import { currentLocale } from "../i18n/locale";
 import { networkError, responseError, toApiError } from "./errors";
 import type { TokenResponse } from "./types";
 
@@ -60,7 +61,7 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 async function send(request: Request): Promise<Response> {
-  const headers = new Headers();
+  const headers = new Headers({ "Accept-Language": currentLocale() });
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const body = encodeBody(request.body, headers);

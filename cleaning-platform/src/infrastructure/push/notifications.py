@@ -10,6 +10,7 @@ from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
 from src.settings import get_settings
+from src.translations import Locale, Text
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,14 @@ PUSH_TIMEOUT_SECONDS = 10
 
 @dataclass(frozen=True)
 class PushMessage:
-    title: str
-    body: str
+    title: Text
+    body: Text
     task_id: str | None = None
 
-    def payload(self) -> str:
-        return json.dumps({"title": self.title, "body": self.body, "task_id": self.task_id})
+    def payload(self, locale: Locale) -> str:
+        return json.dumps(
+            {"title": self.title.render(locale), "body": self.body.render(locale), "task_id": self.task_id}
+        )
 
 
 class PushResult(StrEnum):
@@ -39,12 +42,12 @@ def get_public_key_base64() -> str:
     return base64.urlsafe_b64encode(public_key_bytes).decode().rstrip("=")
 
 
-def _send(endpoint: str, p256dh: str, auth: str, message: PushMessage) -> PushResult:
+def _send(endpoint: str, p256dh: str, auth: str, payload: str) -> PushResult:
     settings = get_settings()
     try:
         webpush(
             subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
-            data=message.payload(),
+            data=payload,
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
             timeout=PUSH_TIMEOUT_SECONDS,
@@ -58,5 +61,5 @@ def _send(endpoint: str, p256dh: str, auth: str, message: PushMessage) -> PushRe
     return PushResult.SENT
 
 
-async def send_push_notification(endpoint: str, p256dh: str, auth: str, message: PushMessage) -> PushResult:
-    return await asyncio.to_thread(_send, endpoint, p256dh, auth, message)
+async def send_push_notification(endpoint: str, p256dh: str, auth: str, payload: str) -> PushResult:
+    return await asyncio.to_thread(_send, endpoint, p256dh, auth, payload)

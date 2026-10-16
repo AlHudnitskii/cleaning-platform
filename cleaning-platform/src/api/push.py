@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 
-from src.api.http import authenticated, json_response, public, read_model
+from src.api.http import authenticated, json_response, public, read_model, request_locale
 from src.domain.models.user import CurrentUser
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription
@@ -32,16 +32,18 @@ async def get_vapid_key(req: func.HttpRequest) -> func.HttpResponse:
 @authenticated()
 async def subscribe(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
     data = read_model(req, SubscriptionCreate)
+    locale = request_locale(req).value
 
     stmt = insert(PushSubscription).values(
         user_id=user.id,
         endpoint=data.endpoint,
         p256dh=data.keys.p256dh,
         auth=data.keys.auth,
+        locale=locale,
     )
     stmt = stmt.on_conflict_do_update(
         index_elements=[PushSubscription.endpoint],
-        set_={"user_id": user.id, "p256dh": data.keys.p256dh, "auth": data.keys.auth},
+        set_={"user_id": user.id, "p256dh": data.keys.p256dh, "auth": data.keys.auth, "locale": locale},
     )
     async with session_scope() as session, session.begin():
         await session.execute(stmt)

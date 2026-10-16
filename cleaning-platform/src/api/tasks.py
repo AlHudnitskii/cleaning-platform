@@ -46,6 +46,7 @@ from src.infrastructure.blob.storage import PHOTOS_CONTAINER, delete_prefix
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem
 from src.infrastructure.messaging import outbox
+from src.translations import phrases
 
 bp = func.Blueprint()
 logger = logging.getLogger(__name__)
@@ -66,11 +67,11 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
         if data.location_id:
             location = await session.get(Location, data.location_id)
             if location is None:
-                raise not_found("Location")
+                raise not_found(phrases.LOCATION)
             country = location.country
 
         if not task_access.can_manage_country(user, country):
-            raise forbidden("You can only create tasks in your country")
+            raise forbidden(phrases.CREATE_IN_OWN_COUNTRY())
         if data.assigned_to:
             await ensure_assignable(session, data.assigned_to, country)
 
@@ -120,19 +121,19 @@ async def update_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
     data = read_model(req, TaskUpdate)
     changes = data.model_fields_set
     if not changes:
-        raise ApiError(400, "Nothing to update")
+        raise ApiError(400, phrases.NOTHING_TO_UPDATE())
 
     async with session_scope() as session, session.begin():
         task = await load_visible_task(session, user, task_id, for_update=True)
         if not task_access.can_manage_country(user, task.country):
-            raise forbidden("You can only edit tasks in your country")
+            raise forbidden(phrases.EDIT_IN_OWN_COUNTRY())
 
         if "location_id" in changes and data.location_id:
             location = await session.get(Location, data.location_id)
             if location is None:
-                raise not_found("Location")
+                raise not_found(phrases.LOCATION)
             if location.country != task.country:
-                raise ApiError(400, "Location must be in the task's country")
+                raise ApiError(400, phrases.LOCATION_OTHER_COUNTRY())
         if "assigned_to" in changes and data.assigned_to and data.assigned_to != task.assigned_to:
             await ensure_assignable(session, data.assigned_to, task.country)
 
@@ -169,7 +170,7 @@ async def delete_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
     async with session_scope() as session, session.begin():
         task = await load_visible_task(session, user, task_id, for_update=True)
         if not task_access.can_manage_country(user, task.country):
-            raise forbidden("You can only delete tasks in your country")
+            raise forbidden(phrases.DELETE_IN_OWN_COUNTRY())
         outbox.enqueue(session, outbox.TASK_DELETED, task_event(task, changed_by=str(user.id)))
         await session.delete(task)
 
@@ -272,7 +273,7 @@ async def get_task_occurrences(req: func.HttpRequest, user: CurrentUser) -> func
         task = await load_visible_task(session, user, task_id)
 
     if not task.rrule:
-        raise ApiError(400, "Task is not recurring")
+        raise ApiError(400, phrases.NOT_RECURRING())
 
     occurrences = get_next_occurrences(task.rrule, count=OCCURRENCES_COUNT)
     return json_response(
@@ -293,7 +294,7 @@ async def review_quality(req: func.HttpRequest, user: CurrentUser) -> func.HttpR
     async with session_scope() as session, session.begin():
         task = await load_visible_task(session, user, task_id, for_update=True)
         if not task_access.can_review_quality(user, TaskStatus(task.status)):
-            raise ApiError(409, "Can only review completed tasks")
+            raise ApiError(409, phrases.REVIEW_ONLY_COMPLETED())
 
         task.quality_score = review.score
         task.quality_comment = review.comment
@@ -313,7 +314,7 @@ async def get_tasks_by_location(req: func.HttpRequest, user: CurrentUser) -> fun
 
     async with session_scope() as session:
         if await session.get(Location, location_id) is None:
-            raise not_found("Location")
+            raise not_found(phrases.LOCATION)
         rows = (
             await session.execute(
                 task_rows()

@@ -5,7 +5,7 @@ import azure.functions as func
 import pandas as pd
 from sqlalchemy import or_, select
 
-from src.api.http import ApiError, authenticated, json_response
+from src.api.http import ApiError, authenticated, json_response, request_locale
 from src.domain.models.enums import TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
@@ -18,6 +18,7 @@ from src.domain.services.task_import import (
 )
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, User
+from src.translations import Text, phrases
 
 bp = func.Blueprint()
 
@@ -53,12 +54,12 @@ def read_table(filename: str, data: bytes) -> pd.DataFrame:
         if name.endswith(".xlsx"):
             return pd.read_excel(io.BytesIO(data), dtype=str, keep_default_na=False, nrows=MAX_IMPORT_ROWS + 1)
     except (ValueError, UnicodeDecodeError, pd.errors.ParserError) as e:
-        raise ApiError(400, "Failed to parse file. Check that it is a valid CSV or Excel file") from e
-    raise ApiError(400, "Unsupported file format. Use CSV or Excel (.xlsx)")
+        raise ApiError(400, phrases.IMPORT_UNREADABLE()) from e
+    raise ApiError(400, phrases.IMPORT_FORMAT())
 
 
-def row_error(row: ImportRow, message: str) -> str:
-    return f"Row {row.row_number}: {message}"
+def row_error(row: ImportRow, message: Text) -> Text:
+    return phrases.IMPORT_ROW(row=row.row_number, message=message)
 
 
 def assignee_allowed(row: ImportRow, assignee: User | None) -> bool:
@@ -84,29 +85,30 @@ def preview_row(row: ImportRow, location: Location | None, assignee: User | None
 @bp.route(route="import/tasks", methods=["POST"])
 @authenticated(UserRole.ADMIN, UserRole.MANAGER)
 async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    locale = request_locale(req)
     dry_run = req.params.get("dry_run") == "true"
     upload = req.files.get("file")
     if upload is None:
-        raise ApiError(400, "No file provided. Use form-data with key 'file'")
+        raise ApiError(400, phrases.IMPORT_NO_FILE())
 
     data = upload.read(MAX_IMPORT_BYTES + 1)
     if len(data) > MAX_IMPORT_BYTES:
-        raise ApiError(413, f"File must be at most {MAX_IMPORT_BYTES // (1024 * 1024)} MB")
+        raise ApiError(413, phrases.IMPORT_TOO_LARGE(megabytes=MAX_IMPORT_BYTES // (1024 * 1024)))
 
     df = read_table(upload.filename or "", data)
     df.columns = [str(c).strip().lower() for c in df.columns]
     missing = REQUIRED_COLUMNS - set(df.columns)
     if missing:
-        raise ApiError(400, f"Missing required columns: {', '.join(sorted(missing))}")
+        raise ApiError(400, phrases.IMPORT_MISSING_COLUMNS(columns=", ".join(sorted(missing))))
     if len(df) > MAX_IMPORT_ROWS:
-        raise ApiError(400, f"File must contain at most {MAX_IMPORT_ROWS} rows")
+        raise ApiError(400, phrases.IMPORT_TOO_MANY_ROWS(limit=MAX_IMPORT_ROWS))
 
     forced_country = user.country if user.is_manager else None
-    errors: list[str] = []
+    errors: list[Text] = []
     rows: list[ImportRow] = []
     for offset, record in enumerate(df.to_dict(orient="records")):
         parsed = parse_row(record, offset + FIRST_DATA_ROW, forced_country)
-        if isinstance(parsed, str):
+        if isinstance(parsed, Text):
             errors.append(parsed)
         else:
             rows.append(parsed)
@@ -131,10 +133,12 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
             if row.location_name:
                 matches = locations.get((row.country.value, row.location_name.lower()), [])
                 if not matches:
-                    errors.append(row_error(row, f"location '{row.location_name}' not found in {row.country}"))
+                    errors.append(
+                        row_error(row, phrases.ROW_LOCATION_MISSING(name=row.location_name, country=row.country.value))
+                    )
                     continue
                 if len(matches) > 1:
-                    errors.append(row_error(row, f"location name '{row.location_name}' is ambiguous"))
+                    errors.append(row_error(row, phrases.ROW_LOCATION_AMBIGUOUS(name=row.location_name)))
                     continue
                 location = matches[0]
 
@@ -142,7 +146,7 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
             if row.assignee_email:
                 assignee = by_email.get(row.assignee_email)
             if not assignee_allowed(row, assignee):
-                errors.append(row_error(row, "assignee must be an active cleaner from the task's country"))
+                errors.append(row_error(row, phrases.ROW_ASSIGNEE_NOT_ALLOWED()))
                 continue
 
             ready.append(
@@ -170,7 +174,7 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
             "imported": 0 if dry_run else len(ready),
             "valid_rows": len(ready),
             "total_rows": len(df),
-            "errors": errors,
+            "errors": [error.render(locale) for error in errors],
             "preview": preview,
             "dry_run": dry_run,
         }

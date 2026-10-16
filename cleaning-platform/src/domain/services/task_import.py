@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from src.domain.models.enums import Country, TaskPriority
 from src.domain.services.recurring_tasks import validate_rrule
+from src.translations import Text, phrases
 
 REQUIRED_COLUMNS = frozenset({"title", "country"})
 OPTIONAL_COLUMNS = frozenset({"description", "priority", "assignee_email", "assigned_to", "location_name", "rrule"})
@@ -27,6 +28,10 @@ class ImportRow:
     rrule: str | None
 
 
+def row_error(row_number: int, message: Text) -> Text:
+    return phrases.IMPORT_ROW(row=row_number, message=message)
+
+
 def _cell(row: Mapping[str, object], key: str) -> str:
     value = row.get(key)
     if value is None:
@@ -34,28 +39,28 @@ def _cell(row: Mapping[str, object], key: str) -> str:
     return str(value).strip()
 
 
-def parse_row(row: Mapping[str, object], row_number: int, forced_country: str | None) -> ImportRow | str:
+def parse_row(row: Mapping[str, object], row_number: int, forced_country: str | None) -> ImportRow | Text:
     title = _cell(row, "title")
     if len(title) < 3:
-        return f"Row {row_number}: title must be at least 3 characters"
+        return row_error(row_number, phrases.ROW_TITLE_TOO_SHORT())
     if len(title) > MAX_TITLE_LENGTH:
-        return f"Row {row_number}: title must be at most {MAX_TITLE_LENGTH} characters"
+        return row_error(row_number, phrases.ROW_TITLE_TOO_LONG(limit=MAX_TITLE_LENGTH))
 
     country_code = (forced_country or _cell(row, "country")).upper()
     if country_code not in Country.__members__:
-        return f"Row {row_number}: invalid country '{country_code}'"
+        return row_error(row_number, phrases.ROW_BAD_COUNTRY(value=country_code))
 
     priority_value = _cell(row, "priority").lower() or TaskPriority.NORMAL
     if priority_value not in {p.value for p in TaskPriority}:
-        return f"Row {row_number}: invalid priority '{priority_value}'"
+        return row_error(row_number, phrases.ROW_BAD_PRIORITY(value=priority_value))
 
     description = _cell(row, "description") or None
     if description and len(description) > MAX_DESCRIPTION_LENGTH:
-        return f"Row {row_number}: description must be at most {MAX_DESCRIPTION_LENGTH} characters"
+        return row_error(row_number, phrases.ROW_DESCRIPTION_TOO_LONG(limit=MAX_DESCRIPTION_LENGTH))
 
     rrule = _cell(row, "rrule") or None
     if rrule and (len(rrule) > MAX_RRULE_LENGTH or not validate_rrule(rrule)):
-        return f"Row {row_number}: invalid rrule '{rrule}'"
+        return row_error(row_number, phrases.ROW_BAD_RRULE(value=rrule))
 
     assignee_id = None
     raw_assignee_id = _cell(row, "assigned_to")
@@ -63,7 +68,7 @@ def parse_row(row: Mapping[str, object], row_number: int, forced_country: str | 
         try:
             assignee_id = uuid.UUID(raw_assignee_id)
         except ValueError:
-            return f"Row {row_number}: assigned_to must be a user ID"
+            return row_error(row_number, phrases.ROW_BAD_ASSIGNEE_ID())
 
     return ImportRow(
         row_number=row_number,

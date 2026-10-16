@@ -13,6 +13,7 @@ from src.infrastructure.messaging.outbox import TASK_CREATED, TASK_DELETED, TASK
 from src.infrastructure.messaging.rabbitmq import connect, declare_push_queue, decode_event
 from src.infrastructure.push.notifications import PushMessage, PushResult, send_push_notification
 from src.settings import get_settings
+from src.translations import parse_locale, phrases
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,8 @@ async def notify_user(user_id: uuid.UUID, message: PushMessage) -> None:
 
     gone: list[uuid.UUID] = []
     for sub in subscriptions:
-        result = await send_push_notification(sub.endpoint, sub.p256dh, sub.auth, message)
+        payload = message.payload(parse_locale(sub.locale))
+        result = await send_push_notification(sub.endpoint, sub.p256dh, sub.auth, payload)
         if result == PushResult.GONE:
             gone.append(sub.id)
 
@@ -58,27 +60,41 @@ def _task_id(event: dict[str, Any]) -> str | None:
     return str(task_id) if task_id else None
 
 
+def _status(value: Any) -> object:
+    try:
+        return phrases.status_name(str(value))
+    except ValueError:
+        return str(value or "")
+
+
+def assigned_message(event: dict[str, Any]) -> PushMessage:
+    title = str(event.get("title") or "")
+    return PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.PUSH_ASSIGNED_BODY(title=title), _task_id(event))
+
+
 async def handle_task_created(event: dict[str, Any]) -> None:
-    title = str(event.get("title") or "New task")
     country = event.get("country")
     assignee = _optional_uuid(event.get("assigned_to"))
 
-    task_id = _task_id(event)
-
     if assignee:
-        await notify_user(assignee, PushMessage("New task assigned", f"You have been assigned: {title}", task_id))
+        await notify_user(assignee, assigned_message(event))
     if country:
+        body = phrases.PUSH_CREATED_BODY(title=str(event.get("title") or ""), country=country)
+        created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, _task_id(event))
         for manager_id in await active_managers(str(country)):
-            await notify_user(manager_id, PushMessage("New task created", f"{title} ({country})", task_id))
+            await notify_user(manager_id, created)
 
 
 async def handle_task_status_changed(event: dict[str, Any]) -> None:
     assignee = _optional_uuid(event.get("assigned_to"))
     if assignee is None or assignee == _optional_uuid(event.get("changed_by")):
         return
-    title = str(event.get("title") or "Task")
-    body = f"{title}: {event.get('old_status')} -> {event.get('new_status')}"
-    await notify_user(assignee, PushMessage("Task status updated", body, _task_id(event)))
+    body = phrases.PUSH_STATUS_BODY(
+        title=str(event.get("title") or ""),
+        old=_status(event.get("old_status")),
+        new=_status(event.get("new_status")),
+    )
+    await notify_user(assignee, PushMessage(phrases.PUSH_STATUS_TITLE(), body, _task_id(event)))
 
 
 async def handle_task_updated(event: dict[str, Any]) -> None:
@@ -87,8 +103,7 @@ async def handle_task_updated(event: dict[str, Any]) -> None:
         return
     if assignee == _optional_uuid(event.get("changed_by")):
         return
-    title = str(event.get("title") or "Task")
-    await notify_user(assignee, PushMessage("New task assigned", f"You have been assigned: {title}", _task_id(event)))
+    await notify_user(assignee, assigned_message(event))
 
 
 async def ignore_event(event: dict[str, Any]) -> None:

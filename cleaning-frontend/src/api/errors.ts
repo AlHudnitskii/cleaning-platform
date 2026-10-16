@@ -100,7 +100,7 @@ export function toApiError(error: unknown): ApiError {
 export function errorMessage(error: unknown): string {
   const apiError = toApiError(error);
   if (apiError.details.length === 0) return apiError.message;
-  return apiError.details.map((d) => `${d.field}: ${d.message}`).join("; ");
+  return apiError.details.map((detail) => detail.message).join("; ");
 }
 
 export function isNetworkError(error: unknown): boolean {

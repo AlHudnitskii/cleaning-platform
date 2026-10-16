@@ -92,7 +92,7 @@ async def test_editing_only_the_email_keeps_the_user_signed_in(account):
     ("body", "status", "message"),
     [
         ({"role": "cleaner", "country": "DE"}, 400, "You cannot change your own role or country"),
-        ({"role": "manager", "country": None}, 400, "Validation failed"),
+        ({"role": "manager", "country": None}, 400, "Please check the entered values"),
     ],
 )
 async def test_invalid_edits_are_rejected(account, body, status, message):
@@ -239,6 +239,20 @@ async def test_a_location_is_deleted_only_when_nothing_depends_on_it(account, lo
 
     assert with_children.status_code == 409
     assert payload(with_children)["error"] == "Delete or move the nested locations first"
-    assert (with_tasks.status_code, payload(with_tasks)["error"]) == (409, "This location is used by 1 tasks")
+    assert (with_tasks.status_code, payload(with_tasks)["error"]) == (409, "This location is used by 1 task")
     assert empty.status_code == 204
     assert (await delete(office)).status_code == 409
+
+
+async def test_errors_follow_the_language_of_the_interface(account):
+    cleaner = await account("cleaner", "DE", PASSWORD)
+
+    response = await call(
+        auth.login,
+        "POST",
+        headers={"Accept-Language": "ru-RU,ru;q=0.9"},
+        json_body={"email": cleaner.user.email, "password": "wrong"},
+    )
+
+    assert response.status_code == 401
+    assert payload(response)["error"] == "Неверный email или пароль"

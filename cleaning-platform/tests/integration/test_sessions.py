@@ -7,6 +7,7 @@ from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, User
 from src.infrastructure.messaging import consumer
 from src.infrastructure.push.notifications import PushMessage, PushResult
+from src.translations import phrases
 from tests.integration.conftest import call, payload
 
 pytestmark = pytest.mark.integration
@@ -161,6 +162,6 @@ async def test_push_is_not_sent_to_inactive_users(account, monkeypatch):
 
     monkeypatch.setattr(consumer, "send_push_notification", fake_send)
 
-    await consumer.notify_user(cleaner.user.id, PushMessage("New task assigned", "Clean lobby"))
+    await consumer.notify_user(cleaner.user.id, PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.TASK()))
 
     assert sent == []

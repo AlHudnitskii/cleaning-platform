@@ -20,6 +20,7 @@ from src.domain.services import task_access
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Task, TaskChecklistItem
 from src.infrastructure.messaging import outbox
+from src.translations import phrases
 
 bp = func.Blueprint()
 
@@ -40,15 +41,15 @@ def announce(session: AsyncSession, task: Task, user: CurrentUser) -> None:
 async def load_item(session: AsyncSession, task_id: uuid.UUID, item_id: uuid.UUID) -> TaskChecklistItem:
     item = await session.get(TaskChecklistItem, item_id, with_for_update=True)
     if item is None or item.task_id != task_id:
-        raise not_found("Checklist item")
+        raise not_found(phrases.CHECKLIST_ITEM)
     return item
 
 
 def ensure_editable(user: CurrentUser, task: Task) -> None:
     if not task_access.can_manage_country(user, task.country):
-        raise forbidden("Only managers of this country can change the checklist")
+        raise forbidden(phrases.CHECKLIST_MANAGERS_ONLY())
     if TaskStatus(task.status) in task_access.LOCKED_STATUSES:
-        raise ApiError(409, "The checklist of a completed or cancelled task cannot be changed")
+        raise ApiError(409, phrases.CHECKLIST_LOCKED())
 
 
 @bp.route(route="tasks/{task_id}/checklist", methods=["GET"])
@@ -81,7 +82,7 @@ async def add_checklist_item(req: func.HttpRequest, user: CurrentUser) -> func.H
             )
         ).one()
         if count >= MAX_CHECKLIST_ITEMS:
-            raise ApiError(400, f"A checklist can have at most {MAX_CHECKLIST_ITEMS} items")
+            raise ApiError(400, phrases.CHECKLIST_TOO_LONG(limit=MAX_CHECKLIST_ITEMS))
         item = TaskChecklistItem(task_id=task_id, position=(last if last is not None else -1) + 1, text=data.text)
         session.add(item)
         await session.flush()
@@ -99,7 +100,7 @@ async def update_checklist_item(req: func.HttpRequest, user: CurrentUser) -> fun
     data = read_model(req, ChecklistItemUpdate)
     changes = data.model_fields_set
     if not changes:
-        raise ApiError(400, "Nothing to update")
+        raise ApiError(400, phrases.NOTHING_TO_UPDATE())
 
     async with session_scope() as session, session.begin():
         task = await load_visible_task(session, user, task_id, for_update=True)
@@ -109,7 +110,7 @@ async def update_checklist_item(req: func.HttpRequest, user: CurrentUser) -> fun
             item.text = data.text
         if "done" in changes and data.done is not None:
             if not task_access.can_tick_checklist(user, task.country, task.assigned_to, TaskStatus(task.status)):
-                raise forbidden("You cannot tick items of this task")
+                raise forbidden(phrases.CANNOT_TICK())
             item.done = data.done
             item.done_by = user.id if data.done else None
             item.done_at = datetime.now(UTC) if data.done else None

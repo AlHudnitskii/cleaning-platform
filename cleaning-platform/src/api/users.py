@@ -30,6 +30,7 @@ from src.domain.models.user import (
 from src.infrastructure.auth.jwt_handler import hash_password, verify_password
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, Task, User
+from src.translations import phrases
 
 bp = func.Blueprint()
 
@@ -72,7 +73,7 @@ async def create_user(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
 
     async with session_scope() as session, session.begin():
         if await session.scalar(select(User.id).where(User.email == data.email)):
-            raise ApiError(409, "Email already registered")
+            raise ApiError(409, phrases.EMAIL_TAKEN())
         new_user = User(
             email=data.email,
             hashed_password=hash_password(data.password),
@@ -109,16 +110,16 @@ async def update_user(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
     async with session_scope() as session, session.begin():
         target = await session.get(User, target_id, with_for_update=True)
         if target is None:
-            raise not_found("User")
+            raise not_found(phrases.USER)
         access_changed = data.role != target.role or data.country != target.country
         if access_changed and target_id == user.id:
-            raise ApiError(400, "You cannot change your own role or country")
+            raise ApiError(400, phrases.OWN_ACCESS_LOCKED())
         if data.email != target.email and await session.scalar(select(User.id).where(User.email == data.email)):
-            raise ApiError(409, "Email already registered")
+            raise ApiError(409, phrases.EMAIL_TAKEN())
         if access_changed and target.role == UserRole.CLEANER:
             open_tasks = await open_assigned_tasks(session, target.id)
             if open_tasks:
-                raise ApiError(409, f"Reassign this cleaner's open tasks first ({open_tasks})")
+                raise ApiError(409, phrases.REASSIGN_FIRST(count=open_tasks))
 
         target.email = data.email
         target.role = data.role
@@ -134,13 +135,13 @@ async def update_user(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
 async def reset_password(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
     target_id = route_uuid(req, "user_id", "user ID")
     if target_id == user.id:
-        raise ApiError(400, "Change your own password in your profile")
+        raise ApiError(400, phrases.OWN_PASSWORD_IN_PROFILE())
     data = read_model(req, PasswordReset)
 
     async with session_scope() as session, session.begin():
         target = await session.get(User, target_id, with_for_update=True)
         if target is None:
-            raise not_found("User")
+            raise not_found(phrases.USER)
         target.hashed_password = hash_password(data.new_password)
         end_sessions(target)
         await forget_devices(session, target.id)
@@ -153,12 +154,12 @@ async def reset_password(req: func.HttpRequest, user: CurrentUser) -> func.HttpR
 async def toggle_active(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
     target_id = route_uuid(req, "user_id", "user ID")
     if target_id == user.id:
-        raise ApiError(400, "Cannot deactivate yourself")
+        raise ApiError(400, phrases.CANNOT_DEACTIVATE_SELF())
 
     async with session_scope() as session, session.begin():
         target = await session.get(User, target_id, with_for_update=True)
         if target is None:
-            raise not_found("User")
+            raise not_found(phrases.USER)
         target.is_active = not target.is_active
         if not target.is_active:
             end_sessions(target)
@@ -177,7 +178,7 @@ async def change_password(req: func.HttpRequest, user: CurrentUser) -> func.Http
         if record is None:
             raise forbidden()
         if not verify_password(data.old_password, record.hashed_password):
-            raise ApiError(400, "Old password is incorrect")
+            raise ApiError(400, phrases.OLD_PASSWORD_WRONG())
         record.hashed_password = hash_password(data.new_password)
         record.token_version += 1
 

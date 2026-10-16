@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from src.domain.models.enums import LocationLevel
+from src.translations import Text, phrases
 
 FULL_NAME_SEPARATOR = " / "
 
@@ -19,11 +20,11 @@ def build_path(parent_path: str | None, location_id: uuid.UUID) -> str:
     return f"{parent_path}.{label}" if parent_path else label
 
 
-def child_error(parent_level: LocationLevel, parent_country: str, level: LocationLevel, country: str) -> str | None:
+def child_error(parent_level: LocationLevel, parent_country: str, level: LocationLevel, country: str) -> Text | None:
     if parent_country != country:
-        return "Child location must be in the same country as its parent"
+        return phrases.PARENT_OTHER_COUNTRY()
     if level.depth <= parent_level.depth:
-        return f"A {level} cannot be placed inside a {parent_level}"
+        return phrases.LEVEL_NOT_ALLOWED(level=phrases.LEVEL[level](), parent=phrases.PARENT_LEVEL[parent_level]())
     return None
 
 

@@ -14,6 +14,7 @@ from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem, TaskPhoto, TaskStatusHistory, User
 from src.infrastructure.messaging import outbox
+from src.translations import Joined, Text, phrases
 
 PRIORITY_RANK = case(
     {p.value: rank for rank, p in enumerate(TaskPriority)},
@@ -178,13 +179,13 @@ async def detailed_response(session: AsyncSession, user: CurrentUser, task: Task
     return to_response(task, user, progress, assignee_email, location_name, location_path)
 
 
-def blocker_message(blockers: list[ReviewBlocker], progress: task_access.TaskProgress) -> str:
-    parts = []
+def blocker_message(blockers: list[ReviewBlocker], progress: task_access.TaskProgress) -> Text:
+    parts: list[Text] = []
     if ReviewBlocker.PHOTO in blockers:
-        parts.append("upload a photo of the result")
+        parts.append(phrases.UPLOAD_PHOTO_STEP())
     if ReviewBlocker.CHECKLIST in blockers:
-        parts.append(f"finish the checklist ({progress.checklist_done} of {progress.checklist_total} done)")
-    return "Before sending for review, " + " and ".join(parts)
+        parts.append(phrases.FINISH_CHECKLIST_STEP(done=progress.checklist_done, total=progress.checklist_total))
+    return phrases.BEFORE_REVIEW(steps=Joined(tuple(parts), phrases.AND))
 
 
 async def load_visible_task(
@@ -192,14 +193,14 @@ async def load_visible_task(
 ) -> Task:
     task = await session.get(Task, task_id, with_for_update=for_update)
     if task is None or not task_access.can_view(user, task.country, task.assigned_to):
-        raise not_found("Task")
+        raise not_found(phrases.TASK)
     return task
 
 
 async def ensure_assignable(session: AsyncSession, assignee_id: uuid.UUID, country: str) -> None:
     assignee = await session.get(User, assignee_id)
     if assignee is None or not task_access.can_assign(country, assignee.role, assignee.country, assignee.is_active):
-        raise ApiError(400, "Assignee must be an active cleaner from the task's country")
+        raise ApiError(400, phrases.ASSIGNEE_NOT_ALLOWED())
 
 
 async def last_status_change(session: AsyncSession, task_id: uuid.UUID) -> datetime | None:
@@ -211,7 +212,10 @@ async def last_status_change(session: AsyncSession, task_id: uuid.UUID) -> datet
 async def change_status(session: AsyncSession, user: CurrentUser, task: Task, target: TaskStatus) -> TaskStatus:
     current = TaskStatus(task.status)
     if not task_access.can_change_status(user, current, target):
-        raise ApiError(409, f"Cannot change status from {current} to {target}")
+        message = phrases.STATUS_CHANGE_NOT_ALLOWED(
+            current=phrases.status_name(current), target=phrases.status_name(target)
+        )
+        raise ApiError(409, message)
     if target == TaskStatus.ON_REVIEW:
         progress = (await task_progress(session, [task.id]))[task.id]
         blockers = task_access.review_blockers(task.photo_required, progress)

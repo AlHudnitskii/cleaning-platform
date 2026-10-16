@@ -32,6 +32,8 @@ from src.api.task_store import (
     ordering,
     overdue_condition,
     scope_conditions,
+    task_event,
+    task_progress,
     task_rows,
     to_response,
 )
@@ -42,7 +44,7 @@ from src.domain.services import task_access
 from src.domain.services.recurring_tasks import get_next_occurrences
 from src.infrastructure.blob.storage import PHOTOS_CONTAINER, delete_prefix
 from src.infrastructure.database.connection import session_scope
-from src.infrastructure.database.models import Location, Task
+from src.infrastructure.database.models import Location, Task, TaskChecklistItem
 from src.infrastructure.messaging import outbox
 
 bp = func.Blueprint()
@@ -84,10 +86,14 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
             scheduled_for=data.scheduled_for,
             priority=data.priority,
             due_date=data.due_date,
+            photo_required=data.photo_required,
             created_at=datetime.now(UTC),
         )
         session.add(task)
         await session.flush()
+        session.add_all(
+            TaskChecklistItem(task_id=task.id, position=index, text=text) for index, text in enumerate(data.checklist)
+        )
         outbox.enqueue(
             session,
             outbox.TASK_CREATED,
@@ -104,17 +110,7 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
     return json_response(response, 201)
 
 
-EDITABLE_FIELDS = ("title", "description", "location_id", "assigned_to", "priority", "due_date")
-
-
-def task_event(task: Task, **extra: object) -> dict[str, object]:
-    return {
-        "task_id": str(task.id),
-        "title": task.title,
-        "country": task.country,
-        "assigned_to": str(task.assigned_to) if task.assigned_to else None,
-        **extra,
-    }
+EDITABLE_FIELDS = ("title", "description", "location_id", "assigned_to", "priority", "due_date", "photo_required")
 
 
 @bp.route(route="tasks/{task_id}", methods=["PATCH"])
@@ -226,10 +222,13 @@ async def get_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
                 task_rows().where(*conditions).order_by(*ordering(sort, order)).limit(limit).offset((page - 1) * limit)
             )
         ).all()
+        progress = await task_progress(session, [task.id for task, _, _ in rows])
 
     return json_response(
         {
-            "data": [to_response(task, user, email, location_name) for task, email, location_name in rows],
+            "data": [
+                to_response(task, user, progress[task.id], email, location_name) for task, email, location_name in rows
+            ],
             "pagination": {
                 "page": page,
                 "limit": limit,
@@ -258,7 +257,7 @@ async def update_task_status(req: func.HttpRequest, user: CurrentUser) -> func.H
 
     async with session_scope() as session, session.begin():
         task = await load_visible_task(session, user, task_id, for_update=True)
-        change_status(session, user, task, data.status)
+        await change_status(session, user, task, data.status)
         await session.flush()
         response = await detailed_response(session, user, task)
 
@@ -323,5 +322,8 @@ async def get_tasks_by_location(req: func.HttpRequest, user: CurrentUser) -> fun
                 .limit(limit)
             )
         ).all()
+        progress = await task_progress(session, [task.id for task, _, _ in rows])
 
-    return json_response([to_response(task, user, email, location_name) for task, email, location_name in rows])
+    return json_response(
+        [to_response(task, user, progress[task.id], email, location_name) for task, email, location_name in rows]
+    )

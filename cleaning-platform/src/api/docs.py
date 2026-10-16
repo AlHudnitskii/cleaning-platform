@@ -7,6 +7,9 @@ from pydantic import BaseModel
 
 from src.domain.models.location import LocationCreate, LocationResponse
 from src.domain.models.task import (
+    ChecklistItemCreate,
+    ChecklistItemResponse,
+    ChecklistItemUpdate,
     CommentCreate,
     CommentResponse,
     HistoryEntryResponse,
@@ -44,6 +47,9 @@ SCHEMAS: list[type[BaseModel]] = [
     TaskResponse,
     TaskStatusUpdate,
     TaskUpdate,
+    ChecklistItemCreate,
+    ChecklistItemUpdate,
+    ChecklistItemResponse,
     TokenResponse,
     UserLogin,
     UserRegister,
@@ -54,7 +60,11 @@ PATH_PARAMS = {
     "task_id": "Task ID",
     "location_id": "Location ID",
     "user_id": "User ID",
+    "item_id": "Checklist item ID",
 }
+
+CHECKLIST = "/tasks/{task_id}/checklist"
+CHECKLIST_ITEM = "/tasks/{task_id}/checklist/{item_id}"
 
 ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("post", "/auth/login", "Sign in; sets the refresh_token cookie", "UserLogin", "TokenResponse", False),
@@ -74,6 +84,10 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("patch", "/tasks/{task_id}/status", "Change task status", "TaskStatusUpdate", "TaskResponse", True),
     ("post", "/tasks/{task_id}/quality", "Review quality of a completed task", "QualityReview", "TaskResponse", True),
     ("get", "/tasks/{task_id}/occurrences", "Next occurrences of a recurring task", None, None, True),
+    ("get", CHECKLIST, "Checklist of a task", None, "ChecklistItemResponse", True),
+    ("post", CHECKLIST, "Add a checklist item (admin, manager)", "ChecklistItemCreate", "ChecklistItemResponse", True),
+    ("patch", CHECKLIST_ITEM, "Tick or rename a checklist item", "ChecklistItemUpdate", "ChecklistItemResponse", True),
+    ("delete", CHECKLIST_ITEM, "Remove a checklist item (admin, manager)", None, None, True),
     ("get", "/tasks/{task_id}/comments", "Task comments", None, "CommentResponse", True),
     ("post", "/tasks/{task_id}/comments", "Add a comment", "CommentCreate", "CommentResponse", True),
     ("get", "/tasks/{task_id}/history", "Status history", None, "HistoryEntryResponse", True),

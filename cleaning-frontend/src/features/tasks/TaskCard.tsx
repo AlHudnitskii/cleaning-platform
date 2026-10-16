@@ -5,6 +5,7 @@ import type { TaskResponse } from "../../api/types";
 import { PriorityBadge, StatusBadge } from "../../components/Badges";
 import { RelativeDate } from "../../components/People";
 import { DueDate } from "./DueDate";
+import { blockerText } from "./workflow";
 import { countryName, rruleLabel } from "../../labels";
 
 export function TaskCard({ task, actions, pending }: { task: TaskResponse; actions?: ReactNode; pending?: boolean }) {
@@ -32,10 +33,14 @@ export function TaskCard({ task, actions, pending }: { task: TaskResponse; actio
             <dd>{task.location_name}</dd>
           </div>
         )}
-        <div>
-          <dt>Assignee</dt>
-          <dd>{task.assigned_to_email ?? "Unassigned"}</dd>
-        </div>
+        {task.checklist_total > 0 && (
+          <div>
+            <dt>Checklist</dt>
+            <dd>
+              {task.checklist_done} of {task.checklist_total} done
+            </dd>
+          </div>
+        )}
         {task.due_date && (
           <div>
             <dt>Due</dt>
@@ -57,6 +62,9 @@ export function TaskCard({ task, actions, pending }: { task: TaskResponse; actio
           </div>
         )}
       </dl>
+      {task.status === "in_progress" && task.review_blockers.length > 0 && (
+        <p className="task-card-hint">{blockerText(task)}</p>
+      )}
       {actions && <div className="task-card-actions">{actions}</div>}
     </article>
   );

@@ -84,7 +84,7 @@ export function TaskTable({
                 <Link to={`/tasks/${task.id}`} className="cell-title row-link">
                   {task.title}
                 </Link>
-                {task.rrule && <span className="cell-sub">Repeats: {rruleLabel(task.rrule)}</span>}
+                <TaskMeta task={task} />
               </td>
               <td data-label="Status">
                 <StatusBadge status={task.status} />
@@ -142,4 +142,13 @@ function QuickAction({
       {pending ? "Saving…" : actionLabel(task.status, next)}
     </button>
   );
+}
+
+function TaskMeta({ task }: { task: TaskResponse }) {
+  const parts: string[] = [];
+  if (task.checklist_total > 0) parts.push(`Checklist ${task.checklist_done}/${task.checklist_total}`);
+  if (task.photo_required) parts.push(task.photo_count > 0 ? "Photo added" : "Photo required");
+  if (task.rrule) parts.push(rruleLabel(task.rrule));
+  if (parts.length === 0) return null;
+  return <span className="cell-sub">{parts.join(" · ")}</span>;
 }

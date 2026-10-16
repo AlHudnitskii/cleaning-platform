@@ -60,6 +60,11 @@ export interface TaskResponse {
   scheduled_for: string | null;
   priority: TaskPriority;
   due_date: string | null;
+  photo_required: boolean;
+  checklist_done: number;
+  checklist_total: number;
+  photo_count: number;
+  review_blockers: ReviewBlocker[];
   quality_score: number | null;
   quality_comment: string | null;
   quality_reviewed_by: string | null;
@@ -89,6 +94,20 @@ export interface TaskCreate {
   rrule?: string;
   priority: TaskPriority;
   due_date?: string;
+  photo_required?: boolean;
+  checklist?: string[];
+}
+
+export type ReviewBlocker = "photo" | "checklist";
+
+export interface ChecklistItem {
+  id: string;
+  task_id: string;
+  position: number;
+  text: string;
+  done: boolean;
+  done_by: string | null;
+  done_at: string | null;
 }
 
 export interface TaskUpdate {
@@ -99,6 +118,7 @@ export interface TaskUpdate {
   rrule?: string | null;
   priority?: TaskPriority;
   due_date?: string | null;
+  photo_required?: boolean;
 }
 
 export interface CommentResponse {

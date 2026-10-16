@@ -4081,3 +4081,153 @@ mark {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.checklist-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t3);
+}
+
+.checklist-count.is-complete {
+  color: var(--accent-text);
+}
+
+.checklist-progress {
+  height: 6px;
+  border-radius: 6px;
+  background: var(--s3);
+  overflow: hidden;
+}
+
+.checklist-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.checklist {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border);
+}
+
+.checklist-item:last-child {
+  border-bottom: 0;
+}
+
+.checklist-label {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.checklist-label:has(.checkbox:disabled) {
+  cursor: default;
+}
+
+.checklist-text {
+  overflow-wrap: anywhere;
+}
+
+.checklist-item.is-done .checklist-text {
+  color: var(--t3);
+  text-decoration: line-through;
+  text-decoration-color: var(--border2);
+}
+
+.checklist-remove {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  opacity: 0;
+}
+
+.checklist-item:hover .checklist-remove,
+.checklist-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .checklist-remove {
+    opacity: 1;
+  }
+}
+
+.checklist-add {
+  display: flex;
+  gap: 8px;
+}
+
+.checklist-add .input {
+  flex: 1 1 auto;
+}
+
+.checklist-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist-editor-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 22px;
+  color: var(--text);
+}
+
+.checklist-editor-items li {
+  padding-left: 4px;
+}
+
+.checklist-editor-items li > span {
+  display: inline-block;
+  min-width: 0;
+  max-width: calc(100% - 40px);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.checklist-editor-items .icon-button {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  vertical-align: middle;
+}
+
+.check-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.check-field-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.check-field .field-hint {
+  padding-left: 28px;
+}
+
+.task-card-hint {
+  font-size: 13.5px;
+  color: var(--info);
+}

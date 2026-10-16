@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.domain.models.enums import Country, TaskPriority, TaskStatus
+from src.domain.models.enums import Country, ReviewBlocker, TaskPriority, TaskStatus
 from src.domain.services.recurring_tasks import validate_rrule
 
 
@@ -20,6 +20,15 @@ def checked_rrule(value: str | None) -> str | None:
     return value
 
 
+MAX_CHECKLIST_ITEMS = 50
+
+
+def clean_item(value: str) -> str:
+    if not value.strip():
+        raise ValueError("Checklist item text is required")
+    return value.strip()
+
+
 class TaskCreate(BaseModel):
     title: str = Field(max_length=255)
     country: Country
@@ -30,11 +39,21 @@ class TaskCreate(BaseModel):
     scheduled_for: datetime | None = None
     priority: TaskPriority = TaskPriority.NORMAL
     due_date: date | None = None
+    photo_required: bool = False
+    checklist: list[str] = Field(default_factory=list, max_length=MAX_CHECKLIST_ITEMS)
 
     @field_validator("title")
     @classmethod
     def validate_title(cls, v: str) -> str:
         return clean_title(v)
+
+    @field_validator("checklist")
+    @classmethod
+    def validate_checklist(cls, v: list[str]) -> list[str]:
+        items = [clean_item(item) for item in v]
+        if any(len(item) > 255 for item in items):
+            raise ValueError("Checklist items must be at most 255 characters")
+        return items
 
     @field_validator("rrule")
     @classmethod
@@ -50,6 +69,14 @@ class TaskUpdate(BaseModel):
     rrule: str | None = Field(default=None, max_length=500)
     priority: TaskPriority | None = None
     due_date: date | None = None
+    photo_required: bool | None = None
+
+    @field_validator("photo_required")
+    @classmethod
+    def validate_photo_required(cls, v: bool | None) -> bool | None:
+        if v is None:
+            raise ValueError("Photo requirement cannot be empty")
+        return v
 
     @field_validator("title")
     @classmethod
@@ -91,6 +118,11 @@ class TaskResponse(BaseModel):
     scheduled_for: datetime | None = None
     priority: TaskPriority = TaskPriority.NORMAL
     due_date: date | None = None
+    photo_required: bool = False
+    checklist_done: int = 0
+    checklist_total: int = 0
+    photo_count: int = 0
+    review_blockers: list[ReviewBlocker] = []
     quality_score: int | None = None
     quality_comment: str | None = None
     quality_reviewed_by: uuid.UUID | None = None
@@ -157,3 +189,43 @@ class SyncStatusChange(BaseModel):
         if v is not None and v.tzinfo is None:
             return v.replace(tzinfo=UTC)
         return v
+
+
+class ChecklistItemCreate(BaseModel):
+    text: str = Field(max_length=255)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        return clean_item(v)
+
+
+class ChecklistItemUpdate(BaseModel):
+    text: str | None = Field(default=None, max_length=255)
+    done: bool | None = None
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, v: str | None) -> str | None:
+        if v is None:
+            raise ValueError("Checklist item text is required")
+        return clean_item(v)
+
+    @field_validator("done")
+    @classmethod
+    def validate_done(cls, v: bool | None) -> bool | None:
+        if v is None:
+            raise ValueError("Done must be true or false")
+        return v
+
+
+class ChecklistItemResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    task_id: uuid.UUID
+    position: int
+    text: str
+    done: bool
+    done_by: uuid.UUID | None
+    done_at: datetime | None

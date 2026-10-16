@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass
 
-from src.domain.models.enums import TaskStatus, UserRole
+from src.domain.models.enums import ReviewBlocker, TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 
 S = TaskStatus
@@ -74,3 +74,30 @@ def can_review_quality(user: CurrentUser, status: TaskStatus) -> bool:
 
 def can_assign(task_country: str, assignee_role: str, assignee_country: str | None, assignee_active: bool) -> bool:
     return assignee_active and assignee_role == UserRole.CLEANER and assignee_country == task_country
+
+
+LOCKED_STATUSES = frozenset({S.COMPLETED, S.CANCELLED})
+
+
+@dataclass(frozen=True)
+class TaskProgress:
+    checklist_done: int = 0
+    checklist_total: int = 0
+    photo_count: int = 0
+
+
+def review_blockers(photo_required: bool, progress: TaskProgress) -> list[ReviewBlocker]:
+    blockers: list[ReviewBlocker] = []
+    if photo_required and progress.photo_count == 0:
+        blockers.append(ReviewBlocker.PHOTO)
+    if progress.checklist_done < progress.checklist_total:
+        blockers.append(ReviewBlocker.CHECKLIST)
+    return blockers
+
+
+def can_tick_checklist(user: CurrentUser, country: str, assigned_to: uuid.UUID | None, status: TaskStatus) -> bool:
+    if status in LOCKED_STATUSES:
+        return False
+    if user.is_cleaner:
+        return assigned_to == user.id
+    return can_manage_country(user, country)

@@ -88,11 +88,11 @@ export function TaskTable({
                 <PriorityText priority={task.priority} />
               </td>
               {showCountry && (
-                <td className="cell-muted" data-label={t().tasks.country}>
+                <td className="cell-muted cell-nowrap" data-label={t().tasks.country}>
                   {countryName(task.country)}
                 </td>
               )}
-              <td className="cell-muted" data-label={t().tasks.location}>
+              <td className="cell-muted cell-nowrap" data-label={t().tasks.location}>
                 {task.location_name ?? "—"}
               </td>
               <td data-label={t().tasks.assignee}>

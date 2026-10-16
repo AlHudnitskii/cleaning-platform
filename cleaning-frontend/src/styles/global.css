@@ -1926,7 +1926,9 @@ span.cell-title {
 }
 
 .tree-name {
+  min-width: 0;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .level-country > .tree-row .tree-name {
@@ -2633,6 +2635,7 @@ span.cell-title {
 .tree-count {
   font-size: 13px;
   color: var(--t3);
+  white-space: nowrap;
 }
 
 .tree-actions {
@@ -2656,6 +2659,31 @@ span.cell-title {
 @media (hover: none) {
   .tree-add {
     opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .tree {
+    padding: 4px;
+  }
+
+  .tree ul {
+    margin-left: 11px;
+    padding-left: 8px;
+  }
+
+  .tree-row {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 6px;
+  }
+
+  .tree-actions {
+    gap: 0;
+  }
+
+  .tree-count {
+    display: none;
   }
 }
 
@@ -3312,14 +3340,12 @@ form.stack > .btn {
   transform: translateY(calc(-50% + 0.5px));
 }
 
-.table-stacked td[data-label="Country"],
-.table-stacked td[data-label="Location"] {
-  white-space: nowrap;
-}
-
 @media (max-width: 700px) {
   .table-stacked td.cell-actions {
     grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     width: auto;
     text-align: left;
   }

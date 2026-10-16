@@ -1,7 +1,8 @@
+import { t } from "../i18n/locale";
 import { emailName, formatDateTime, formatRelative } from "../labels";
 
 export function Person({ email }: { email: string | null }) {
-  if (!email) return <span className="person person-empty">Unassigned</span>;
+  if (!email) return <span className="person person-empty">{t().common.unassigned}</span>;
   return (
     <span className="person" title={email}>
       <span className="person-avatar" aria-hidden="true">

@@ -1,12 +1,15 @@
 import type { KeyboardEvent } from "react";
 
+import { t } from "../i18n/locale";
 import { setTheme, useTheme, type Theme } from "../theme";
 import { Icon, type IconName } from "./Icon";
 
-const THEMES: { value: Theme; label: string; icon: IconName }[] = [
-  { value: "light", label: "Light theme", icon: "sun" },
-  { value: "dark", label: "Dark theme", icon: "moon" },
-];
+function themes(): { value: Theme; label: string; icon: IconName }[] {
+  return [
+    { value: "light", label: t().theme.light, icon: "sun" },
+    { value: "dark", label: t().theme.dark, icon: "moon" },
+  ];
+}
 
 const ARROW_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
 
@@ -22,8 +25,8 @@ export function ThemeSwitch() {
   };
 
   return (
-    <div className="theme-switch" role="radiogroup" aria-label="Colour theme">
-      {THEMES.map((option) => (
+    <div className="theme-switch" role="radiogroup" aria-label={t().theme.group}>
+      {themes().map((option) => (
         <button
           key={option.value}
           type="button"

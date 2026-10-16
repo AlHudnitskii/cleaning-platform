@@ -8,7 +8,8 @@ import { optionList, withEmpty } from "../../components/options";
 import { SearchField } from "../../components/SearchField";
 import { Select } from "../../components/Select";
 import { formatDay } from "../../dates";
-import { COUNTRY_NAMES, PRIORITY_LABELS, STATUS_LABELS } from "../../labels";
+import { countryNames } from "../../labels";
+import { t } from "../../i18n/locale";
 import { sortedByFullName } from "../locations/api";
 import type { TaskListParams } from "./api";
 
@@ -41,7 +42,7 @@ export function SearchBox({
     return () => clearTimeout(timer);
   }, [draft, value]);
 
-  return <SearchField ref={inputRef} value={draft} onChange={setDraft} label="Search tasks" shortcut="/" />;
+  return <SearchField ref={inputRef} value={draft} onChange={setDraft} label={t().tasks.search} shortcut="/" />;
 }
 
 export function FilterMenu({
@@ -89,43 +90,43 @@ export function FilterMenu({
         onClick={() => setOpen((value) => !value)}
       >
         <Icon name="filter" size={16} />
-        Filter
+        {t().tasks.filter}
         {active > 0 && <span className="toolbar-button-count">{active}</span>}
       </button>
       {open && (
-        <div id={panelId} className="filter-panel" role="group" aria-label="Task filters">
-          <FilterControl label="Status">
+        <div id={panelId} className="filter-panel" role="group" aria-label={t().tasks.filters}>
+          <FilterControl label={t().tasks.status}>
             <Select
               variant="inline"
               value={filters.status ?? ""}
-              options={withEmpty("All", optionList(TASK_STATUSES, STATUS_LABELS))}
+              options={withEmpty(t().common.all, optionList(TASK_STATUSES, t().status))}
               onChange={(status) => onChange({ status })}
             />
           </FilterControl>
-          <FilterControl label="Priority">
+          <FilterControl label={t().tasks.priority}>
             <Select
               variant="inline"
               value={filters.priority ?? ""}
-              options={withEmpty("All", optionList(TASK_PRIORITIES, PRIORITY_LABELS))}
+              options={withEmpty(t().common.all, optionList(TASK_PRIORITIES, t().priority))}
               onChange={(priority) => onChange({ priority })}
             />
           </FilterControl>
           {showCountry && (
-            <FilterControl label="Country">
+            <FilterControl label={t().tasks.country}>
               <Select
                 variant="inline"
                 value={filters.country ?? ""}
-                options={withEmpty("All", optionList(COUNTRIES, COUNTRY_NAMES))}
+                options={withEmpty(t().common.all, optionList(COUNTRIES, countryNames()))}
                 onChange={(country) => onChange({ country, location_id: undefined })}
               />
             </FilterControl>
           )}
-          <FilterControl label="Location">
+          <FilterControl label={t().tasks.location}>
             <Select
               variant="inline"
               value={filters.location_id ?? ""}
               options={withEmpty(
-                "All",
+                t().common.all,
                 sortedByFullName(locations).map((location) => ({ value: location.id, label: location.full_name })),
               )}
               onChange={(location_id) => onChange({ location_id })}
@@ -138,9 +139,9 @@ export function FilterMenu({
               checked={filters.overdue === "true"}
               onChange={(e) => onChange({ overdue: e.target.checked ? "true" : undefined })}
             />
-            Overdue only
+            {t().tasks.overdueOnly}
           </label>
-          <FilterControl label="Created from">
+          <FilterControl label={t().tasks.createdFrom}>
             <DatePicker
               variant="inline"
               value={filters.date_from ?? ""}
@@ -148,7 +149,7 @@ export function FilterMenu({
               onChange={(date_from) => onChange({ date_from })}
             />
           </FilterControl>
-          <FilterControl label="Created to">
+          <FilterControl label={t().tasks.createdTo}>
             <DatePicker
               variant="inline"
               value={filters.date_to ?? ""}
@@ -185,15 +186,15 @@ export function ActiveFilters({
   onChange: (changes: Changes) => void;
   onClear: () => void;
 }) {
-  const locationName = locations.find((location) => location.id === filters.location_id)?.full_name ?? "Selected";
+  const locationName = locations.find((location) => location.id === filters.location_id)?.full_name ?? t().tasks.selected;
   const chips: { key: FilterKey; label: string; value: string }[] = [];
-  if (filters.status) chips.push({ key: "status", label: "Status", value: STATUS_LABELS[filters.status] });
-  if (filters.priority) chips.push({ key: "priority", label: "Priority", value: PRIORITY_LABELS[filters.priority] });
-  if (filters.country) chips.push({ key: "country", label: "Country", value: COUNTRY_NAMES[filters.country] });
-  if (filters.location_id) chips.push({ key: "location_id", label: "Location", value: locationName });
-  if (filters.date_from) chips.push({ key: "date_from", label: "From", value: formatDay(filters.date_from) });
-  if (filters.date_to) chips.push({ key: "date_to", label: "To", value: formatDay(filters.date_to) });
-  if (filters.overdue) chips.push({ key: "overdue", label: "Due", value: "Overdue" });
+  if (filters.status) chips.push({ key: "status", label: t().tasks.status, value: t().status[filters.status] });
+  if (filters.priority) chips.push({ key: "priority", label: t().tasks.priority, value: t().priority[filters.priority] });
+  if (filters.country) chips.push({ key: "country", label: t().tasks.country, value: countryNames()[filters.country] });
+  if (filters.location_id) chips.push({ key: "location_id", label: t().tasks.location, value: locationName });
+  if (filters.date_from) chips.push({ key: "date_from", label: t().tasks.from, value: formatDay(filters.date_from) });
+  if (filters.date_to) chips.push({ key: "date_to", label: t().tasks.to, value: formatDay(filters.date_to) });
+  if (filters.overdue) chips.push({ key: "overdue", label: t().tasks.due, value: t().tasks.overdue });
 
   if (chips.length === 0 && !filters.search) return null;
 
@@ -201,8 +202,8 @@ export function ActiveFilters({
     <div className="filter-chips">
       {filters.search && (
         <span className="filter-chip">
-          <span className="filter-chip-label">Search</span> “{filters.search}”
-          <button type="button" className="filter-chip-remove" aria-label="Remove search" onClick={() => onChange({ search: undefined })}>
+          <span className="filter-chip-label">{t().tasks.searchChip}</span> “{filters.search}”
+          <button type="button" className="filter-chip-remove" aria-label={t().tasks.removeSearch} onClick={() => onChange({ search: undefined })}>
             <Icon name="close" size={12} />
           </button>
         </span>
@@ -213,7 +214,7 @@ export function ActiveFilters({
           <button
             type="button"
             className="filter-chip-remove"
-            aria-label={`Remove ${chip.label} filter`}
+            aria-label={t().tasks.removeFilter(chip.label)}
             onClick={() => onChange({ [chip.key]: undefined })}
           >
             <Icon name="close" size={12} />
@@ -221,7 +222,7 @@ export function ActiveFilters({
         </span>
       ))}
       <button type="button" className="link-button" onClick={onClear}>
-        Clear all
+        {t().tasks.clearAll}
       </button>
     </div>
   );

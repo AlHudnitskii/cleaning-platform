@@ -1,6 +1,6 @@
 import type { TaskResponse, TaskStatus } from "../../api/types";
 import { Select } from "../../components/Select";
-import { STATUS_LABELS } from "../../labels";
+import { t } from "../../i18n/locale";
 
 export function BulkBar({
   tasks,
@@ -19,19 +19,19 @@ export function BulkBar({
   }
   const options = [...counts.entries()].map(([status, count]) => ({
     value: status,
-    label: count === tasks.length ? STATUS_LABELS[status] : `${STATUS_LABELS[status]} (${count} of ${tasks.length})`,
+    label: count === tasks.length ? t().status[status] : t().tasks.ofSelection(t().status[status], count, tasks.length),
   }));
 
   return (
-    <div className="bulk-bar" role="region" aria-label="Bulk actions">
+    <div className="bulk-bar" role="region" aria-label={t().tasks.bulkActions}>
       <span className="bulk-count" aria-live="polite">
-        {tasks.length} selected
+        {t().tasks.selectedCount(tasks.length)}
       </span>
       {options.length > 0 ? (
         <Select<TaskStatus | "">
           variant="inline"
           value=""
-          placeholder={busy ? "Updating…" : "Change status…"}
+          placeholder={busy ? t().tasks.updating : t().tasks.changeStatus}
           disabled={busy}
           options={options}
           onChange={(status) => {
@@ -39,10 +39,10 @@ export function BulkBar({
           }}
         />
       ) : (
-        <span className="bulk-hint">No status change is allowed for this selection</span>
+        <span className="bulk-hint">{t().tasks.noBulkChange}</span>
       )}
       <button type="button" className="bulk-clear" onClick={onClear}>
-        Clear
+        {t().common.clear}
       </button>
     </div>
   );

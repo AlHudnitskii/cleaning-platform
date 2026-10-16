@@ -15,7 +15,8 @@ import { Select } from "../components/Select";
 import { SortHeader } from "../components/SortHeader";
 import { showToast } from "../components/toast";
 import { useCreateUser, useToggleActive, useUsers } from "../features/users/api";
-import { COUNTRY_NAMES, ROLE_LABELS, countryName } from "../labels";
+import { countryName, countryNames } from "../labels";
+import { t } from "../i18n/locale";
 import { useShortcut } from "../shortcuts";
 import { compareText, nextSort, type SortDirection, type SortState } from "../sorting";
 import { readEnum, useUrlState } from "../urlState";
@@ -36,7 +37,7 @@ function compareUsers(key: UserSort): (a: UserResponse, b: UserResponse) => numb
       return (a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || compareText(a.email, b.email);
     case "country":
       return (a, b) =>
-        compareText(a.country ? COUNTRY_NAMES[a.country] : null, b.country ? COUNTRY_NAMES[b.country] : null) ||
+        compareText(a.country ? countryNames()[a.country] : null, b.country ? countryNames()[b.country] : null) ||
         compareText(a.email, b.email);
     case "created_at":
       return (a, b) => a.created_at.localeCompare(b.created_at) || compareText(a.email, b.email);
@@ -76,7 +77,7 @@ export function Users() {
 
   const handleToggle = (userId: string) => {
     toggle.mutate(userId, {
-      onSuccess: (user) => showToast(`${user.email} ${user.is_active ? "activated" : "deactivated"}`),
+      onSuccess: (user) => showToast(user.is_active ? t().users.activated(user.email) : t().users.deactivated(user.email)),
       onError: (error) => showToast(errorMessage(error), "error"),
     });
   };
@@ -84,55 +85,55 @@ export function Users() {
   return (
     <>
       <PageHeader
-        title="Users"
-        description="Accounts of administrators, managers and cleaners. Deactivation signs the user out immediately."
+        title={t().users.title}
+        description={t().users.description}
         actions={
           <button type="button" className="btn btn-primary" aria-keyshortcuts="n" onClick={() => setCreating(true)}>
             <Icon name="plus" size={15} />
-            Create user
+            {t().users.create}
           </button>
         }
       />
       {creating && (
-        <Drawer title="New user" description="The user signs in with this email and password." onClose={() => setCreating(false)}>
+        <Drawer title={t().users.newUser} description={t().users.newUserHint} onClose={() => setCreating(false)}>
           <UserForm
             onCancel={() => setCreating(false)}
             onCreated={(user) => {
               setCreating(false);
-              showToast(`User ${user.email} created`);
+              showToast(t().users.created(user.email));
             }}
           />
         </Drawer>
       )}
 
-      <section className="list-card" aria-label="User list">
-        <div className="toolbar" role="group" aria-label="Filters">
-          <FilterControl label="Role">
+      <section className="list-card" aria-label={t().users.list}>
+        <div className="toolbar" role="group" aria-label={t().common.filters}>
+          <FilterControl label={t().users.role}>
             <Select
               variant="inline"
               value={filters.role ?? ""}
-              options={withEmpty("All", optionList(USER_ROLES, ROLE_LABELS))}
+              options={withEmpty(t().common.all, optionList(USER_ROLES, t().role))}
               onChange={(role) => update({ role })}
             />
           </FilterControl>
-          <FilterControl label="Country">
+          <FilterControl label={t().users.country}>
             <Select
               variant="inline"
               value={filters.country ?? ""}
-              options={withEmpty("All", optionList(COUNTRIES, COUNTRY_NAMES))}
+              options={withEmpty(t().common.all, optionList(COUNTRIES, countryNames()))}
               onChange={(country) => update({ country })}
             />
           </FilterControl>
           <span className="toolbar-spacer" />
-          {users.data && <span className="toolbar-count">{users.data.length} shown</span>}
+          {users.data && <span className="toolbar-count">{t().users.shown(users.data.length)}</span>}
         </div>
 
         {users.isPending ? (
-          <ListSkeleton label="Loading users" />
+          <ListSkeleton label={t().users.loading} />
         ) : users.isError ? (
           <ErrorState error={users.error} onRetry={() => void users.refetch()} />
         ) : users.data.length === 0 ? (
-          <EmptyState title="No users match these filters" hint="Try another role or country." />
+          <EmptyState title={t().users.noMatch} hint={t().users.noMatchHint} />
         ) : (
           <div className="table-scroll table-scroll-sticky">
             <table className="table table-rows">
@@ -141,12 +142,12 @@ export function Users() {
                   <th scope="col" className="cell-index">
                     #
                   </th>
-                  <SortHeader label="Member" column="email" sort={sort} onSort={handleSort} />
-                  <SortHeader label="Role" column="role" sort={sort} onSort={handleSort} />
-                  <SortHeader label="Country" column="country" sort={sort} onSort={handleSort} />
-                  <SortHeader label="Created" column="created_at" sort={sort} onSort={handleSort} />
+                  <SortHeader label={t().users.member} column="email" sort={sort} onSort={handleSort} />
+                  <SortHeader label={t().users.role} column="role" sort={sort} onSort={handleSort} />
+                  <SortHeader label={t().users.country} column="country" sort={sort} onSort={handleSort} />
+                  <SortHeader label={t().users.createdColumn} column="created_at" sort={sort} onSort={handleSort} />
                   <th scope="col" className="cell-actions">
-                    <span className="visually-hidden">Actions</span>
+                    <span className="visually-hidden">{t().users.actions}</span>
                   </th>
                 </tr>
               </thead>
@@ -158,9 +159,9 @@ export function Users() {
                       <span className="member">
                         <span
                           className={`status-dot${user.is_active ? "" : " status-dot-off"}`}
-                          title={user.is_active ? "Active" : "Inactive"}
+                          title={user.is_active ? t().users.active : t().users.inactive}
                         >
-                          <span className="visually-hidden">{user.is_active ? "Active" : "Inactive"}</span>
+                          <span className="visually-hidden">{user.is_active ? t().users.active : t().users.inactive}</span>
                         </span>{" "}
                         <span className="cell-title">{user.email}</span>
                       </span>
@@ -174,16 +175,16 @@ export function Users() {
                     </td>
                     <td className="cell-actions row-actions">
                       {user.id === currentUser.id ? (
-                        <span className="badge tone-accent">You</span>
+                        <span className="badge tone-accent">{t().common.you}</span>
                       ) : (
                         <button
                           type="button"
                           className={user.is_active ? "btn btn-danger btn-small" : "btn btn-secondary btn-small"}
                           disabled={toggle.isPending}
-                          aria-label={`${user.is_active ? "Deactivate" : "Activate"} ${user.email}`}
+                          aria-label={user.is_active ? t().users.deactivateUser(user.email) : t().users.activateUser(user.email)}
                           onClick={() => handleToggle(user.id)}
                         >
-                          {user.is_active ? "Deactivate" : "Activate"}
+                          {user.is_active ? t().users.deactivate : t().users.activate}
                         </button>
                       )}
                     </td>
@@ -196,7 +197,7 @@ export function Users() {
         {users.data && users.data.length > 0 && (
           <div className="list-footer">
             <span className="list-footer-count">
-              {users.data.filter((user) => user.is_active).length} active of {users.data.length} users
+              {t().users.activeOf(users.data.filter((user) => user.is_active).length, users.data.length)}
             </span>
           </div>
         )}
@@ -224,10 +225,10 @@ function UserForm({ onCreated, onCancel }: { onCreated: (user: UserResponse) => 
     <form className="drawer-form" onSubmit={handleSubmit}>
       <div className="drawer-body">
         {create.isError && <Notice tone="error">{errorMessage(create.error)}</Notice>}
-        <Field label="Email">
+        <Field label={t().users.email}>
           <input className="input" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
-        <Field label="Password" hint="At least 6 characters.">
+        <Field label={t().users.password} hint={t().users.passwordHint}>
           <input
             className="input"
             type="password"
@@ -238,24 +239,24 @@ function UserForm({ onCreated, onCancel }: { onCreated: (user: UserResponse) => 
             required
           />
         </Field>
-        <Field label="Role">
-          <Select value={role} options={optionList(USER_ROLES, ROLE_LABELS)} onChange={setRole} />
+        <Field label={t().users.role}>
+          <Select value={role} options={optionList(USER_ROLES, t().role)} onChange={setRole} />
         </Field>
-        <Field label="Country" hint={role === "admin" ? "Administrators are not bound to a country." : undefined}>
+        <Field label={t().users.country} hint={role === "admin" ? t().users.adminNoCountry : undefined}>
           <Select
             value={country}
             disabled={role === "admin"}
-            options={optionList(COUNTRIES, COUNTRY_NAMES)}
+            options={optionList(COUNTRIES, countryNames())}
             onChange={setCountry}
           />
         </Field>
       </div>
       <div className="drawer-footer">
         <button className="btn btn-ghost" type="button" onClick={onCancel}>
-          Cancel
+          {t().common.cancel}
         </button>
         <button className="btn btn-primary" type="submit" disabled={create.isPending}>
-          {create.isPending ? "Creating…" : "Create user"}
+          {create.isPending ? t().common.creating : t().users.create}
         </button>
       </div>
     </form>

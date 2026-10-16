@@ -561,6 +561,15 @@ button:active:not(:disabled) {
   box-shadow: 0 1px 2px rgba(20, 23, 21, 0.1);
 }
 
+.language-option {
+  width: auto;
+  min-width: 32px;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .user-chip {
   display: inline-flex;
   align-items: center;
@@ -1396,8 +1405,8 @@ span.cell-title {
 }
 
 .stat-open {
+  display: flex;
   margin-left: auto;
-  font-size: 13.5px;
   color: var(--accent-text);
   opacity: 0;
   transition: opacity 0.12s ease;
@@ -2136,7 +2145,7 @@ span.cell-title {
 }
 
 @media (max-width: 520px) {
-  .theme-switch {
+  .topbar-actions .theme-switch {
     display: none;
   }
 
@@ -3129,6 +3138,9 @@ body.has-drawer {
   position: absolute;
   top: 20px;
   right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .skeleton-line {

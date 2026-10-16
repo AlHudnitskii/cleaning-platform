@@ -7,11 +7,12 @@ import { useAuth, useCurrentUser } from "../auth/useAuth";
 import { homePath } from "../auth/homePath";
 import { usePushNotifications } from "../features/push/usePushNotifications";
 import { useTaskCount } from "../features/tasks/api";
-import { ROLE_LABELS } from "../labels";
+import { t } from "../i18n/locale";
 import { focusPageSearch, shortcutsBlocked, useShortcut } from "../shortcuts";
 import { BrandMark } from "./BrandMark";
 import { PageErrorBoundary } from "./ErrorBoundary";
 import { Icon, type IconName } from "./Icon";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { ToastHost } from "./Toasts";
@@ -26,53 +27,59 @@ interface NavItem {
   counter?: Counter;
 }
 
-const COUNTER_TEXT: Record<Counter, string> = {
-  review: "waiting for review",
-  pending: "not started",
-};
+function counterText(counter: Counter): string {
+  return counter === "review" ? t().nav.waitingForReview : t().nav.notStarted;
+}
 
 const MANAGERS: readonly UserRole[] = ["admin", "manager"];
 
-const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
-  {
-    title: "Overview",
-    items: [
-      { to: "/dashboard", label: "Dashboard", icon: "dashboard", roles: MANAGERS },
-      { to: "/reports", label: "Reports", icon: "reports", roles: MANAGERS },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      { to: "/tasks", label: "Tasks", icon: "tasks", roles: MANAGERS, counter: "review" },
-      { to: "/my-tasks", label: "My tasks", icon: "tasks", roles: ["cleaner"], counter: "pending" },
-      { to: "/locations", label: "Locations", icon: "locations", roles: MANAGERS },
-    ],
-  },
-  {
-    title: "Data",
-    items: [
-      { to: "/import", label: "Import", icon: "import", roles: MANAGERS },
-      { to: "/export", label: "Export", icon: "export", roles: MANAGERS },
-    ],
-  },
-  {
-    title: "Administration",
-    items: [{ to: "/users", label: "Users", icon: "users", roles: ["admin"] }],
-  },
-];
+function navGroups(): { title: string; items: NavItem[] }[] {
+  const nav = t().nav;
+  return [
+    {
+      title: nav.overview,
+      items: [
+        { to: "/dashboard", label: nav.dashboard, icon: "dashboard", roles: MANAGERS },
+        { to: "/reports", label: nav.reports, icon: "reports", roles: MANAGERS },
+      ],
+    },
+    {
+      title: nav.operations,
+      items: [
+        { to: "/tasks", label: nav.tasks, icon: "tasks", roles: MANAGERS, counter: "review" },
+        { to: "/my-tasks", label: nav.myTasks, icon: "tasks", roles: ["cleaner"], counter: "pending" },
+        { to: "/locations", label: nav.locations, icon: "locations", roles: MANAGERS },
+      ],
+    },
+    {
+      title: nav.data,
+      items: [
+        { to: "/import", label: nav.import, icon: "import", roles: MANAGERS },
+        { to: "/export", label: nav.export, icon: "export", roles: MANAGERS },
+      ],
+    },
+    {
+      title: nav.administration,
+      items: [{ to: "/users", label: nav.users, icon: "users", roles: ["admin"] }],
+    },
+  ];
+}
 
-const PAGE_TITLES: Record<string, string> = {
-  dashboard: "Dashboard",
-  reports: "Reports",
-  tasks: "Tasks",
-  "my-tasks": "My tasks",
-  locations: "Locations",
-  import: "Import",
-  export: "Export",
-  users: "Users",
-  profile: "Profile",
-};
+function pageTitle(section: string): string {
+  const nav = t().nav;
+  const titles: Record<string, string> = {
+    dashboard: nav.dashboard,
+    reports: nav.reports,
+    tasks: nav.tasks,
+    "my-tasks": nav.myTasks,
+    locations: nav.locations,
+    import: nav.import,
+    export: nav.export,
+    users: nav.users,
+    profile: nav.profile,
+  };
+  return titles[section] ?? nav.notFound;
+}
 
 const COLLAPSED_KEY = "cleaning-sidebar-collapsed";
 const SEQUENCE_TIMEOUT_MS = 1200;
@@ -110,7 +117,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const allowedPaths = new Set([
     "/profile",
-    ...NAV_GROUPS.flatMap((group) => group.items)
+    ...navGroups()
+      .flatMap((group) => group.items)
       .filter((item) => item.roles.includes(user.role))
       .map((item) => item.to),
   ]);
@@ -145,7 +153,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     review: useTaskCount("on_review", !isCleaner).data,
     pending: useTaskCount("pending", isCleaner).data,
   };
-  const groups = NAV_GROUPS.map((group) => ({
+  const groups = navGroups().map((group) => ({
     ...group,
     items: group.items.filter((item) => item.roles.includes(user.role)),
   })).filter((group) => group.items.length > 0);
@@ -171,12 +179,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sidebar" id="sidebar">
         <div className="sidebar-brand">
           <BrandMark />
-          <span className="brand-name">Cleaning Platform</span>
-          <button type="button" className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
+          <span className="brand-name">{t().app.name}</span>
+          <button
+            type="button"
+            className="icon-button sidebar-close"
+            aria-label={t().nav.closeMenu}
+            onClick={() => setMenuOpen(false)}
+          >
             <Icon name="close" />
           </button>
         </div>
-        <nav className="sidebar-nav" aria-label="Primary">
+        <nav className="sidebar-nav" aria-label={t().nav.primary}>
           {groups.map((group) => (
             <div key={group.title} className="nav-group">
               <div className="nav-group-title">{group.title}</div>
@@ -190,7 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   <Icon name={item.icon} />
                   <span className="nav-label">{item.label}</span>
-                  {item.counter && <NavCounter value={counters[item.counter]} text={COUNTER_TEXT[item.counter]} />}
+                  {item.counter && <NavCounter value={counters[item.counter]} text={counterText(item.counter)} />}
                 </NavLink>
               ))}
             </div>
@@ -200,12 +213,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             className="nav-item sidebar-footer-item"
-            aria-label="Keyboard shortcuts"
+            aria-label={t().nav.keyboardShortcuts}
             aria-keyshortcuts="?"
             onClick={() => setHelpOpen(true)}
           >
             <Icon name="keyboard" />
-            <span className="nav-label">Shortcuts</span>
+            <span className="nav-label">{t().nav.shortcuts}</span>
             <kbd className="kbd nav-label-kbd" aria-hidden="true">
               ?
             </kbd>
@@ -213,23 +226,29 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             className="nav-item sidebar-collapse"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? t().nav.expandSidebar : t().nav.collapseSidebar}
             aria-expanded={!collapsed}
             onClick={toggleCollapsed}
           >
             <Icon name="sidebar" />
-            <span className="nav-label">Collapse</span>
+            <span className="nav-label">{t().nav.collapse}</span>
           </button>
         </div>
       </aside>
-      <button type="button" className="sidebar-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setMenuOpen(false)} />
+      <button
+        type="button"
+        className="sidebar-backdrop"
+        aria-label={t().nav.closeMenu}
+        tabIndex={-1}
+        onClick={() => setMenuOpen(false)}
+      />
 
       <div className="sheet">
         <header className="topbar">
           <button
             type="button"
             className="icon-button topbar-menu"
-            aria-label="Open menu"
+            aria-label={t().nav.openMenu}
             aria-controls="sidebar"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(true)}
@@ -268,12 +287,12 @@ function Breadcrumbs({ pathname, role }: { pathname: string; role: UserRole }) {
   const [section = "", detail] = pathname.split("/").filter(Boolean);
   const isTaskDetail = section === "tasks" && detail !== undefined;
   const parentSection = isTaskDetail && role === "cleaner" ? "my-tasks" : section;
-  const sectionTitle = PAGE_TITLES[parentSection] ?? "Not found";
+  const sectionTitle = pageTitle(parentSection);
 
   return (
-    <nav className="breadcrumbs" aria-label="Breadcrumb">
+    <nav className="breadcrumbs" aria-label={t().nav.breadcrumb}>
       <Link className="crumb-link" to={homePath(role)}>
-        Home
+        {t().nav.home}
       </Link>
       <span className="crumb-separator" aria-hidden="true">
         /
@@ -287,7 +306,7 @@ function Breadcrumbs({ pathname, role }: { pathname: string; role: UserRole }) {
             /
           </span>
           <span className="crumb-current" aria-current="page">
-            Task
+            {t().nav.task}
           </span>
         </>
       ) : (
@@ -314,19 +333,19 @@ function TopbarActions() {
 
   return (
     <div className="topbar-actions">
-      {offline && <span className="badge tone-warning">Offline</span>}
+      {offline && <span className="badge tone-warning">{t().common.offline}</span>}
       {push.supported && (
         <button
           type="button"
           className={`icon-button${push.enabled ? " is-on" : ""}`}
           aria-pressed={push.enabled}
-          aria-label="Push notifications"
+          aria-label={t().nav.pushNotifications}
           title={
             push.toggle.isError
               ? errorMessage(push.toggle.error)
               : push.enabled
-                ? "Notifications are on. Click to turn them off"
-                : "Notifications are off. Click to turn them on"
+                ? t().nav.notificationsOn
+                : t().nav.notificationsOff
           }
           disabled={push.toggle.isPending}
           onClick={() => push.toggle.mutate(!push.enabled)}
@@ -335,17 +354,24 @@ function TopbarActions() {
           {push.enabled && <span className="icon-button-dot" aria-hidden="true" />}
         </button>
       )}
+      <LanguageSwitch />
       <ThemeSwitch />
-      <Link to="/profile" className="user-chip" aria-label={`Profile of ${user.email} (${ROLE_LABELS[user.role]})`}>
+      <Link to="/profile" className="user-chip" aria-label={t().nav.profileOf(user.email, t().role[user.role])}>
         <span className="avatar" aria-hidden="true">
           {user.email.charAt(0).toUpperCase()}
         </span>
         <span className="user-chip-text" aria-hidden="true">
           <span className="user-chip-email">{user.email}</span>
-          <span className="user-chip-role">{ROLE_LABELS[user.role]}</span>
+          <span className="user-chip-role">{t().role[user.role]}</span>
         </span>
       </Link>
-      <button type="button" className="icon-button" aria-label="Log out" title="Log out" onClick={handleLogout}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={t().nav.logOut}
+        title={t().nav.logOut}
+        onClick={handleLogout}
+      >
         <Icon name="logout" />
       </button>
     </div>

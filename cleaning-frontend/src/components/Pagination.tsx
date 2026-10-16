@@ -1,4 +1,5 @@
 import type { Pagination as PaginationInfo } from "../api/types";
+import { t } from "../i18n/locale";
 
 export function Pagination({
   info,
@@ -21,12 +22,12 @@ export function Pagination({
   return (
     <div className="list-footer">
       <span className="list-footer-count">
-        {shown} of {info.total} {noun}
+        {t().pagination.shown(shown, info.total, noun)}
       </span>
       <span className="list-footer-spacer" />
       {pageSizes && onPageSizeChange && (
-        <div className="pager-group" role="group" aria-label="Rows per page">
-          <span className="pager-caption">Rows</span>
+        <div className="pager-group" role="group" aria-label={t().pagination.rowsPerPage}>
+          <span className="pager-caption">{t().pagination.rows}</span>
           {pageSizes.map((size) => (
             <button
               key={size}
@@ -40,24 +41,24 @@ export function Pagination({
           ))}
         </div>
       )}
-      <nav className="pager-group pager-nav" aria-label="Pagination">
+      <nav className="pager-group pager-nav" aria-label={t().pagination.label}>
         <button
           type="button"
           className="pager-step"
-          aria-label="Previous page"
+          aria-label={t().pagination.previous}
           disabled={!canGoBack}
           onClick={() => onPageChange(info.page - 1)}
         >
           ‹
         </button>
         <span className="pager-position" aria-live="polite">
-          <span className="visually-hidden">Page </span>
+          <span className="visually-hidden">{t().pagination.page}</span>
           {info.page} / {info.pages}
         </span>
         <button
           type="button"
           className="pager-step"
-          aria-label="Next page"
+          aria-label={t().pagination.next}
           disabled={!canGoForward}
           onClick={() => onPageChange(info.page + 1)}
         >

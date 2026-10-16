@@ -5,6 +5,7 @@ import { PriorityText, StatusBadge } from "../../components/Badges";
 import { Person, RelativeDate } from "../../components/People";
 import { SortHeader } from "../../components/SortHeader";
 import { countryName, rruleLabel } from "../../labels";
+import { t } from "../../i18n/locale";
 import type { SortState } from "../../sorting";
 import { DueDate } from "./DueDate";
 import { actionLabel, nextStep } from "./workflow";
@@ -41,7 +42,7 @@ export function TaskTable({
               <input
                 type="checkbox"
                 className="checkbox"
-                aria-label="Select all tasks on this page"
+                aria-label={t().tasks.selectAll}
                 checked={allSelected}
                 ref={(input) => {
                   if (input) input.indeterminate = selectedOnPage > 0 && !allSelected;
@@ -49,16 +50,16 @@ export function TaskTable({
                 onChange={(event) => onSelect(tasks.map((task) => task.id), event.target.checked)}
               />
             </th>
-            <SortHeader label="Task" column="title" sort={sort} onSort={onSort} />
-            <SortHeader label="Status" column="status" sort={sort} onSort={onSort} />
-            <SortHeader label="Priority" column="priority" sort={sort} onSort={onSort} />
-            {showCountry && <SortHeader label="Country" column="country" sort={sort} onSort={onSort} />}
-            <SortHeader label="Location" column="location" sort={sort} onSort={onSort} />
-            <SortHeader label="Assignee" column="assignee" sort={sort} onSort={onSort} />
-            <SortHeader label="Due" column="due_date" sort={sort} onSort={onSort} />
-            <SortHeader label="Created" column="created_at" sort={sort} onSort={onSort} />
+            <SortHeader label={t().tasks.task} column="title" sort={sort} onSort={onSort} />
+            <SortHeader label={t().tasks.status} column="status" sort={sort} onSort={onSort} />
+            <SortHeader label={t().tasks.priority} column="priority" sort={sort} onSort={onSort} />
+            {showCountry && <SortHeader label={t().tasks.country} column="country" sort={sort} onSort={onSort} />}
+            <SortHeader label={t().tasks.location} column="location" sort={sort} onSort={onSort} />
+            <SortHeader label={t().tasks.assignee} column="assignee" sort={sort} onSort={onSort} />
+            <SortHeader label={t().tasks.due} column="due_date" sort={sort} onSort={onSort} />
+            <SortHeader label={t().tasks.createdColumn} column="created_at" sort={sort} onSort={onSort} />
             <th scope="col" className="cell-actions">
-              <span className="visually-hidden">Actions</span>
+              <span className="visually-hidden">{t().tasks.actions}</span>
             </th>
           </tr>
         </thead>
@@ -69,7 +70,7 @@ export function TaskTable({
                 <input
                   type="checkbox"
                   className="checkbox"
-                  aria-label={`Select ${task.title}`}
+                  aria-label={t().tasks.selectTask(task.title)}
                   checked={selected.has(task.id)}
                   onChange={(event) => onSelect([task.id], event.target.checked)}
                 />
@@ -80,27 +81,27 @@ export function TaskTable({
                 </Link>
                 <TaskMeta task={task} />
               </td>
-              <td data-label="Status">
+              <td data-label={t().tasks.status}>
                 <StatusBadge status={task.status} />
               </td>
-              <td data-label="Priority">
+              <td data-label={t().tasks.priority}>
                 <PriorityText priority={task.priority} />
               </td>
               {showCountry && (
-                <td className="cell-muted" data-label="Country">
+                <td className="cell-muted" data-label={t().tasks.country}>
                   {countryName(task.country)}
                 </td>
               )}
-              <td className="cell-muted" data-label="Location">
+              <td className="cell-muted" data-label={t().tasks.location}>
                 {task.location_name ?? "—"}
               </td>
-              <td data-label="Assignee">
+              <td data-label={t().tasks.assignee}>
                 <Person email={task.assigned_to_email} />
               </td>
-              <td className="cell-nowrap" data-label="Due">
+              <td className="cell-nowrap" data-label={t().tasks.due}>
                 <DueDate task={task} />
               </td>
-              <td className="cell-muted cell-nowrap" data-label="Created">
+              <td className="cell-muted cell-nowrap" data-label={t().tasks.createdColumn}>
                 <RelativeDate value={task.created_at} />
               </td>
               <td className="cell-actions row-actions">
@@ -133,15 +134,15 @@ function QuickAction({
       aria-label={`${actionLabel(task.status, next)}: ${task.title}`}
       onClick={() => onAdvance(task, next)}
     >
-      {pending ? "Saving…" : actionLabel(task.status, next)}
+      {pending ? t().common.saving : actionLabel(task.status, next)}
     </button>
   );
 }
 
 function TaskMeta({ task }: { task: TaskResponse }) {
   const parts: string[] = [];
-  if (task.checklist_total > 0) parts.push(`Checklist ${task.checklist_done}/${task.checklist_total}`);
-  if (task.photo_required) parts.push(task.photo_count > 0 ? "Photo added" : "Photo required");
+  if (task.checklist_total > 0) parts.push(t().tasks.checklistProgress(task.checklist_done, task.checklist_total));
+  if (task.photo_required) parts.push(task.photo_count > 0 ? t().tasks.photoAdded : t().tasks.photoRequired);
   if (task.rrule) parts.push(rruleLabel(task.rrule));
   if (parts.length === 0) return null;
   return <span className="cell-sub">{parts.join(" · ")}</span>;

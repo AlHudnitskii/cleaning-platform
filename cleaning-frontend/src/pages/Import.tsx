@@ -11,32 +11,34 @@ import { PageHeader } from "../components/PageHeader";
 import { Person } from "../components/People";
 import { showToast } from "../components/toast";
 import { useDownloadTemplate, useImportPreview, useImportTasks } from "../features/transfer/api";
+import { t } from "../i18n/locale";
 import { rruleLabel } from "../labels";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = [".xlsx", ".csv"];
 
-const COLUMNS = [
-  { name: "title", required: true, description: "Task title, 3–255 characters" },
-  { name: "country", required: true, description: "Two-letter code: DE, NL, US…" },
-  { name: "description", required: false, description: "Free text" },
-  { name: "priority", required: false, description: "low / normal / high / urgent (default normal)" },
-  { name: "assignee_email", required: false, description: "Email of an active cleaner from the same country" },
-  { name: "location_name", required: false, description: "Exact location name in the same country" },
-  { name: "rrule", required: false, description: "Recurrence rule, e.g. FREQ=DAILY" },
-];
-
-const STEPS = ["Choose file", "Review", "Done"] as const;
+function columns(): { name: string; required: boolean; description: string }[] {
+  const messages = t().importing;
+  return [
+    { name: "title", required: true, description: messages.columnTitle },
+    { name: "country", required: true, description: messages.columnCountry },
+    { name: "description", required: false, description: messages.columnDescription },
+    { name: "priority", required: false, description: messages.columnPriority },
+    { name: "assignee_email", required: false, description: messages.columnAssignee },
+    { name: "location_name", required: false, description: messages.columnLocation },
+    { name: "rrule", required: false, description: messages.columnRrule },
+  ];
+}
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} bytes`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) return t().importing.bytes(bytes);
+  if (bytes < 1024 * 1024) return t().importing.kb((bytes / 1024).toFixed(1));
+  return t().importing.mb((bytes / (1024 * 1024)).toFixed(1));
 }
 
 function fileProblem(file: File): string | null {
-  if (!ACCEPTED.some((extension) => file.name.toLowerCase().endsWith(extension))) return "Choose a .xlsx or .csv file.";
-  if (file.size > MAX_BYTES) return "The file must be at most 5 MB.";
+  if (!ACCEPTED.some((extension) => file.name.toLowerCase().endsWith(extension))) return t().importing.wrongType;
+  if (file.size > MAX_BYTES) return t().importing.tooLarge;
   return null;
 }
 
@@ -70,26 +72,26 @@ export function Import() {
   const runImport = () => {
     if (!file) return;
     importTasks.mutate(file, {
-      onSuccess: (result) => showToast(`Imported ${result.imported} ${result.imported === 1 ? "task" : "tasks"}`),
+      onSuccess: (result) => showToast(t().importing.imported(result.imported)),
     });
   };
 
   return (
     <>
       <PageHeader
-        title="Import tasks"
-        description="Create many tasks at once from a CSV or Excel file. You review the result before anything is saved."
+        title={t().importing.title}
+        description={t().importing.description}
         actions={
           <button type="button" className="btn btn-secondary" disabled={template.isPending} onClick={() => template.mutate()}>
             <Icon name="import" size={15} />
-            {template.isPending ? "Preparing…" : "Download template"}
+            {template.isPending ? t().importing.preparing : t().importing.template}
           </button>
         }
       />
       {template.isError && <Notice tone="error">{errorMessage(template.error)}</Notice>}
 
-      <ol className="stepper" aria-label="Import progress">
-        {STEPS.map((label, index) => (
+      <ol className="stepper" aria-label={t().importing.progress}>
+        {t().importing.steps.map((label, index) => (
           <li
             key={label}
             className={index < step ? "is-done" : index === step ? "is-current" : undefined}
@@ -120,11 +122,11 @@ export function Import() {
               <p className="muted">{formatSize(file.size)}</p>
             </div>
             <button type="button" className="btn btn-ghost btn-small" onClick={restart}>
-              Choose another file
+              {t().importing.chooseAnother}
             </button>
           </div>
           {preview.isPending ? (
-            <ListSkeleton label="Checking the file" rows={4} columns={5} />
+            <ListSkeleton label={t().importing.checking} rows={4} columns={5} />
           ) : preview.isError ? (
             <Notice tone="error">{errorMessage(preview.error)}</Notice>
           ) : preview.data ? (
@@ -144,17 +146,17 @@ export function Import() {
             <Icon name="check" size={22} />
           </span>
           <h2 id="done-title" className="section-title">
-            {importTasks.data.imported} {importTasks.data.imported === 1 ? "task" : "tasks"} imported
+            {t().importing.importedTitle(importTasks.data.imported)}
           </h2>
           {importTasks.data.errors.length > 0 && (
-            <p className="muted">{importTasks.data.errors.length} rows were skipped because of errors.</p>
+            <p className="muted">{t().importing.skippedAfter(importTasks.data.errors.length)}</p>
           )}
           <div className="button-row">
             <Link className="btn btn-primary" to="/tasks">
-              View tasks
+              {t().importing.viewTasks}
             </Link>
             <button type="button" className="btn btn-secondary" onClick={restart}>
-              Import another file
+              {t().importing.importAnother}
             </button>
           </div>
         </section>
@@ -176,7 +178,7 @@ function FilePicker({ problem, onChoose }: { problem: string | null; onChoose: (
   return (
     <section className="card" aria-labelledby="upload-title">
       <h2 id="upload-title" className="section-title">
-        Upload file
+        {t().importing.upload}
       </h2>
       {problem && <Notice tone="error">{problem}</Notice>}
       <label
@@ -192,8 +194,8 @@ function FilePicker({ problem, onChoose }: { problem: string | null; onChoose: (
         <span className="dropzone-icon" aria-hidden="true">
           <Icon name="import" size={22} />
         </span>
-        <span className="dropzone-title">Drop a file here or click to choose</span>
-        <span className="muted">.xlsx or .csv, up to 5 MB and 5,000 rows</span>
+        <span className="dropzone-title">{t().importing.drop}</span>
+        <span className="muted">{t().importing.limits}</span>
       </label>
       <input
         id={inputId}
@@ -226,22 +228,22 @@ function Review({
       <div className="import-summary">
         <div className="import-stat tone-success">
           <span className="import-stat-value">{result.valid_rows}</span>
-          <span className="import-stat-label">ready to import</span>
+          <span className="import-stat-label">{t().importing.ready}</span>
         </div>
         <div className={`import-stat ${result.errors.length > 0 ? "tone-danger" : "tone-neutral"}`}>
           <span className="import-stat-value">{result.errors.length}</span>
-          <span className="import-stat-label">with errors</span>
+          <span className="import-stat-label">{t().importing.withErrors}</span>
         </div>
         <div className="import-stat tone-neutral">
           <span className="import-stat-value">{result.total_rows}</span>
-          <span className="import-stat-label">rows in file</span>
+          <span className="import-stat-label">{t().importing.rowsInFile}</span>
         </div>
       </div>
 
       {result.errors.length > 0 && (
         <details className="error-details" open={result.valid_rows === 0}>
           <summary>
-            {result.errors.length} {result.errors.length === 1 ? "row will be skipped" : "rows will be skipped"}
+            {t().importing.willBeSkipped(result.errors.length)}
           </summary>
           <ul className="error-list">
             {result.errors.map((error) => (
@@ -257,13 +259,13 @@ function Review({
             <thead>
               <tr>
                 <th scope="col" className="cell-index">
-                  Row
+                  {t().importing.row}
                 </th>
-                <th scope="col">Title</th>
-                <th scope="col">Priority</th>
-                <th scope="col">Location</th>
-                <th scope="col">Assignee</th>
-                <th scope="col">Repeats</th>
+                <th scope="col">{t().importing.titleColumn}</th>
+                <th scope="col">{t().importing.priority}</th>
+                <th scope="col">{t().importing.location}</th>
+                <th scope="col">{t().importing.assignee}</th>
+                <th scope="col">{t().importing.repeats}</th>
               </tr>
             </thead>
             <tbody>
@@ -283,7 +285,7 @@ function Review({
               ))}
             </tbody>
           </table>
-          {hidden > 0 && <p className="muted preview-more">and {hidden} more…</p>}
+          {hidden > 0 && <p className="muted preview-more">{t().importing.more(hidden)}</p>}
         </div>
       )}
 
@@ -291,10 +293,10 @@ function Review({
       <div className="form-actions form-actions-end">
         <button type="button" className="btn btn-primary" disabled={result.valid_rows === 0 || importing} onClick={onImport}>
           {importing
-            ? "Importing…"
+            ? t().importing.importing
             : result.valid_rows === 0
-              ? "Nothing to import"
-              : `Import ${result.valid_rows} ${result.valid_rows === 1 ? "task" : "tasks"}`}
+              ? t().importing.nothing
+              : t().importing.importCount(result.valid_rows)}
         </button>
       </div>
     </>
@@ -305,22 +307,22 @@ function FormatReference({ managerCountry }: { managerCountry: boolean }) {
   return (
     <section className="card" aria-labelledby="format-title">
       <h2 id="format-title" className="section-title">
-        File format
+        {t().importing.format}
       </h2>
       <div className="table-scroll">
         <table className="table table-compact">
           <thead>
             <tr>
-              <th scope="col">Column</th>
-              <th scope="col">Meaning</th>
+              <th scope="col">{t().importing.column}</th>
+              <th scope="col">{t().importing.meaning}</th>
             </tr>
           </thead>
           <tbody>
-            {COLUMNS.map((column) => (
+            {columns().map((column) => (
               <tr key={column.name}>
                 <td className="cell-nowrap">
                   <code>{column.name}</code>
-                  {column.required && <span className="required-mark">required</span>}
+                  {column.required && <span className="required-mark">{t().importing.required}</span>}
                 </td>
                 <td className="cell-muted">{column.description}</td>
               </tr>
@@ -328,7 +330,7 @@ function FormatReference({ managerCountry }: { managerCountry: boolean }) {
           </tbody>
         </table>
       </div>
-      {managerCountry && <p className="muted">As a manager, every imported task is created in your country.</p>}
+      {managerCountry && <p className="muted">{t().importing.managerNote}</p>}
     </section>
   );
 }

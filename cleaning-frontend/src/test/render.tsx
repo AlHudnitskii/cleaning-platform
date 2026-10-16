@@ -4,7 +4,7 @@ import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import type { UserResponse } from "../api/types";
-import { AppRoutes } from "../App";
+import { LocalizedRoutes } from "../App";
 import { AuthProvider } from "../auth/AuthContext";
 import { saveProfile } from "../auth/session";
 import { server, sessionHandlers } from "./server";
@@ -31,7 +31,7 @@ export function renderApp(route: string, user?: UserResponse) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <MemoryRouter initialEntries={[route]}>
-          <AppRoutes />
+          <LocalizedRoutes />
           <LocationProbe />
         </MemoryRouter>
       </AuthProvider>

@@ -5,6 +5,7 @@ import type { TaskResponse } from "../../api/types";
 import { Loading, Notice } from "../../components/Feedback";
 import { Icon } from "../../components/Icon";
 import { showToast } from "../../components/toast";
+import { t } from "../../i18n/locale";
 import { useAddChecklistItem, useChecklist, useDeleteChecklistItem, useToggleChecklistItem } from "./api";
 
 const LOCKED = ["completed", "cancelled"];
@@ -35,11 +36,11 @@ export function Checklist({ task, canTick, canEdit }: { task: TaskResponse; canT
     <section className="card" aria-labelledby="checklist-title">
       <div className="section-header">
         <h2 id="checklist-title" className="section-title">
-          Checklist
+          {t().checklist.title}
         </h2>
         {items.length > 0 && (
           <span className={`checklist-count${done === items.length ? " is-complete" : ""}`}>
-            {done} of {items.length} done
+            {t().checklist.done(done, items.length)}
           </span>
         )}
       </div>
@@ -47,7 +48,7 @@ export function Checklist({ task, canTick, canEdit }: { task: TaskResponse; canT
         <div
           className="checklist-progress"
           role="progressbar"
-          aria-label="Checklist progress"
+          aria-label={t().checklist.progress}
           aria-valuemin={0}
           aria-valuemax={items.length}
           aria-valuenow={done}
@@ -56,12 +57,12 @@ export function Checklist({ task, canTick, canEdit }: { task: TaskResponse; canT
         </div>
       )}
       {checklist.isPending ? (
-        <Loading label="Loading checklist" />
+        <Loading label={t().checklist.loading} />
       ) : checklist.isError ? (
         <Notice tone="error">
-          <span>Could not load the checklist: {errorMessage(checklist.error)}</span>
+          <span>{t().checklist.loadFailed(errorMessage(checklist.error))}</span>
           <button type="button" className="btn btn-secondary btn-small" onClick={() => void checklist.refetch()}>
-            Try again
+            {t().common.tryAgain}
           </button>
         </Notice>
       ) : (
@@ -87,7 +88,7 @@ export function Checklist({ task, canTick, canEdit }: { task: TaskResponse; canT
                 <button
                   type="button"
                   className="icon-button checklist-remove"
-                  aria-label={`Remove “${item.text}”`}
+                  aria-label={t().checklist.remove(item.text)}
                   onClick={() =>
                     remove.mutate(item.id, { onError: (error) => showToast(errorMessage(error), "error") })
                   }
@@ -105,12 +106,12 @@ export function Checklist({ task, canTick, canEdit }: { task: TaskResponse; canT
             className="input"
             value={text}
             maxLength={255}
-            placeholder="Add a step, for example “Empty the bins”"
-            aria-label="New checklist item"
+            placeholder={t().checklist.placeholder}
+            aria-label={t().checklist.newItem}
             onChange={(event) => setText(event.target.value)}
           />
           <button type="submit" className="btn btn-secondary" disabled={!text.trim() || add.isPending}>
-            Add
+            {t().common.add}
           </button>
         </form>
       )}

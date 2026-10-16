@@ -1,38 +1,43 @@
+import { t } from "../i18n/locale";
 import { Drawer } from "./Drawer";
 
-const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
-  {
-    title: "Anywhere",
-    items: [
-      { keys: ["/"], label: "Search on the current page" },
-      { keys: ["?"], label: "Show this list" },
-      { keys: ["Esc"], label: "Close a panel, menu or calendar" },
-    ],
-  },
-  {
-    title: "Go to",
-    items: [
-      { keys: ["G", "D"], label: "Dashboard" },
-      { keys: ["G", "T"], label: "Tasks" },
-      { keys: ["G", "R"], label: "Reports" },
-      { keys: ["G", "L"], label: "Locations" },
-      { keys: ["G", "U"], label: "Users" },
-      { keys: ["G", "P"], label: "Profile" },
-    ],
-  },
-  {
-    title: "Lists",
-    items: [{ keys: ["N"], label: "Create a task, user or location" }],
-  },
-];
+function groups(): { title: string; items: { keys: string[]; label: string }[] }[] {
+  const shortcuts = t().shortcuts;
+  const nav = t().nav;
+  return [
+    {
+      title: shortcuts.anywhere,
+      items: [
+        { keys: ["/"], label: shortcuts.search },
+        { keys: ["?"], label: shortcuts.showList },
+        { keys: ["Esc"], label: shortcuts.close },
+      ],
+    },
+    {
+      title: shortcuts.goTo,
+      items: [
+        { keys: ["G", "D"], label: nav.dashboard },
+        { keys: ["G", "T"], label: nav.tasks },
+        { keys: ["G", "R"], label: nav.reports },
+        { keys: ["G", "L"], label: nav.locations },
+        { keys: ["G", "U"], label: nav.users },
+        { keys: ["G", "P"], label: nav.profile },
+      ],
+    },
+    {
+      title: shortcuts.lists,
+      items: [{ keys: ["N"], label: shortcuts.create }],
+    },
+  ];
+}
 
 export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   return (
-    <Drawer title="Keyboard shortcuts" description="Shortcuts are ignored while you type in a field." onClose={onClose}>
+    <Drawer title={t().nav.keyboardShortcuts} description={t().shortcuts.hint} onClose={onClose}>
       <div className="drawer-body">
-        {GROUPS.map((group) => (
-          <section key={group.title} className="shortcut-group" aria-labelledby={`shortcuts-${group.title}`}>
-            <h3 id={`shortcuts-${group.title}`} className="subsection-title">
+        {groups().map((group, groupIndex) => (
+          <section key={group.title} className="shortcut-group" aria-labelledby={`shortcuts-${groupIndex}`}>
+            <h3 id={`shortcuts-${groupIndex}`} className="subsection-title">
               {group.title}
             </h3>
             <dl className="shortcut-list">
@@ -42,7 +47,7 @@ export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
                   <dd>
                     {item.keys.map((key, index) => (
                       <span key={key}>
-                        {index > 0 && <span className="shortcut-then">then</span>}
+                        {index > 0 && <span className="shortcut-then">{t().shortcuts.then}</span>}
                         <kbd className="kbd">{key}</kbd>
                       </span>
                     ))}

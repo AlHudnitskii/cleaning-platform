@@ -22,6 +22,7 @@ import { StatusActions } from "../features/tasks/StatusActions";
 import { TaskActivity } from "../features/tasks/TaskActivity";
 import { TaskForm } from "../features/tasks/TaskForm";
 import { blockerText } from "../features/tasks/workflow";
+import { t } from "../i18n/locale";
 import { countryName, formatDateTime, formatOccurrence, rruleLabel } from "../labels";
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -52,7 +53,7 @@ function TaskDetailContent({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  if (task.isPending) return <ListSkeleton label="Loading task" rows={4} columns={3} />;
+  if (task.isPending) return <ListSkeleton label={t().taskDetail.loading} rows={4} columns={3} />;
   if (task.isError) return <ErrorState error={task.error} onRetry={() => void task.refetch()} />;
 
   const data = task.data;
@@ -62,14 +63,14 @@ function TaskDetailContent({ id }: { id: string }) {
     <>
       <Link to={backTo} className="back-link">
         <Icon name="back" size={15} />
-        Back to tasks
+        {t().taskDetail.back}
       </Link>
       <header className="task-header">
         <div className="task-header-main">
           <div className="badge-group">
             <StatusBadge status={data.status} />
-            {data.is_recurring && <span className="badge tone-info">Recurring</span>}
-            {queued && <span className="badge tone-warning">Waiting to sync</span>}
+            {data.is_recurring && <span className="badge tone-info">{t().common.recurring}</span>}
+            {queued && <span className="badge tone-warning">{t().common.waitingToSync}</span>}
             {data.due_date && <DueDate task={data} />}
           </div>
           <h1 className="page-title task-title">{data.title}</h1>
@@ -84,13 +85,13 @@ function TaskDetailContent({ id }: { id: string }) {
             <div className="button-row">
               <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
                 <Icon name="edit" size={15} />
-                Edit
+                {t().taskDetail.edit}
               </button>
               <button
                 type="button"
                 className="icon-button icon-button-danger"
-                aria-label={`Delete ${data.title}`}
-                title="Delete task"
+                aria-label={t().taskDetail.delete(data.title)}
+                title={t().taskDetail.deleteTask}
                 onClick={() => setConfirmingDelete(true)}
               >
                 <Icon name="trash" />
@@ -100,42 +101,42 @@ function TaskDetailContent({ id }: { id: string }) {
         </div>
       </header>
       {editing && (
-        <Drawer title="Edit task" onClose={() => setEditing(false)}>
+        <Drawer title={t().taskDetail.editTask} onClose={() => setEditing(false)}>
           <TaskForm
             user={user}
             task={data}
             onCancel={() => setEditing(false)}
             onSaved={(updated) => {
               setEditing(false);
-              showToast(`“${updated.title}” saved`);
+              showToast(t().taskDetail.saved(updated.title));
             }}
           />
         </Drawer>
       )}
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete “${data.title}”?`}
-          confirmLabel="Delete task"
+          title={t().taskDetail.deleteQuestion(data.title)}
+          confirmLabel={t().taskDetail.deleteTask}
           busy={deleteTask.isPending}
           error={deleteTask.isError ? errorMessage(deleteTask.error) : null}
           onCancel={() => setConfirmingDelete(false)}
           onConfirm={() =>
             deleteTask.mutate(data.id, {
               onSuccess: () => {
-                showToast(`“${data.title}” deleted`);
+                showToast(t().taskDetail.deleted(data.title));
                 void navigate(backTo, { replace: true });
               },
             })
           }
         >
-          <p>Its comments, status history and photos are deleted too. This cannot be undone.</p>
+          <p>{t().taskDetail.deleteHint}</p>
         </ConfirmDialog>
       )}
       {data.status === "in_progress" && data.review_blockers.length > 0 && (
         <Notice tone="info">{blockerText(data)}</Notice>
       )}
       {!offline.online && (
-        <Notice tone="warning">You are offline. Status changes will be sent when the connection is back.</Notice>
+        <Notice tone="warning">{t().taskDetail.offline}</Notice>
       )}
       {offline.changeStatus.isError && <Notice tone="error">{errorMessage(offline.changeStatus.error)}</Notice>}
 
@@ -145,7 +146,7 @@ function TaskDetailContent({ id }: { id: string }) {
           {data.description && (
             <section className="card" aria-labelledby="description-title">
               <h2 id="description-title" className="section-title">
-                Description
+                {t().taskDetail.description}
               </h2>
               <p className="task-description">{data.description}</p>
             </section>
@@ -155,32 +156,32 @@ function TaskDetailContent({ id }: { id: string }) {
           {data.is_recurring && <OccurrencesSection taskId={data.id} />}
         </div>
 
-        <aside className="task-aside" aria-label="Task properties">
+        <aside className="task-aside" aria-label={t().taskDetail.propertiesLabel}>
           <section className="card property-card" aria-labelledby="properties-title">
             <h2 id="properties-title" className="subsection-title">
-              Properties
+              {t().taskDetail.properties}
             </h2>
             <dl className="property-list">
               <div>
-                <dt>Priority</dt>
+                <dt>{t().taskDetail.priority}</dt>
                 <dd>
                   <PriorityText priority={data.priority} />
                 </dd>
               </div>
               <div>
-                <dt>Due date</dt>
+                <dt>{t().taskDetail.dueDate}</dt>
                 <dd>
-                  <DueDate task={data} empty="Not set" />
+                  <DueDate task={data} empty={t().common.notSet} />
                 </dd>
               </div>
               <div>
-                <dt>Assignee</dt>
+                <dt>{t().taskDetail.assignee}</dt>
                 <dd>
                   <Person email={data.assigned_to_email} />
                 </dd>
               </div>
               <div>
-                <dt>Location</dt>
+                <dt>{t().taskDetail.location}</dt>
                 <dd>
                   {data.location_path.length > 0 ? (
                     <span className="location-path">
@@ -189,23 +190,23 @@ function TaskDetailContent({ id }: { id: string }) {
                       ))}
                     </span>
                   ) : (
-                    <span className="muted">Not set</span>
+                    <span className="muted">{t().common.notSet}</span>
                   )}
                 </dd>
               </div>
               <div>
-                <dt>Country</dt>
+                <dt>{t().taskDetail.country}</dt>
                 <dd>{countryName(data.country)}</dd>
               </div>
               <div>
-                <dt>Created</dt>
+                <dt>{t().taskDetail.created}</dt>
                 <dd>
                   <RelativeDate value={data.created_at} />
                 </dd>
               </div>
               {data.rrule && (
                 <div>
-                  <dt>Repeats</dt>
+                  <dt>{t().taskDetail.repeats}</dt>
                   <dd>{rruleLabel(data.rrule)}</dd>
                 </div>
               )}
@@ -225,11 +226,11 @@ function QualitySection({ task, user }: { task: TaskResponse; user: UserResponse
   return (
     <section className="card property-card" aria-labelledby="quality-title">
       <h2 id="quality-title" className="subsection-title">
-        Quality review
+        {t().taskDetail.quality}
       </h2>
       <StarDisplay value={task.quality_score} />
       {task.quality_comment && <p>{task.quality_comment}</p>}
-      {task.quality_reviewed_at && <p className="muted">Reviewed {formatDateTime(task.quality_reviewed_at)}</p>}
+      {task.quality_reviewed_at && <p className="muted">{t().taskDetail.reviewed(formatDateTime(task.quality_reviewed_at))}</p>}
     </section>
   );
 }
@@ -242,24 +243,24 @@ function QualityReviewForm({ task }: { task: TaskResponse }) {
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (score === 0) return;
-    review.mutate({ score, comment: comment.trim() || undefined }, { onSuccess: () => showToast("Review saved.") });
+    review.mutate({ score, comment: comment.trim() || undefined }, { onSuccess: () => showToast(t().taskDetail.reviewSaved) });
   };
 
   return (
     <section className="card property-card" aria-labelledby="review-title">
       <h2 id="review-title" className="subsection-title">
-        Quality review
+        {t().taskDetail.quality}
       </h2>
       {review.isError && <Notice tone="error">{errorMessage(review.error)}</Notice>}
       <form className="stack" onSubmit={handleSubmit}>
-        <StarInput legend="Score" value={score} onChange={setScore} />
-        <Field label="Comment (optional)">
+        <StarInput legend={t().taskDetail.score} value={score} onChange={setScore} />
+        <Field label={t().taskDetail.comment}>
           <textarea className="input" rows={3} maxLength={2000} value={comment} onChange={(e) => setComment(e.target.value)} />
         </Field>
         <button className="btn btn-primary" type="submit" disabled={score === 0 || review.isPending}>
-          {review.isPending ? "Saving…" : "Save review"}
+          {review.isPending ? t().common.saving : t().taskDetail.saveReview}
         </button>
-        {score === 0 && <p className="field-hint">Choose a score to save the review.</p>}
+        {score === 0 && <p className="field-hint">{t().taskDetail.chooseScore}</p>}
       </form>
     </section>
   );
@@ -270,15 +271,15 @@ function PhotosSection({ taskId, online }: { taskId: string; online: boolean }) 
   return (
     <section className="card" aria-labelledby="photos-title">
       <h2 id="photos-title" className="section-title">
-        Photos
+        {t().taskDetail.photos}
       </h2>
       <PhotoUpload taskId={taskId} online={online} />
       {photos.isPending ? (
-        <Loading label="Loading photos" />
+        <Loading label={t().taskDetail.loadingPhotos} />
       ) : photos.isError ? (
         <ErrorState error={photos.error} onRetry={() => void photos.refetch()} />
       ) : photos.data.length === 0 ? (
-        <p className="activity-empty">No photos yet. Photos show the result of the work.</p>
+        <p className="activity-empty">{t().taskDetail.noPhotos}</p>
       ) : (
         <ul className="photo-grid">
           {photos.data.filter((photo) => isHttpUrl(photo.url)).map((photo) => (
@@ -300,10 +301,10 @@ function OccurrencesSection({ taskId }: { taskId: string }) {
   return (
     <section className="card" aria-labelledby="occurrences-title">
       <h2 id="occurrences-title" className="section-title">
-        Next occurrences
+        {t().taskDetail.occurrences}
       </h2>
       {occurrences.isPending ? (
-        <Loading label="Loading schedule" />
+        <Loading label={t().taskDetail.loadingSchedule} />
       ) : occurrences.isError ? (
         <ErrorState error={occurrences.error} onRetry={() => void occurrences.refetch()} />
       ) : (

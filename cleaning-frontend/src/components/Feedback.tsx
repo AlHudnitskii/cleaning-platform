@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { toApiError } from "../api/errors";
+import { t } from "../i18n/locale";
 
-export function Loading({ label = "Loading" }: { label?: string }) {
+export function Loading({ label = t().common.loading }: { label?: string }) {
   return (
     <div className="state" role="status" aria-live="polite">
       <span className="spinner" aria-hidden="true" />
@@ -61,28 +62,24 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   const apiError = toApiError(error);
   if (apiError.kind === "not_found") return <NotFoundState />;
   if (apiError.kind === "forbidden") {
-    return <StatusPage code="403" title="You don't have access" hint={apiError.message} />;
+    return <StatusPage code="403" title={t().feedback.noAccess} hint={apiError.message} />;
   }
   return (
     <div className="state state-error" role="alert">
-      <p className="state-title">Could not load data</p>
+      <p className="state-title">{t().feedback.couldNotLoad}</p>
       <p className="state-hint">{apiError.message}</p>
       {onRetry && (
         <button type="button" className="btn btn-secondary" onClick={onRetry}>
-          Try again
+          {t().common.tryAgain}
         </button>
       )}
     </div>
   );
 }
 
-export function NotFoundState({ what = "page" }: { what?: string }) {
+export function NotFoundState({ what = "page" }: { what?: "page" | "task" }) {
   return (
-    <StatusPage
-      code="404"
-      title={`This ${what} does not exist`}
-      hint="It may have been removed, the link may be mistyped, or you may not have access to it."
-    />
+    <StatusPage code="404" title={t().feedback.doesNotExist(t().feedback[what])} hint={t().feedback.notFoundHint} />
   );
 }
 
@@ -97,10 +94,10 @@ function StatusPage({ code, title, hint }: { code: string; title: string; hint: 
       <p className="status-hint">{hint}</p>
       <div className="button-row">
         <Link className="btn btn-primary" to="/">
-          Go to start page
+          {t().common.goToStart}
         </Link>
         <button type="button" className="btn btn-secondary" onClick={() => void navigate(-1)}>
-          Go back
+          {t().common.goBack}
         </button>
       </div>
     </div>

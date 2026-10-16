@@ -1,5 +1,6 @@
 import type { Ref } from "react";
 
+import { t } from "../i18n/locale";
 import { Icon } from "./Icon";
 
 export function SearchField({
@@ -39,7 +40,7 @@ export function SearchField({
         }}
       />
       {value ? (
-        <button type="button" className="search-clear" aria-label="Clear search" onClick={() => onChange("")}>
+        <button type="button" className="search-clear" aria-label={t().search.clear} onClick={() => onChange("")}>
           <Icon name="close" size={13} />
         </button>
       ) : (

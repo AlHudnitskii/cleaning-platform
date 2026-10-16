@@ -9,6 +9,7 @@ import { useAuth } from "./auth/useAuth";
 import { AppShell } from "./components/AppShell";
 import { Loading, NotFoundState } from "./components/Feedback";
 import { useTaskEvents } from "./features/realtime/useTaskEvents";
+import { t, useLocale } from "./i18n/locale";
 import { Dashboard } from "./pages/Dashboard";
 import { Export } from "./pages/Export";
 import { Import } from "./pages/Import";
@@ -35,12 +36,12 @@ function AppLayout() {
 
 function HomeRedirect() {
   const { state } = useAuth();
-  if (state.status === "loading") return <Loading label="Restoring session" />;
+  if (state.status === "loading") return <Loading label={t().app.restoringSession} />;
   if (state.status === "anonymous") return <Navigate to="/login" replace />;
   return <Navigate to={homePath(state.user.role)} replace />;
 }
 
-export function AppRoutes() {
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -72,12 +73,17 @@ function guard(roles: readonly ("admin" | "manager" | "cleaner")[], element: Rea
   return <RequireRole roles={roles}>{element}</RequireRole>;
 }
 
+export function LocalizedRoutes() {
+  useLocale();
+  return <AppRoutes />;
+}
+
 export function App({ queryClient }: { queryClient: QueryClient }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <LocalizedRoutes />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { t } from "../i18n/locale";
+
 interface State {
   error: Error | null;
 }
@@ -20,19 +22,16 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, State>
     return (
       <div className="status-page" role="alert">
         <span className="status-code" aria-hidden="true">
-          Oops
+          {t().feedback.oops}
         </span>
-        <h1 className="status-title">This page could not be shown</h1>
-        <p className="status-hint">
-          Reload the page. If it keeps happening, the app and the server may be different versions — restart the server
-          or ask your administrator.
-        </p>
+        <h1 className="status-title">{t().feedback.crashTitle}</h1>
+        <p className="status-hint">{t().feedback.crashHint}</p>
         <div className="button-row">
           <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
-            Reload page
+            {t().feedback.reload}
           </button>
           <a className="btn btn-secondary" href="/">
-            Go to start page
+            {t().common.goToStart}
           </a>
         </div>
       </div>

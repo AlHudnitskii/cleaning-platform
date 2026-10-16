@@ -77,6 +77,7 @@ def can_assign(task_country: str, assignee_role: str, assignee_country: str | No
 
 
 LOCKED_STATUSES = frozenset({S.COMPLETED, S.CANCELLED})
+OPEN_STATUSES = frozenset(TaskStatus) - LOCKED_STATUSES
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@ from azure.core.exceptions import AzureError
 from sqlalchemy import select
 
 from src.api.http import ApiError, authenticated, parse_date, query_choice
-from src.api.task_store import day_end_exclusive, day_start
+from src.api.task_queries import day_end_exclusive, day_start
 from src.domain.models.enums import Country, UserRole
 from src.domain.models.user import CurrentUser
 from src.infrastructure.blob.storage import EXPORTS_CONTAINER, upload_blob

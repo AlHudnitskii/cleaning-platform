@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.http import ApiError, authenticated, forbidden, json_response, not_found, read_model, route_uuid
-from src.api.task_store import load_visible_task
+from src.api.task_queries import load_visible_task
 from src.domain.models.enums import TaskStatus, UserRole
 from src.domain.models.task import (
     MAX_CHECKLIST_ITEMS,

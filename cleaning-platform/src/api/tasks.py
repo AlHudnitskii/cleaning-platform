@@ -21,12 +21,9 @@ from src.api.http import (
     read_model,
     route_uuid,
 )
-from src.api.task_store import (
-    change_status,
+from src.api.task_queries import (
     day_end_exclusive,
     day_start,
-    detailed_response,
-    ensure_assignable,
     load_visible_task,
     location_subtree,
     ordering,
@@ -34,8 +31,9 @@ from src.api.task_store import (
     scope_conditions,
     task_progress,
     task_rows,
-    to_response,
 )
+from src.api.task_responses import detailed_response, to_response
+from src.api.task_workflow import change_status, ensure_assignable, load_location
 from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus, UserRole
 from src.domain.models.task import QualityReview, TaskCreate, TaskStatusUpdate, TaskUpdate
 from src.domain.models.user import CurrentUser
@@ -65,10 +63,7 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
     async with session_scope() as session, session.begin():
         country: str = data.country
         if data.location_id:
-            location = await session.get(Location, data.location_id)
-            if location is None:
-                raise not_found(phrases.LOCATION)
-            country = location.country
+            country = (await load_location(session, data.location_id)).country
 
         if not task_access.can_manage_country(user, country):
             raise forbidden(phrases.CREATE_IN_OWN_COUNTRY())
@@ -119,9 +114,7 @@ async def update_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
             raise forbidden(phrases.EDIT_IN_OWN_COUNTRY())
 
         if "location_id" in changes and data.location_id:
-            location = await session.get(Location, data.location_id)
-            if location is None:
-                raise not_found(phrases.LOCATION)
+            location = await load_location(session, data.location_id)
             if location.country != task.country:
                 raise ApiError(400, phrases.LOCATION_OTHER_COUNTRY())
         if "assigned_to" in changes and data.assigned_to and data.assigned_to != task.assigned_to:

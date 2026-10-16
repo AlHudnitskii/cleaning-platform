@@ -4,7 +4,8 @@ import azure.functions as func
 from pydantic import ValidationError
 
 from src.api.http import ApiError, authenticated, json_response, read_json, request_locale, validation_details
-from src.api.task_store import change_status, last_status_change, load_visible_task
+from src.api.task_queries import last_status_change, load_visible_task
+from src.api.task_workflow import change_status
 from src.domain.models.task import SyncStatusChange
 from src.domain.models.user import CurrentUser
 from src.infrastructure.database.connection import session_scope

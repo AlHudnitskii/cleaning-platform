@@ -55,7 +55,6 @@ PATH_PARAMS = {
 }
 
 ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
-    ("post", "/auth/register", "Register a user", "UserRegister", "TokenResponse", False),
     ("post", "/auth/login", "Sign in; sets the refresh_token cookie", "UserLogin", "TokenResponse", False),
     ("post", "/auth/refresh", "Rotate the session using the refresh_token cookie", None, "TokenResponse", False),
     ("post", "/auth/logout", "Revoke all sessions of the cookie owner", None, None, False),

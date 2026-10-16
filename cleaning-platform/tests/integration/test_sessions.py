@@ -1,7 +1,12 @@
 import azure.functions as func
 import pytest
+from sqlalchemy import select
 
 from src.api import auth, tasks, users
+from src.infrastructure.database.connection import session_scope
+from src.infrastructure.database.models import PushSubscription, User
+from src.infrastructure.messaging import consumer
+from src.infrastructure.push.notifications import PushResult
 from tests.integration.conftest import call, payload
 
 pytestmark = pytest.mark.integration
@@ -107,3 +112,55 @@ async def test_cleaner_cannot_list_users(account):
     response = await call(users.get_users, headers=cleaner.headers)
 
     assert response.status_code == 403
+
+
+async def push_subscription_count(user_id) -> int:
+    async with session_scope() as session:
+        return len((await session.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id))).all())
+
+
+async def subscribe_device(user_id, endpoint: str = "https://push.example/device-1") -> None:
+    async with session_scope() as session, session.begin():
+        session.add(PushSubscription(user_id=user_id, endpoint=endpoint, p256dh="key", auth="auth"))
+
+
+async def test_logout_removes_push_subscriptions(account):
+    cleaner = await account("cleaner", "DE", PASSWORD)
+    await subscribe_device(cleaner.user.id)
+    cookie = refresh_cookie(await login(cleaner.user.email))
+
+    response = await call(auth.logout, "POST", headers={"Cookie": cookie})
+
+    assert response.status_code == 204
+    assert await push_subscription_count(cleaner.user.id) == 0
+
+
+async def test_deactivation_removes_push_subscriptions(account):
+    admin = await account("admin", None)
+    cleaner = await account("cleaner", "DE")
+    await subscribe_device(cleaner.user.id)
+
+    response = await call(users.toggle_active, "PATCH", headers=admin.headers, route={"user_id": str(cleaner.user.id)})
+
+    assert payload(response)["is_active"] is False
+    assert await push_subscription_count(cleaner.user.id) == 0
+
+
+async def test_push_is_not_sent_to_inactive_users(account, monkeypatch):
+    cleaner = await account("cleaner", "DE")
+    await subscribe_device(cleaner.user.id)
+    async with session_scope() as session, session.begin():
+        stored = await session.get(User, cleaner.user.id)
+        assert stored is not None
+        stored.is_active = False
+    sent: list[str] = []
+
+    async def fake_send(endpoint, *args):
+        sent.append(endpoint)
+        return PushResult.SENT
+
+    monkeypatch.setattr(consumer, "send_push_notification", fake_send)
+
+    await consumer.notify_user(cleaner.user.id, "New task assigned", "Clean lobby")
+
+    assert sent == []

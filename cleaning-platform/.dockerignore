@@ -8,3 +8,4 @@ tests
 .ruff_cache
 __pycache__
 *.pyc
+*.pem

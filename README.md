@@ -48,6 +48,11 @@ cd ../cleaning-frontend && npm ci
 cd .. && python3 start.py                 # инфраструктура, миграции, API, SSE, consumer, relay, фронтенд
 ```
 
+Безопасность локального окружения:
+- Postgres, RabbitMQ и Azurite слушают только `127.0.0.1`. Postgres требует пароль. Если том `postgres_data` создан до этого изменения, в нём остался режим `trust`: пересоздайте том (`docker compose down -v`, затем `seed.py`) или замените `trust` на `scram-sha-256` в `pg_hba.conf` внутри контейнера.
+- `private_key.pem` (VAPID) не хранится в git и не попадает в образ: создайте его через `generate_keys.py`. В `docker compose --profile app` ключ передаётся как секрет. После смены ключа пользователи включают уведомления заново.
+- Публичной регистрации нет: пользователей создаёт администратор на странице Users. Выход и деактивация удаляют push-подписки пользователя.
+
 Тестовые данные: `cd cleaning-platform && venv/bin/python seed.py` (очищает БД и создаёт пользователей `admin@cleaning.com / admin123`, `manager.de@cleaning.com / manager123`, `cleaner1@cleaning.com / cleaner123` и др.).
 
 Всё в контейнерах: `JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose --profile app up --build`.

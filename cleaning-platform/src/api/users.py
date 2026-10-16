@@ -1,5 +1,5 @@
 import azure.functions as func
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from src.api.auth import session_response
 from src.api.http import (
@@ -16,7 +16,7 @@ from src.domain.models.enums import Country, UserRole
 from src.domain.models.user import AssigneeResponse, CurrentUser, PasswordChange, UserRegister, UserResponse
 from src.infrastructure.auth.jwt_handler import hash_password, verify_password
 from src.infrastructure.database.connection import session_scope
-from src.infrastructure.database.models import User
+from src.infrastructure.database.models import PushSubscription, User
 
 bp = func.Blueprint()
 
@@ -88,6 +88,7 @@ async def toggle_active(req: func.HttpRequest, user: CurrentUser) -> func.HttpRe
         target.is_active = not target.is_active
         if not target.is_active:
             target.token_version += 1
+            await session.execute(delete(PushSubscription).where(PushSubscription.user_id == target.id))
 
     return json_response(UserResponse.model_validate(target))
 

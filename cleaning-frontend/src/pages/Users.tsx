@@ -4,6 +4,7 @@ import { errorMessage } from "../api/errors";
 import { COUNTRIES, SORT_ORDERS, USER_ROLES, type Country, type UserResponse, type UserRole } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
 import { RoleBadge } from "../components/Badges";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Drawer } from "../components/Drawer";
 import { EmptyState, ErrorState, ListSkeleton, Notice } from "../components/Feedback";
 import { Field, FilterControl } from "../components/Field";
@@ -14,7 +15,7 @@ import { RelativeDate } from "../components/People";
 import { Select } from "../components/Select";
 import { SortHeader } from "../components/SortHeader";
 import { showToast } from "../components/toast";
-import { useCreateUser, useToggleActive, useUsers } from "../features/users/api";
+import { useCreateUser, useResetPassword, useToggleActive, useUpdateUser, useUsers } from "../features/users/api";
 import { countryName, countryNames } from "../labels";
 import { t } from "../i18n/locale";
 import { useShortcut } from "../shortcuts";
@@ -73,6 +74,8 @@ export function Users() {
   };
   const toggle = useToggleActive();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<UserResponse | null>(null);
+  const [resetting, setResetting] = useState<UserResponse | null>(null);
   useShortcut("n", () => setCreating(true));
 
   const handleToggle = (userId: string) => {
@@ -98,12 +101,36 @@ export function Users() {
         <Drawer title={t().users.newUser} description={t().users.newUserHint} onClose={() => setCreating(false)}>
           <UserForm
             onCancel={() => setCreating(false)}
-            onCreated={(user) => {
+            onSaved={(user) => {
               setCreating(false);
               showToast(t().users.created(user.email));
             }}
           />
         </Drawer>
+      )}
+      {editing && (
+        <Drawer title={t().users.editTitle} description={t().users.editHint} onClose={() => setEditing(null)}>
+          <UserForm
+            existing={editing}
+            isSelf={editing.id === currentUser.id}
+            onCancel={() => setEditing(null)}
+            onResetPassword={() => setResetting(editing)}
+            onSaved={(user) => {
+              setEditing(null);
+              showToast(t().users.saved(user.email));
+            }}
+          />
+        </Drawer>
+      )}
+      {resetting && (
+        <ResetPasswordDialog
+          user={resetting}
+          onClose={() => setResetting(null)}
+          onDone={() => {
+            setResetting(null);
+            showToast(t().users.passwordReset(resetting.email));
+          }}
+        />
       )}
 
       <section className="list-card" aria-label={t().users.list}>
@@ -174,6 +201,14 @@ export function Users() {
                       <RelativeDate value={user.created_at} />
                     </td>
                     <td className="cell-actions row-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        aria-label={t().users.editUser(user.email)}
+                        onClick={() => setEditing(user)}
+                      >
+                        {t().users.edit}
+                      </button>
                       {user.id === currentUser.id ? (
                         <span className="badge tone-accent">{t().common.you}</span>
                       ) : (
@@ -206,29 +241,119 @@ export function Users() {
   );
 }
 
-function UserForm({ onCreated, onCancel }: { onCreated: (user: UserResponse) => void; onCancel: () => void }) {
-  const [email, setEmail] = useState("");
+function UserForm({
+  existing,
+  isSelf = false,
+  onSaved,
+  onCancel,
+  onResetPassword,
+}: {
+  existing?: UserResponse;
+  isSelf?: boolean;
+  onSaved: (user: UserResponse) => void;
+  onCancel: () => void;
+  onResetPassword?: () => void;
+}) {
+  const [email, setEmail] = useState(existing?.email ?? "");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("cleaner");
-  const [country, setCountry] = useState<Country>("DE");
+  const [role, setRole] = useState<UserRole>(existing?.role ?? "cleaner");
+  const [country, setCountry] = useState<Country>(existing?.country ?? "DE");
   const create = useCreateUser();
+  const update = useUpdateUser(existing?.id ?? "");
+  const save = existing ? update : create;
+  const isAdminRole = role === "admin";
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    create.mutate(
-      { email, password, role, country: role === "admin" ? undefined : country },
-      { onSuccess: (user) => onCreated(user) },
-    );
+    if (existing) {
+      update.mutate({ email, role, country: isAdminRole ? null : country }, { onSuccess: onSaved });
+      return;
+    }
+    create.mutate({ email, password, role, country: isAdminRole ? undefined : country }, { onSuccess: onSaved });
   };
+
+  const accessHint = isSelf ? t().users.ownAccessLocked : undefined;
+  const [idleLabel, busyLabel] = existing
+    ? [t().users.save, t().users.saving]
+    : [t().users.create, t().common.creating];
 
   return (
     <form className="drawer-form" onSubmit={handleSubmit}>
       <div className="drawer-body">
-        {create.isError && <Notice tone="error">{errorMessage(create.error)}</Notice>}
+        {save.isError && <Notice tone="error">{errorMessage(save.error)}</Notice>}
         <Field label={t().users.email}>
           <input className="input" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
-        <Field label={t().users.password} hint={t().users.passwordHint}>
+        {!existing && (
+          <Field label={t().users.password} hint={t().users.passwordHint}>
+            <input
+              className="input"
+              type="password"
+              autoComplete="new-password"
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </Field>
+        )}
+        <Field label={t().users.role} hint={accessHint}>
+          <Select value={role} disabled={isSelf} options={optionList(USER_ROLES, t().role)} onChange={setRole} />
+        </Field>
+        <Field label={t().users.country} hint={accessHint ?? (isAdminRole ? t().users.adminNoCountry : undefined)}>
+          <Select
+            value={country}
+            disabled={isSelf || isAdminRole}
+            options={optionList(COUNTRIES, countryNames())}
+            onChange={setCountry}
+          />
+        </Field>
+      </div>
+      <div className="drawer-footer">
+        {existing && !isSelf && onResetPassword && (
+          <button className="btn btn-secondary drawer-footer-start" type="button" onClick={onResetPassword}>
+            {t().users.resetPassword}
+          </button>
+        )}
+        <button className="btn btn-ghost" type="button" onClick={onCancel}>
+          {t().common.cancel}
+        </button>
+        <button className="btn btn-primary" type="submit" disabled={save.isPending}>
+          {save.isPending ? busyLabel : idleLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ResetPasswordDialog({ user, onClose, onDone }: { user: UserResponse; onClose: () => void; onDone: () => void }) {
+  const [password, setPassword] = useState("");
+  const reset = useResetPassword(user.id);
+  const tooShort = password.length < 6;
+
+  const submit = () => {
+    if (tooShort) return;
+    reset.mutate(password, { onSuccess: onDone });
+  };
+
+  return (
+    <ConfirmDialog
+      title={t().users.resetTitle(user.email)}
+      confirmLabel={t().users.resetConfirm}
+      busy={reset.isPending}
+      disabled={tooShort}
+      error={reset.isError ? errorMessage(reset.error) : null}
+      onConfirm={submit}
+      onCancel={onClose}
+    >
+      <p>{t().users.resetHint}</p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Field label={t().users.newPassword} hint={t().users.passwordHint}>
           <input
             className="input"
             type="password"
@@ -237,28 +362,10 @@ function UserForm({ onCreated, onCancel }: { onCreated: (user: UserResponse) => 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            data-autofocus
           />
         </Field>
-        <Field label={t().users.role}>
-          <Select value={role} options={optionList(USER_ROLES, t().role)} onChange={setRole} />
-        </Field>
-        <Field label={t().users.country} hint={role === "admin" ? t().users.adminNoCountry : undefined}>
-          <Select
-            value={country}
-            disabled={role === "admin"}
-            options={optionList(COUNTRIES, countryNames())}
-            onChange={setCountry}
-          />
-        </Field>
-      </div>
-      <div className="drawer-footer">
-        <button className="btn btn-ghost" type="button" onClick={onCancel}>
-          {t().common.cancel}
-        </button>
-        <button className="btn btn-primary" type="submit" disabled={create.isPending}>
-          {create.isPending ? t().common.creating : t().users.create}
-        </button>
-      </div>
-    </form>
+      </form>
+    </ConfirmDialog>
   );
 }

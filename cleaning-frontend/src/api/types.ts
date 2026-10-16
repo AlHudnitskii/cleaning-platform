@@ -180,6 +180,12 @@ export interface UserCreate {
   country?: Country;
 }
 
+export interface UserUpdate {
+  email: string;
+  role: UserRole;
+  country: Country | null;
+}
+
 export interface CountryCount {
   country: Country;
   count: number;

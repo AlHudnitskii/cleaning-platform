@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
-import { ADMIN, makeLocation } from "../test/fixtures";
+import { ADMIN, MANAGER, makeLocation } from "../test/fixtures";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
 
@@ -47,5 +47,77 @@ describe("Locations page", () => {
     const panel = screen.getByRole("dialog", { name: "New location" });
     expect(within(panel).getByRole("combobox", { name: "Level" })).toHaveTextContent("Building");
     expect(await within(panel).findByRole("combobox", { name: "Parent location" })).toHaveTextContent("Germany / Berlin");
+  });
+
+  it("renames a location and shows the new name", async () => {
+    let body: unknown = null;
+    let current = LOCATIONS;
+    server.use(
+      http.get("*/api/locations", () => HttpResponse.json(current)),
+      http.patch("*/api/locations/:id", async ({ request }) => {
+        body = await request.json();
+        current = LOCATIONS.map((location) => (location.id === "d" ? { ...location, name: "München" } : location));
+        return HttpResponse.json({ ...LOCATIONS[3], name: "München" });
+      }),
+    );
+    const { user } = renderApp("/locations", ADMIN);
+
+    await user.click(await screen.findByRole("button", { name: "Rename Munich" }));
+    const panel = screen.getByRole("dialog", { name: "Rename location" });
+    const name = within(panel).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "München");
+    await user.click(within(panel).getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Renamed to München")).toBeInTheDocument();
+    expect(body).toEqual({ name: "München" });
+    expect(within(screen.getByRole("list", { name: "Location tree" })).getByText("München")).toBeInTheDocument();
+  });
+
+  it("shows why a location cannot be deleted and keeps it", async () => {
+    server.use(
+      http.get("*/api/locations", () => HttpResponse.json(LOCATIONS)),
+      http.delete("*/api/locations/:id", () =>
+        HttpResponse.json({ error: "Delete or move the nested locations first" }, { status: 409 }),
+      ),
+    );
+    const { user } = renderApp("/locations", ADMIN);
+
+    await user.click(await screen.findByRole("button", { name: "Delete Berlin" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Delete “Berlin”?" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Delete or move the nested locations first");
+    expect(screen.getByText("Berlin HQ")).toBeInTheDocument();
+  });
+
+  it("deletes an unused location", async () => {
+    let deleted: string | null = null;
+    let current = LOCATIONS;
+    server.use(
+      http.get("*/api/locations", () => HttpResponse.json(current)),
+      http.delete("*/api/locations/:id", ({ params }) => {
+        deleted = String(params.id);
+        current = LOCATIONS.filter((location) => location.id !== "d");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { user } = renderApp("/locations", ADMIN);
+
+    await user.click(await screen.findByRole("button", { name: "Delete Munich" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("Munich deleted")).toBeInTheDocument();
+    expect(deleted).toBe("d");
+    expect(within(screen.getByRole("list", { name: "Location tree" })).queryByText("Munich")).not.toBeInTheDocument();
+  });
+
+  it("offers no editing to managers", async () => {
+    server.use(http.get("*/api/locations", () => HttpResponse.json(LOCATIONS)));
+    renderApp("/locations", MANAGER);
+
+    await screen.findByRole("list", { name: "Location tree" });
+
+    expect(screen.queryByRole("button", { name: /^Rename|^Delete/ })).not.toBeInTheDocument();
   });
 });

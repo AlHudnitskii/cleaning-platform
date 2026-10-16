@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../api/client";
-import type { AssigneeResponse, Country, TokenResponse, UserCreate, UserResponse, UserRole } from "../../api/types";
+import type {
+  AssigneeResponse,
+  Country,
+  TokenResponse,
+  UserCreate,
+  UserResponse,
+  UserRole,
+  UserUpdate,
+} from "../../api/types";
 
 export interface UserFilters {
   role?: UserRole;
@@ -32,6 +40,20 @@ export function useCreateUser() {
   return useMutation({
     mutationFn: (data: UserCreate) => api.post<UserResponse>("/users", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useUpdateUser(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UserUpdate) => api.patch<UserResponse>(`/users/${userId}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useResetPassword(userId: string) {
+  return useMutation({
+    mutationFn: (newPassword: string) => api.post(`/users/${userId}/password`, { new_password: newPassword }),
   });
 }
 

@@ -100,6 +100,8 @@ cd cleaning-frontend
 npm run e2e
 ```
 
+Против другого стенда: `E2E_BASE_URL=http://localhost:3200 E2E_API_URL=http://127.0.0.1:7072/api npm run e2e` — тогда Playwright не поднимает свой фронтенд.
+
 ## Миграции
 
 ```bash

@@ -2635,11 +2635,16 @@ span.cell-title {
   color: var(--t3);
 }
 
+.tree-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
 .tree-add {
   width: 28px;
   height: 28px;
   flex-basis: 28px;
-  margin-left: auto;
   opacity: 0;
 }
 
@@ -3788,6 +3793,7 @@ mark {
 
 .cell-select {
   width: 44px;
+  min-width: 44px;
   padding-right: 0 !important;
   text-align: center;
 }
@@ -4046,6 +4052,10 @@ mark {
   color: var(--danger);
 }
 
+.drawer-footer-start {
+  margin-right: auto;
+}
+
 .btn-danger-solid {
   background: var(--danger);
   color: var(--on-danger);
@@ -4088,6 +4098,10 @@ mark {
 .dialog-body {
   color: var(--t2);
   line-height: 1.5;
+}
+
+.dialog-body .field {
+  margin-top: 16px;
 }
 
 .dialog-error {

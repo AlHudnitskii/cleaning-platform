@@ -4,6 +4,7 @@ import { errorMessage } from "../api/errors";
 import { COUNTRIES, LOCATION_LEVELS, type Country, type LocationLevel, type LocationResponse } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
 import { LevelBadge } from "../components/Badges";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Drawer } from "../components/Drawer";
 import { EmptyState, ErrorState, ListSkeleton, Notice } from "../components/Feedback";
 import { Field, FilterControl } from "../components/Field";
@@ -18,7 +19,9 @@ import {
   filterTree,
   sortedByFullName,
   useCreateLocation,
+  useDeleteLocation,
   useLocations,
+  useRenameLocation,
   type LocationNode,
 } from "../features/locations/api";
 import { countryNames } from "../labels";
@@ -27,6 +30,12 @@ import { useShortcut } from "../shortcuts";
 import { readEnum, useUrlState } from "../urlState";
 
 type OpenMode = "default" | "all" | "none";
+
+interface TreeActions {
+  add: (draft: LocationDraft) => void;
+  rename: (node: LocationNode) => void;
+  remove: (node: LocationNode) => void;
+}
 
 interface LocationDraft {
   country: Country;
@@ -50,6 +59,8 @@ export function Locations() {
   const country = isAdmin ? readEnum<Country>(params, "country", COUNTRIES) : undefined;
   const locations = useLocations(country);
   const [draft, setDraft] = useState<LocationDraft | null>(null);
+  const [renaming, setRenaming] = useState<LocationNode | null>(null);
+  const [removing, setRemoving] = useState<LocationNode | null>(null);
   const [query, setQuery] = useState("");
   const [openMode, setOpenMode] = useState<OpenMode>("default");
   const tree = locations.data ? buildTree(locations.data) : [];
@@ -59,6 +70,9 @@ export function Locations() {
   const startCreate = (initial: LocationDraft) => setDraft(initial);
   const startRoot = () => startCreate({ country: country ?? "DE", level: "country", parentId: "" });
   useShortcut("n", startRoot, isAdmin);
+  const actions: TreeActions | undefined = isAdmin
+    ? { add: startCreate, rename: setRenaming, remove: setRemoving }
+    : undefined;
 
   return (
     <>
@@ -90,6 +104,29 @@ export function Locations() {
             }}
           />
         </Drawer>
+      )}
+
+      {renaming && (
+        <Drawer title={t().locations.renameTitle} description={renaming.full_name} onClose={() => setRenaming(null)}>
+          <RenameForm
+            location={renaming}
+            onCancel={() => setRenaming(null)}
+            onRenamed={(location) => {
+              setRenaming(null);
+              showToast(t().locations.renamed(location.name));
+            }}
+          />
+        </Drawer>
+      )}
+      {removing && (
+        <DeleteLocationDialog
+          location={removing}
+          onClose={() => setRemoving(null)}
+          onDeleted={() => {
+            setRemoving(null);
+            showToast(t().locations.removed(removing.name));
+          }}
+        />
       )}
 
       <div className="toolbar toolbar-plain" role="group" aria-label={t().common.filters}>
@@ -133,7 +170,7 @@ export function Locations() {
               depth={0}
               openMode={searching ? "all" : openMode}
               highlight={query.trim()}
-              onAddChild={isAdmin ? startCreate : undefined}
+              actions={actions}
             />
           ))}
         </ul>
@@ -165,13 +202,13 @@ function TreeNode({
   depth,
   openMode,
   highlight,
-  onAddChild,
+  actions,
 }: {
   node: LocationNode;
   depth: number;
   openMode: OpenMode;
   highlight: string;
-  onAddChild?: (draft: LocationDraft) => void;
+  actions?: TreeActions;
 }) {
   const [expanded, setExpanded] = useState(() => initiallyOpen(openMode, depth));
   const hasChildren = node.children.length > 0;
@@ -199,16 +236,38 @@ function TreeNode({
         </span>
         <LevelBadge level={node.level} />
         {nested > 0 && <span className="tree-count">{t().locations.inside(nested)}</span>}
-        {onAddChild && canHaveChildren && (
-          <button
-            type="button"
-            className="icon-button tree-add"
-            aria-label={t().locations.addInside(node.name)}
-            title={t().locations.addInsideShort(node.name)}
-            onClick={() => onAddChild(childDraft(node))}
-          >
-            <Icon name="plus" size={14} />
-          </button>
+        {actions && (
+          <span className="tree-actions">
+            {canHaveChildren && (
+              <button
+                type="button"
+                className="icon-button tree-add"
+                aria-label={t().locations.addInside(node.name)}
+                title={t().locations.addInsideShort(node.name)}
+                onClick={() => actions.add(childDraft(node))}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            )}
+            <button
+              type="button"
+              className="icon-button tree-add"
+              aria-label={t().locations.rename(node.name)}
+              title={t().locations.rename(node.name)}
+              onClick={() => actions.rename(node)}
+            >
+              <Icon name="edit" size={14} />
+            </button>
+            <button
+              type="button"
+              className="icon-button tree-add"
+              aria-label={t().locations.remove(node.name)}
+              title={t().locations.remove(node.name)}
+              onClick={() => actions.remove(node)}
+            >
+              <Icon name="trash" size={14} />
+            </button>
+          </span>
         )}
       </div>
       {expanded && hasChildren && (
@@ -220,7 +279,7 @@ function TreeNode({
               depth={depth + 1}
               openMode={openMode}
               highlight={highlight}
-              onAddChild={onAddChild}
+              actions={actions}
             />
           ))}
         </ul>
@@ -301,5 +360,74 @@ function LocationForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function RenameForm({
+  location,
+  onRenamed,
+  onCancel,
+}: {
+  location: LocationNode;
+  onRenamed: (location: LocationResponse) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(location.name);
+  const rename = useRenameLocation(location.id);
+
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    rename.mutate(name, { onSuccess: onRenamed });
+  };
+
+  return (
+    <form className="drawer-form" onSubmit={handleSubmit}>
+      <div className="drawer-body">
+        {rename.isError && <Notice tone="error">{errorMessage(rename.error)}</Notice>}
+        <Field label={t().locations.name}>
+          <input
+            className="input"
+            value={name}
+            minLength={2}
+            maxLength={255}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </Field>
+      </div>
+      <div className="drawer-footer">
+        <button className="btn btn-ghost" type="button" onClick={onCancel}>
+          {t().common.cancel}
+        </button>
+        <button className="btn btn-primary" type="submit" disabled={rename.isPending}>
+          {t().locations.save}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DeleteLocationDialog({
+  location,
+  onDeleted,
+  onClose,
+}: {
+  location: LocationNode;
+  onDeleted: () => void;
+  onClose: () => void;
+}) {
+  const remove = useDeleteLocation(location.id);
+  return (
+    <ConfirmDialog
+      title={t().locations.removeQuestion(location.name)}
+      confirmLabel={t().locations.removeConfirm}
+      busy={remove.isPending}
+      error={remove.isError ? errorMessage(remove.error) : null}
+      onConfirm={() => remove.mutate(undefined, { onSuccess: onDeleted })}
+      onCancel={onClose}
+    >
+      <p>{location.full_name}</p>
+      <p>{t().locations.removeHint}</p>
+    </ConfirmDialog>
   );
 }

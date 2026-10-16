@@ -19,19 +19,21 @@ function applyLocally(queryClient: QueryClient, taskId: string, status: TaskStat
   });
 }
 
+export async function sendPendingChanges(userId: string): Promise<SyncResult> {
+  const changes = pendingChanges(userId);
+  if (changes.length === 0) return { synced: 0, errors: [] };
+  const result = await api.post<SyncResult>("/sync/batch", { changes });
+  removeChanges(userId, changes);
+  return result;
+}
+
 export function useOfflineSync(userId: string) {
   const queryClient = useQueryClient();
   const online = useOnlineStatus();
   const pending = usePendingChanges(userId);
 
   const sync = useMutation({
-    mutationFn: async (): Promise<SyncResult> => {
-      const changes = pendingChanges(userId);
-      if (changes.length === 0) return { synced: 0, errors: [] };
-      const result = await api.post<SyncResult>("/sync/batch", { changes });
-      removeChanges(userId, changes);
-      return result;
-    },
+    mutationFn: () => sendPendingChanges(userId),
     onSettled: () => queryClient.invalidateQueries({ queryKey: taskKeys.all }),
   });
   const { mutate: syncNow } = sync;

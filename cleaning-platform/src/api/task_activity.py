@@ -5,9 +5,9 @@ import azure.functions as func
 from sqlalchemy import select
 
 from src.api.http import ApiError, authenticated, json_response, read_model, route_uuid
+from src.api.schemas.task import CommentCreate, CommentResponse, HistoryEntryResponse, PhotoResponse
 from src.api.task_queries import load_visible_task
 from src.domain.models.enums import TaskStatus
-from src.domain.models.task import CommentCreate, CommentResponse, HistoryEntryResponse, PhotoResponse
 from src.domain.models.user import CurrentUser
 from src.domain.services.photos import MAX_PHOTO_BYTES, detect_image_type, display_filename
 from src.infrastructure.blob.storage import PHOTOS_CONTAINER, read_link, upload_blob

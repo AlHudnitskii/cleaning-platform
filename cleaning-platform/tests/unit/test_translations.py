@@ -5,7 +5,7 @@ import azure.functions as func
 import pytest
 
 from src.api.http import ApiError, parse_model, public
-from src.domain.models.user import UserRegister
+from src.api.schemas.user import UserRegister
 from src.translations import Locale, Phrase, parse_locale, phrases
 
 

@@ -1,9 +1,9 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.schemas.task import TaskResponse
 from src.api.task_queries import task_progress
 from src.domain.models.enums import Country, TaskPriority, TaskStatus
-from src.domain.models.task import TaskResponse
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.infrastructure.database.models import Location, Task, User

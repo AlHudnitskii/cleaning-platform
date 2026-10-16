@@ -162,4 +162,16 @@ describe("Checklist", () => {
       }),
     );
   });
+
+  it("keeps the task page usable when the checklist cannot be loaded", async () => {
+    server.use(
+      http.get(`*/api/tasks/${TASK_ID}/checklist`, () => HttpResponse.json({ error: "Not found" }, { status: 404 })),
+      ...detailHandlers(),
+    );
+    renderApp(`/tasks/${TASK_ID}`, MANAGER);
+
+    expect(await screen.findByText(/Could not load the checklist/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Clean lobby" })).toBeInTheDocument();
+    expect(screen.queryByText("This page does not exist")).not.toBeInTheDocument();
+  });
 });

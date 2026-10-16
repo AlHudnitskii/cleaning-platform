@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { api } from "../../api/client";
+import { useLocale } from "../../i18n/locale";
 
 const pushKeys = { subscription: ["push", "subscription"] as const };
 
@@ -78,5 +80,16 @@ export function usePushNotifications() {
     }
   };
 
-  return { supported: pushSupported, enabled: subscription.data ?? false, toggle, forget };
+  const locale = useLocale();
+  const enabled = subscription.data ?? false;
+  useEffect(() => {
+    if (!enabled) return;
+    currentSubscription()
+      .then((existing) => (existing ? api.post("/push/subscribe", existing.toJSON()) : undefined))
+      .catch((error: unknown) => {
+        console.warn("Could not update the notification language", error);
+      });
+  }, [enabled, locale]);
+
+  return { supported: pushSupported, enabled, toggle, forget };
 }

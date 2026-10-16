@@ -3,12 +3,37 @@ import uuid
 
 from src.infrastructure.messaging import consumer
 from src.infrastructure.push.notifications import PushMessage
+from src.translations import Locale, phrases
 
 
-def test_payload_carries_the_task_to_open():
-    payload = json.loads(PushMessage("New task assigned", "Clean lobby", "3f0c").payload())
+def test_payload_carries_the_task_to_open_in_the_device_language():
+    message = PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.PUSH_ASSIGNED_BODY(title="Clean lobby"), "3f0c")
 
-    assert payload == {"title": "New task assigned", "body": "Clean lobby", "task_id": "3f0c"}
+    english = json.loads(message.payload(Locale.EN))
+    russian = json.loads(message.payload(Locale.RU))
+
+    assert english == {"title": "New task assigned", "body": "You have been assigned: Clean lobby", "task_id": "3f0c"}
+    assert russian == {"title": "Вам назначена задача", "body": "Новая задача: Clean lobby", "task_id": "3f0c"}
+
+
+async def test_status_changes_name_the_statuses_instead_of_their_codes(monkeypatch):
+    sent: list[PushMessage] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+    event = {
+        "title": "Clean lobby",
+        "assigned_to": str(uuid.uuid4()),
+        "old_status": "on_review",
+        "new_status": "completed",
+    }
+
+    await consumer.handle_task_status_changed(event)
+
+    assert [message.body.render(Locale.RU) for message in sent] == ["Clean lobby: На проверке → Выполнена"]
+    assert [message.body.render(Locale.EN) for message in sent] == ["Clean lobby: On review → Completed"]
 
 
 async def test_every_notification_about_a_task_links_to_it(monkeypatch):

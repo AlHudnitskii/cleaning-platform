@@ -13,6 +13,7 @@ from src.domain.services.photos import MAX_PHOTO_BYTES, detect_image_type, displ
 from src.infrastructure.blob.storage import PHOTOS_CONTAINER, read_link, upload_blob
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import TaskComment, TaskPhoto, TaskStatusHistory, User
+from src.translations import phrases
 
 bp = func.Blueprint()
 
@@ -132,14 +133,14 @@ async def upload_task_photo(req: func.HttpRequest, user: CurrentUser) -> func.Ht
 
     photo = req.files.get("photo")
     if photo is None:
-        raise ApiError(400, "No photo file provided. Use form-data with key 'photo'")
+        raise ApiError(400, phrases.NO_PHOTO())
 
     data = photo.read(MAX_PHOTO_BYTES + 1)
     if len(data) > MAX_PHOTO_BYTES:
-        raise ApiError(413, f"Photo must be at most {MAX_PHOTO_BYTES // (1024 * 1024)} MB")
+        raise ApiError(413, phrases.PHOTO_TOO_LARGE(megabytes=MAX_PHOTO_BYTES // (1024 * 1024)))
     image_type = detect_image_type(data)
     if image_type is None:
-        raise ApiError(415, "Only JPEG, PNG and WebP images are supported")
+        raise ApiError(415, phrases.PHOTO_TYPE())
 
     photo_id = uuid.uuid4()
     url = await upload_blob(

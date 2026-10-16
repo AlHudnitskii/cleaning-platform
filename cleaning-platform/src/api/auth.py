@@ -25,6 +25,7 @@ from src.infrastructure.auth.jwt_handler import (
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import LoginFailure, PushSubscription, User, utcnow
 from src.settings import get_settings
+from src.translations import phrases
 
 bp = func.Blueprint()
 logger = logging.getLogger(__name__)
@@ -54,16 +55,16 @@ def session_response(user: User, status_code: int = 200) -> func.HttpResponse:
 
 async def user_from_refresh_token(token: str | None) -> User:
     if not token:
-        raise ApiError(401, "Refresh token is missing")
+        raise ApiError(401, phrases.REFRESH_MISSING())
     try:
         claims = decode_refresh_token(token)
     except InvalidTokenError as e:
-        raise ApiError(401, "Invalid or expired refresh token") from e
+        raise ApiError(401, phrases.REFRESH_INVALID()) from e
 
     async with session_scope() as session:
         user = await session.get(User, claims.user_id)
     if user is None or not user.is_active or user.token_version != claims.version:
-        raise ApiError(401, "Session is no longer valid")
+        raise ApiError(401, phrases.SESSION_INVALID())
     return user
 
 
@@ -94,7 +95,7 @@ async def login(req: func.HttpRequest) -> func.HttpResponse:
     wait = retry_after(await recent_failures(key), utcnow())
     if wait is not None:
         logger.warning("Sign-in throttled", extra={"retry_after": wait})
-        raise ApiError(429, "Too many failed sign-in attempts. Try again later.", retry_after=wait)
+        raise ApiError(429, phrases.TOO_MANY_SIGN_INS(), retry_after=wait)
 
     async with session_scope() as session:
         user = await session.scalar(select(User).where(User.email == data.email))
@@ -102,10 +103,10 @@ async def login(req: func.HttpRequest) -> func.HttpResponse:
     if user is None or not verify_password(data.password, user.hashed_password):
         await record_failure(key)
         logger.info("Sign-in failed")
-        raise ApiError(401, "Invalid email or password")
+        raise ApiError(401, phrases.WRONG_CREDENTIALS())
     await clear_failures(key)
     if not user.is_active:
-        raise ApiError(403, "User is disabled")
+        raise ApiError(403, phrases.USER_DISABLED())
 
     return session_response(user)
 

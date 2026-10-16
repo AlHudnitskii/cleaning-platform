@@ -12,6 +12,7 @@ from src.domain.models.enums import Country, TaskPriority, TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, User
+from src.translations import phrases
 
 bp = func.Blueprint()
 
@@ -137,9 +138,9 @@ def report_period(req: func.HttpRequest) -> tuple[date, date]:
     date_to = optional_date(req, "date_to") or today
     date_from = optional_date(req, "date_from") or date_to - timedelta(days=DEFAULT_REPORT_DAYS)
     if date_from > date_to:
-        raise ApiError(400, "date_from must not be after date_to")
+        raise ApiError(400, phrases.PERIOD_REVERSED())
     if (date_to - date_from).days > MAX_REPORT_DAYS:
-        raise ApiError(400, f"Report period must not exceed {MAX_REPORT_DAYS} days")
+        raise ApiError(400, phrases.REPORT_PERIOD_TOO_LONG(days=MAX_REPORT_DAYS))
     return date_from, date_to
 
 

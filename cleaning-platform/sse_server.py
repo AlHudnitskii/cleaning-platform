@@ -65,7 +65,7 @@ async def stream_handler(request: web.Request) -> web.StreamResponse:
     try:
         user = await authenticate_token(token)
     except AuthError as e:
-        raise web.HTTPUnauthorized(text=e.message) from e
+        raise web.HTTPUnauthorized(text=str(e.message)) from e
 
     response = web.StreamResponse(
         headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}

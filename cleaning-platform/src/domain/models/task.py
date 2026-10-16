@@ -6,17 +6,18 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.domain.models.enums import Country, ReviewBlocker, TaskPriority, TaskStatus
 from src.domain.services.recurring_tasks import validate_rrule
+from src.translations import phrases
 
 
 def clean_title(value: str) -> str:
     if len(value.strip()) < 3:
-        raise ValueError("Title must be at least 3 characters")
+        raise ValueError(phrases.TITLE_TOO_SHORT())
     return value.strip()
 
 
 def checked_rrule(value: str | None) -> str | None:
     if value is not None and not validate_rrule(value):
-        raise ValueError("Invalid rrule format")
+        raise ValueError(phrases.INVALID_RRULE())
     return value
 
 
@@ -25,7 +26,7 @@ MAX_CHECKLIST_ITEMS = 50
 
 def clean_item(value: str) -> str:
     if not value.strip():
-        raise ValueError("Checklist item text is required")
+        raise ValueError(phrases.CHECKLIST_TEXT_REQUIRED())
     return value.strip()
 
 
@@ -52,7 +53,7 @@ class TaskCreate(BaseModel):
     def validate_checklist(cls, v: list[str]) -> list[str]:
         items = [clean_item(item) for item in v]
         if any(len(item) > 255 for item in items):
-            raise ValueError("Checklist items must be at most 255 characters")
+            raise ValueError(phrases.CHECKLIST_TEXT_TOO_LONG())
         return items
 
     @field_validator("rrule")
@@ -75,21 +76,21 @@ class TaskUpdate(BaseModel):
     @classmethod
     def validate_photo_required(cls, v: bool | None) -> bool | None:
         if v is None:
-            raise ValueError("Photo requirement cannot be empty")
+            raise ValueError(phrases.PHOTO_REQUIREMENT_EMPTY())
         return v
 
     @field_validator("title")
     @classmethod
     def validate_title(cls, v: str | None) -> str | None:
         if v is None:
-            raise ValueError("Title cannot be empty")
+            raise ValueError(phrases.TITLE_EMPTY())
         return clean_title(v)
 
     @field_validator("priority")
     @classmethod
     def validate_priority(cls, v: TaskPriority | None) -> TaskPriority | None:
         if v is None:
-            raise ValueError("Priority cannot be empty")
+            raise ValueError(phrases.PRIORITY_EMPTY())
         return v
 
     @field_validator("rrule")
@@ -143,7 +144,7 @@ class CommentCreate(BaseModel):
     @classmethod
     def validate_text(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError("Comment text is required")
+            raise ValueError(phrases.COMMENT_REQUIRED())
         return v.strip()
 
 
@@ -208,14 +209,14 @@ class ChecklistItemUpdate(BaseModel):
     @classmethod
     def validate_text(cls, v: str | None) -> str | None:
         if v is None:
-            raise ValueError("Checklist item text is required")
+            raise ValueError(phrases.CHECKLIST_TEXT_REQUIRED())
         return clean_item(v)
 
     @field_validator("done")
     @classmethod
     def validate_done(cls, v: bool | None) -> bool | None:
         if v is None:
-            raise ValueError("Done must be true or false")
+            raise ValueError(phrases.DONE_NOT_BOOLEAN())
         return v
 
 

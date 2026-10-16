@@ -4,11 +4,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 from src.domain.models.enums import Country, LocationLevel
+from src.translations import phrases
 
 
 def _validate_name(value: str) -> str:
     if len(value.strip()) < 2:
-        raise ValueError("Name must be at least 2 characters")
+        raise ValueError(phrases.NAME_TOO_SHORT())
     return value.strip()
 
 

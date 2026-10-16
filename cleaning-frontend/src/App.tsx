@@ -1,5 +1,5 @@
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { AuthProvider } from "./auth/AuthContext";
@@ -10,17 +10,18 @@ import { AppShell } from "./components/AppShell";
 import { Loading, NotFoundState } from "./components/Feedback";
 import { useTaskEvents } from "./features/realtime/useTaskEvents";
 import { t, useLocale } from "./i18n/locale";
-import { Dashboard } from "./pages/Dashboard";
-import { Export } from "./pages/Export";
-import { Import } from "./pages/Import";
-import { Locations } from "./pages/Locations";
 import { Login } from "./pages/Login";
-import { MyTasks } from "./pages/MyTasks";
-import { Profile } from "./pages/Profile";
-import { Reports } from "./pages/Reports";
-import { TaskDetail } from "./pages/TaskDetail";
-import { Tasks } from "./pages/Tasks";
-import { Users } from "./pages/Users";
+
+const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
+const Export = lazy(() => import("./pages/Export").then((module) => ({ default: module.Export })));
+const Import = lazy(() => import("./pages/Import").then((module) => ({ default: module.Import })));
+const Locations = lazy(() => import("./pages/Locations").then((module) => ({ default: module.Locations })));
+const MyTasks = lazy(() => import("./pages/MyTasks").then((module) => ({ default: module.MyTasks })));
+const Profile = lazy(() => import("./pages/Profile").then((module) => ({ default: module.Profile })));
+const Reports = lazy(() => import("./pages/Reports").then((module) => ({ default: module.Reports })));
+const TaskDetail = lazy(() => import("./pages/TaskDetail").then((module) => ({ default: module.TaskDetail })));
+const Tasks = lazy(() => import("./pages/Tasks").then((module) => ({ default: module.Tasks })));
+const Users = lazy(() => import("./pages/Users").then((module) => ({ default: module.Users })));
 
 const MANAGERS = ["admin", "manager"] as const;
 
@@ -29,7 +30,9 @@ function AppLayout() {
   useTaskEvents(state.status === "authenticated" && !state.offline);
   return (
     <AppShell>
-      <Outlet />
+      <Suspense fallback={<Loading label={t().app.loadingPage} />}>
+        <Outlet />
+      </Suspense>
     </AppShell>
   );
 }

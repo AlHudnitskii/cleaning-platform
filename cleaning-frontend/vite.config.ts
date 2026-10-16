@@ -11,6 +11,18 @@ export default defineConfig({
       "/events": { target: "http://127.0.0.1:8080", changeOrigin: true },
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "vendor", test: /node_modules/, priority: 20 },
+            { name: "shared", minShareCount: 2, priority: 10 },
+          ],
+        },
+      },
+    },
+  },
   preview: {
     port: 3000,
   },

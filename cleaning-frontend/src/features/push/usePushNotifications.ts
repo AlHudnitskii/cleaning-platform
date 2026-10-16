@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { client, getJson } from "../../api/client";
+import { api } from "../../api/client";
 
 const pushKeys = { subscription: ["push", "subscription"] as const };
 
@@ -22,7 +22,7 @@ function sameKey(subscription: PushSubscription, publicKey: Uint8Array): boolean
 }
 
 async function serverKey(): Promise<Uint8Array<ArrayBuffer>> {
-  const { public_key } = await getJson<{ public_key: string }>("/push/vapid-public-key");
+  const { public_key } = await api.get<{ public_key: string }>("/push/vapid-public-key");
   return urlBase64ToUint8Array(public_key);
 }
 
@@ -52,7 +52,7 @@ export function usePushNotifications() {
       const existing = await currentSubscription();
       if (!enable) {
         await existing?.unsubscribe();
-        await client.delete("/push/unsubscribe");
+        await api.delete("/push/unsubscribe");
         return false;
       }
       const key = await serverKey();
@@ -61,7 +61,7 @@ export function usePushNotifications() {
       if (existing && !reusable) await existing.unsubscribe();
       const created =
         reusable ?? (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }));
-      await client.post("/push/subscribe", created.toJSON());
+      await api.post("/push/subscribe", created.toJSON());
       return true;
     },
     onSuccess: (enabled) => queryClient.setQueryData(pushKeys.subscription, enabled),

@@ -32,7 +32,6 @@ from src.api.task_store import (
     ordering,
     overdue_condition,
     scope_conditions,
-    task_event,
     task_progress,
     task_rows,
     to_response,
@@ -46,6 +45,7 @@ from src.infrastructure.blob.storage import PHOTOS_CONTAINER, delete_prefix
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem
 from src.infrastructure.messaging import outbox
+from src.infrastructure.messaging.events import TaskEvent, TaskEventType
 from src.translations import phrases
 
 bp = func.Blueprint()
@@ -95,17 +95,7 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
         session.add_all(
             TaskChecklistItem(task_id=task.id, position=index, text=text) for index, text in enumerate(data.checklist)
         )
-        outbox.enqueue(
-            session,
-            outbox.TASK_CREATED,
-            {
-                "task_id": str(task.id),
-                "title": task.title,
-                "country": task.country,
-                "assigned_to": str(task.assigned_to) if task.assigned_to else None,
-                "location_id": str(task.location_id) if task.location_id else None,
-            },
-        )
+        outbox.enqueue(session, TaskEvent.of(TaskEventType.CREATED, task, user.id))
         response = await detailed_response(session, user, task)
 
     return json_response(response, 201)
@@ -147,16 +137,10 @@ async def update_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
             task.rrule = data.rrule
             task.is_recurring = bool(data.rrule)
 
-        outbox.enqueue(
-            session,
-            outbox.TASK_UPDATED,
-            task_event(
-                task,
-                previous_assigned_to=str(previous_assignee) if previous_assignee else None,
-                changed_by=str(user.id),
-                fields=sorted(changes),
-            ),
+        event = TaskEvent.of(
+            TaskEventType.UPDATED, task, user.id, previous_assigned_to=previous_assignee, fields=changes
         )
+        outbox.enqueue(session, event)
         response = await detailed_response(session, user, task)
 
     return json_response(response)
@@ -171,7 +155,7 @@ async def delete_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
         task = await load_visible_task(session, user, task_id, for_update=True)
         if not task_access.can_manage_country(user, task.country):
             raise forbidden(phrases.DELETE_IN_OWN_COUNTRY())
-        outbox.enqueue(session, outbox.TASK_DELETED, task_event(task, changed_by=str(user.id)))
+        outbox.enqueue(session, TaskEvent.of(TaskEventType.DELETED, task, user.id))
         await session.delete(task)
 
     try:

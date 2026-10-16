@@ -2,8 +2,15 @@ import json
 import uuid
 
 from src.infrastructure.messaging import consumer
+from src.infrastructure.messaging.events import TaskEvent
 from src.infrastructure.push.notifications import PushMessage
 from src.translations import Locale, phrases
+
+
+def task_event(event_type: str, **fields: object) -> TaskEvent:
+    event = TaskEvent.from_message({"type": event_type, "task_id": str(uuid.uuid4()), **fields})
+    assert event is not None
+    return event
 
 
 def test_payload_carries_the_task_to_open_in_the_device_language():
@@ -23,12 +30,13 @@ async def test_status_changes_name_the_statuses_instead_of_their_codes(monkeypat
         sent.append(message)
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
-    event = {
-        "title": "Clean lobby",
-        "assigned_to": str(uuid.uuid4()),
-        "old_status": "on_review",
-        "new_status": "completed",
-    }
+    event = task_event(
+        "task_status_changed",
+        title="Clean lobby",
+        assigned_to=str(uuid.uuid4()),
+        old_status="on_review",
+        new_status="completed",
+    )
 
     await consumer.handle_task_status_changed(event)
 
@@ -49,24 +57,49 @@ async def test_every_notification_about_a_task_links_to_it(monkeypatch):
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
     monkeypatch.setattr(consumer, "active_managers", fake_managers)
-    event = {"task_id": str(task_id), "title": "Clean lobby", "country": "DE", "assigned_to": str(cleaner)}
+    fields = {"task_id": str(task_id), "title": "Clean lobby", "country": "DE", "assigned_to": str(cleaner)}
 
-    await consumer.handle_task_created(event)
-    await consumer.handle_task_status_changed({**event, "old_status": "pending", "new_status": "in_progress"})
-    await consumer.handle_task_updated({**event, "previous_assigned_to": None})
+    await consumer.handle_task_created(task_event("task_created", **fields))
+    await consumer.handle_task_status_changed(
+        task_event("task_status_changed", **fields, old_status="pending", new_status="in_progress")
+    )
+    await consumer.handle_task_updated(task_event("task_updated", **fields, fields=["assigned_to"]))
 
     assert [user for user, _ in sent] == [cleaner, manager, cleaner, cleaner]
     assert {message.task_id for _, message in sent} == {str(task_id)}
 
 
-async def test_a_malformed_task_id_is_dropped_instead_of_sent(monkeypatch):
-    sent: list[PushMessage] = []
+def test_an_event_without_a_readable_task_or_type_is_dropped():
+    assert TaskEvent.from_message({"type": "task_updated", "task_id": "", "assigned_to": str(uuid.uuid4())}) is None
+    assert TaskEvent.from_message({"type": "unknown", "task_id": str(uuid.uuid4())}) is None
+
+
+async def test_the_creator_is_not_notified_about_their_own_task(monkeypatch):
+    manager, other = uuid.uuid4(), uuid.uuid4()
+    sent: list[uuid.UUID] = []
 
     async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
-        sent.append(message)
+        sent.append(user_id)
+
+    async def fake_managers(country: str) -> list[uuid.UUID]:
+        return [manager, other]
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+    monkeypatch.setattr(consumer, "active_managers", fake_managers)
+
+    await consumer.handle_task_created(task_event("task_created", country="DE", changed_by=str(manager)))
+
+    assert sent == [other]
+
+
+async def test_checklist_changes_do_not_look_like_a_new_assignment(monkeypatch):
+    sent: list[uuid.UUID] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append(user_id)
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
 
-    await consumer.handle_task_updated({"task_id": "", "title": "Clean", "assigned_to": str(uuid.uuid4())})
+    await consumer.handle_task_updated(task_event("task_updated", assigned_to=str(uuid.uuid4()), fields=["checklist"]))
 
-    assert [message.task_id for message in sent] == [None]
+    assert sent == []

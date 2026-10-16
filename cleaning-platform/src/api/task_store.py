@@ -14,6 +14,7 @@ from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem, TaskPhoto, TaskStatusHistory, User
 from src.infrastructure.messaging import outbox
+from src.infrastructure.messaging.events import TaskEvent, TaskEventType
 from src.translations import Joined, Text, phrases
 
 PRIORITY_RANK = case(
@@ -34,16 +35,6 @@ SORT_COLUMNS: dict[TaskSort, ColumnElement[Any] | InstrumentedAttribute[Any]] = 
 }
 OPEN_STATUSES = [s.value for s in TaskStatus if s not in (TaskStatus.COMPLETED, TaskStatus.CANCELLED)]
 DESCENDING_BY_DEFAULT = {TaskSort.CREATED_AT, TaskSort.PRIORITY}
-
-
-def task_event(task: Task, **extra: object) -> dict[str, object]:
-    return {
-        "task_id": str(task.id),
-        "title": task.title,
-        "country": task.country,
-        "assigned_to": str(task.assigned_to) if task.assigned_to else None,
-        **extra,
-    }
 
 
 def overdue_condition() -> ColumnElement[bool]:
@@ -233,18 +224,5 @@ async def change_status(session: AsyncSession, user: CurrentUser, task: Task, ta
             changed_at=now,
         )
     )
-    outbox.enqueue(
-        session,
-        outbox.TASK_STATUS_CHANGED,
-        {
-            "task_id": str(task.id),
-            "title": task.title,
-            "country": task.country,
-            "assigned_to": str(task.assigned_to) if task.assigned_to else None,
-            "old_status": current.value,
-            "new_status": target.value,
-            "changed_by": str(user.id),
-            "changed_by_email": user.email,
-        },
-    )
+    outbox.enqueue(session, TaskEvent.of(TaskEventType.STATUS_CHANGED, task, user.id, old_status=current))
     return current

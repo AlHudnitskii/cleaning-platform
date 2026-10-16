@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.http import ApiError, authenticated, forbidden, json_response, not_found, read_model, route_uuid
-from src.api.task_store import load_visible_task, task_event
+from src.api.task_store import load_visible_task
 from src.domain.models.enums import TaskStatus, UserRole
 from src.domain.models.task import (
     MAX_CHECKLIST_ITEMS,
@@ -20,22 +20,14 @@ from src.domain.services import task_access
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Task, TaskChecklistItem
 from src.infrastructure.messaging import outbox
+from src.infrastructure.messaging.events import TaskEvent, TaskEventType
 from src.translations import phrases
 
 bp = func.Blueprint()
 
 
 def announce(session: AsyncSession, task: Task, user: CurrentUser) -> None:
-    outbox.enqueue(
-        session,
-        outbox.TASK_UPDATED,
-        task_event(
-            task,
-            previous_assigned_to=str(task.assigned_to) if task.assigned_to else None,
-            changed_by=str(user.id),
-            fields=["checklist"],
-        ),
-    )
+    outbox.enqueue(session, TaskEvent.of(TaskEventType.UPDATED, task, user.id, fields=["checklist"]))
 
 
 async def load_item(session: AsyncSession, task_id: uuid.UUID, item_id: uuid.UUID) -> TaskChecklistItem:

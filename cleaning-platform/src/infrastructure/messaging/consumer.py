@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Any
+from collections.abc import Awaitable, Callable
 
 from aio_pika.abc import AbstractIncomingMessage
 from sqlalchemy import delete, select
@@ -9,7 +9,7 @@ from sqlalchemy import delete, select
 from src.domain.models.enums import UserRole
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, User
-from src.infrastructure.messaging.outbox import TASK_CREATED, TASK_DELETED, TASK_STATUS_CHANGED, TASK_UPDATED
+from src.infrastructure.messaging.events import TaskEvent, TaskEventType
 from src.infrastructure.messaging.rabbitmq import connect, declare_push_queue, decode_event
 from src.infrastructure.push.notifications import PushMessage, PushResult, send_push_notification
 from src.settings import get_settings
@@ -51,81 +51,66 @@ async def active_managers(country: str) -> list[uuid.UUID]:
         return list(rows)
 
 
-def _optional_uuid(value: Any) -> uuid.UUID | None:
-    return uuid.UUID(str(value)) if value else None
+def assigned_message(event: TaskEvent) -> PushMessage:
+    body = phrases.PUSH_ASSIGNED_BODY(title=event.title)
+    return PushMessage(phrases.PUSH_ASSIGNED_TITLE(), body, str(event.task_id))
 
 
-def _task_id(event: dict[str, Any]) -> str | None:
-    task_id = _optional_uuid(event.get("task_id"))
-    return str(task_id) if task_id else None
-
-
-def _status(value: Any) -> object:
-    try:
-        return phrases.status_name(str(value))
-    except ValueError:
-        return str(value or "")
-
-
-def assigned_message(event: dict[str, Any]) -> PushMessage:
-    title = str(event.get("title") or "")
-    return PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.PUSH_ASSIGNED_BODY(title=title), _task_id(event))
-
-
-async def handle_task_created(event: dict[str, Any]) -> None:
-    country = event.get("country")
-    assignee = _optional_uuid(event.get("assigned_to"))
-
-    if assignee:
-        await notify_user(assignee, assigned_message(event))
-    if country:
-        body = phrases.PUSH_CREATED_BODY(title=str(event.get("title") or ""), country=country)
-        created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, _task_id(event))
-        for manager_id in await active_managers(str(country)):
+async def handle_task_created(event: TaskEvent) -> None:
+    if event.assigned_to:
+        await notify_user(event.assigned_to, assigned_message(event))
+    if not event.country:
+        return
+    body = phrases.PUSH_CREATED_BODY(title=event.title, country=event.country)
+    created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, str(event.task_id))
+    for manager_id in await active_managers(event.country):
+        if manager_id != event.changed_by:
             await notify_user(manager_id, created)
 
 
-async def handle_task_status_changed(event: dict[str, Any]) -> None:
-    assignee = _optional_uuid(event.get("assigned_to"))
-    if assignee is None or assignee == _optional_uuid(event.get("changed_by")):
+async def handle_task_status_changed(event: TaskEvent) -> None:
+    if event.assigned_to is None or event.assigned_to == event.changed_by:
+        return
+    if event.old_status is None or event.new_status is None:
         return
     body = phrases.PUSH_STATUS_BODY(
-        title=str(event.get("title") or ""),
-        old=_status(event.get("old_status")),
-        new=_status(event.get("new_status")),
+        title=event.title,
+        old=phrases.status_name(event.old_status),
+        new=phrases.status_name(event.new_status),
     )
-    await notify_user(assignee, PushMessage(phrases.PUSH_STATUS_TITLE(), body, _task_id(event)))
+    await notify_user(event.assigned_to, PushMessage(phrases.PUSH_STATUS_TITLE(), body, str(event.task_id)))
 
 
-async def handle_task_updated(event: dict[str, Any]) -> None:
-    assignee = _optional_uuid(event.get("assigned_to"))
-    if assignee is None or assignee == _optional_uuid(event.get("previous_assigned_to")):
+async def handle_task_updated(event: TaskEvent) -> None:
+    if event.assigned_to is None or event.assigned_to == event.previous_assigned_to:
         return
-    if assignee == _optional_uuid(event.get("changed_by")):
+    if event.previous_assigned_to is None and "assigned_to" not in event.fields:
         return
-    await notify_user(assignee, assigned_message(event))
+    if event.assigned_to == event.changed_by:
+        return
+    await notify_user(event.assigned_to, assigned_message(event))
 
 
-async def ignore_event(event: dict[str, Any]) -> None:
+async def ignore_event(event: TaskEvent) -> None:
     return None
 
 
-HANDLERS = {
-    TASK_CREATED: handle_task_created,
-    TASK_STATUS_CHANGED: handle_task_status_changed,
-    TASK_UPDATED: handle_task_updated,
-    TASK_DELETED: ignore_event,
+HANDLERS: dict[TaskEventType, Callable[[TaskEvent], Awaitable[None]]] = {
+    TaskEventType.CREATED: handle_task_created,
+    TaskEventType.STATUS_CHANGED: handle_task_status_changed,
+    TaskEventType.UPDATED: handle_task_updated,
+    TaskEventType.DELETED: ignore_event,
 }
 
 
 async def process_message(message: AbstractIncomingMessage) -> None:
     async with message.process(requeue=False):
-        event = decode_event(message.body)
-        handler = HANDLERS.get(str(event.get("type")))
-        if handler is None:
-            logger.warning("Unknown event type", extra={"type": event.get("type")})
+        data = decode_event(message.body)
+        event = TaskEvent.from_message(data)
+        if event is None:
+            logger.warning("Unreadable task event", extra={"type": data.get("type")})
             return
-        await handler(event)
+        await HANDLERS[event.type](event)
 
 
 async def run_consumer() -> None:

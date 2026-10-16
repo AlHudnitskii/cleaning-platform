@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
@@ -10,6 +11,7 @@ from src.api import stats, task_activity, tasks
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import OutboxMessage, Task, TaskComment
 from src.infrastructure.messaging import consumer
+from src.infrastructure.messaging.events import TaskEvent
 from tests.integration.conftest import Account, call, payload
 
 pytestmark = pytest.mark.integration
@@ -103,8 +105,10 @@ async def test_reassignment_records_previous_assignee_and_notifies_the_new_one(a
         notified.append((user_id, str(message.title)))
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
-    await consumer.handle_task_updated({**event.payload, "type": "task_updated"})
-    await consumer.handle_task_updated({**event.payload, "previous_assigned_to": str(second.user.id)})
+    published = TaskEvent.from_message({**event.payload, "type": event.event_type})
+    assert published is not None
+    await consumer.handle_task_updated(published)
+    await consumer.handle_task_updated(replace(published, previous_assigned_to=second.user.id))
 
     assert notified == [(second.user.id, "New task assigned")]
 

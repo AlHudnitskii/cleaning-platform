@@ -3,6 +3,7 @@ import pytest
 from azure.functions.decorators.function_app import Function
 
 import function_app
+from src.api.docs import ROUTES as DOCUMENTED
 
 PUBLIC_ROUTES = {
     ("POST", "auth/login"),
@@ -48,3 +49,11 @@ async def test_every_other_route_requires_authentication(method, route, function
     response = await function.get_user_function()(request)
 
     assert response.status_code == 401, f"{method} {route} answered {response.status_code} without a token"
+
+
+def test_every_route_is_described_in_the_api_documentation():
+    documented = {(method.upper(), path.lstrip("/")) for method, path, *_ in DOCUMENTED}
+    served = {(method, route) for method, route, _ in ROUTES if not route.startswith("docs")}
+
+    assert served - documented == set(), "routes missing from docs.py"
+    assert documented - served == set(), "docs.py describes routes that do not exist"

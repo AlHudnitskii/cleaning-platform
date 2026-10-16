@@ -163,7 +163,7 @@ export function Users() {
           <EmptyState title={t().users.noMatch} hint={t().users.noMatchHint} />
         ) : (
           <div className="table-scroll table-scroll-sticky">
-            <table className="table table-rows">
+            <table className="table table-rows table-stacked">
               <thead>
                 <tr>
                   <th scope="col" className="cell-index">
@@ -193,11 +193,13 @@ export function Users() {
                         <span className="cell-title">{user.email}</span>
                       </span>
                     </td>
-                    <td>
+                    <td data-label={t().users.role}>
                       <RoleBadge role={user.role} />
                     </td>
-                    <td className="cell-muted">{countryName(user.country)}</td>
-                    <td className="cell-muted cell-nowrap">
+                    <td className="cell-muted" data-label={t().users.country}>
+                      {countryName(user.country)}
+                    </td>
+                    <td className="cell-muted cell-nowrap" data-label={t().users.createdColumn}>
                       <RelativeDate value={user.created_at} />
                     </td>
                     <td className="cell-actions row-actions">

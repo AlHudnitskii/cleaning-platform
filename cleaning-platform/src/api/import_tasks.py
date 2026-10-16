@@ -22,6 +22,7 @@ from src.infrastructure.database.models import Location, Task, User
 bp = func.Blueprint()
 
 FIRST_DATA_ROW = 2
+PREVIEW_ROWS = 50
 TEMPLATE_ROWS = [
     {
         "title": "Clean Room 101",
@@ -60,9 +61,30 @@ def row_error(row: ImportRow, message: str) -> str:
     return f"Row {row.row_number}: {message}"
 
 
+def assignee_allowed(row: ImportRow, assignee: User | None) -> bool:
+    if not row.assignee_email and not row.assignee_id:
+        return True
+    return assignee is not None and task_access.can_assign(
+        row.country, assignee.role, assignee.country, assignee.is_active
+    )
+
+
+def preview_row(row: ImportRow, location: Location | None, assignee: User | None) -> dict[str, object]:
+    return {
+        "row": row.row_number,
+        "title": row.title,
+        "country": row.country.value,
+        "priority": row.priority.value,
+        "location_name": location.name if location else None,
+        "assignee_email": assignee.email if assignee else None,
+        "rrule": row.rrule,
+    }
+
+
 @bp.route(route="import/tasks", methods=["POST"])
 @authenticated(UserRole.ADMIN, UserRole.MANAGER)
 async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    dry_run = req.params.get("dry_run") == "true"
     upload = req.files.get("file")
     if upload is None:
         raise ApiError(400, "No file provided. Use form-data with key 'file'")
@@ -89,12 +111,13 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
         else:
             rows.append(parsed)
 
-    imported = 0
+    ready: list[Task] = []
+    preview: list[dict[str, object]] = []
     async with session_scope() as session, session.begin():
         countries = {row.country.value for row in rows}
         locations: dict[tuple[str, str], list[Location]] = {}
-        for location in await session.scalars(select(Location).where(Location.country.in_(countries))):
-            locations.setdefault((location.country, location.name.lower()), []).append(location)
+        for known in await session.scalars(select(Location).where(Location.country.in_(countries))):
+            locations.setdefault((known.country, known.name.lower()), []).append(known)
 
         emails = {row.assignee_email for row in rows if row.assignee_email}
         ids = {row.assignee_id for row in rows if row.assignee_id}
@@ -104,7 +127,7 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
 
         now = datetime.now(UTC)
         for row in rows:
-            location_id = None
+            location: Location | None = None
             if row.location_name:
                 matches = locations.get((row.country.value, row.location_name.lower()), [])
                 if not matches:
@@ -113,37 +136,45 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
                 if len(matches) > 1:
                     errors.append(row_error(row, f"location name '{row.location_name}' is ambiguous"))
                     continue
-                location_id = matches[0].id
+                location = matches[0]
 
-            assignee_id = None
             assignee = by_id.get(row.assignee_id) if row.assignee_id else None
             if row.assignee_email:
                 assignee = by_email.get(row.assignee_email)
-            if row.assignee_email or row.assignee_id:
-                if assignee is None or not task_access.can_assign(
-                    row.country, assignee.role, assignee.country, assignee.is_active
-                ):
-                    errors.append(row_error(row, "assignee must be an active cleaner from the task's country"))
-                    continue
-                assignee_id = assignee.id
+            if not assignee_allowed(row, assignee):
+                errors.append(row_error(row, "assignee must be an active cleaner from the task's country"))
+                continue
 
-            session.add(
+            ready.append(
                 Task(
                     title=row.title,
                     description=row.description,
                     status=TaskStatus.PENDING,
                     country=row.country,
-                    location_id=location_id,
-                    assigned_to=assignee_id,
+                    location_id=location.id if location else None,
+                    assigned_to=assignee.id if assignee else None,
                     priority=row.priority,
                     rrule=row.rrule,
                     is_recurring=bool(row.rrule),
                     created_at=now,
                 )
             )
-            imported += 1
+            if len(preview) < PREVIEW_ROWS:
+                preview.append(preview_row(row, location, assignee))
 
-    return json_response({"imported": imported, "total_rows": len(df), "errors": errors})
+        if not dry_run:
+            session.add_all(ready)
+
+    return json_response(
+        {
+            "imported": 0 if dry_run else len(ready),
+            "valid_rows": len(ready),
+            "total_rows": len(df),
+            "errors": errors,
+            "preview": preview,
+            "dry_run": dry_run,
+        }
+    )
 
 
 @bp.route(route="import/template", methods=["GET"])

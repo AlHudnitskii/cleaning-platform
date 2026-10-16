@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -15,6 +16,12 @@ BACKEND = ROOT / "cleaning-platform"
 FRONTEND = ROOT / "cleaning-frontend"
 ENV_FILE = BACKEND / ".env"
 IS_WINDOWS = sys.platform == "win32"
+
+REQUIRED_TOOLS = {
+    "docker": "Install Docker Desktop: https://www.docker.com/products/docker-desktop",
+    "func": "Install Azure Functions Core Tools: brew tap azure/functions && brew install azure-functions-core-tools@4",
+    "npm": "Install Node.js 22+: https://nodejs.org",
+}
 
 COLORS = {
     "DOCKER": "\033[36m",
@@ -104,6 +111,12 @@ def shutdown(signum: int | None = None, frame: object = None) -> None:
 def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
+
+    missing_tools = [name for name in REQUIRED_TOOLS if shutil.which(name) is None]
+    for name in missing_tools:
+        log("ERROR", f"'{name}' not found. {REQUIRED_TOOLS[name]}")
+    if missing_tools:
+        sys.exit(1)
 
     file_env = read_env_file(ENV_FILE)
     missing = [key for key in ("JWT_SECRET", "JWT_REFRESH_SECRET") if not (file_env.get(key) or os.environ.get(key))]

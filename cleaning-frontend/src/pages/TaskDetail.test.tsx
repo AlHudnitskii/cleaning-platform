@@ -23,7 +23,7 @@ describe("Task detail", () => {
 
     const group = await screen.findByRole("group", { name: "Change status of Clean lobby" });
     const buttons = Array.from(group.querySelectorAll("button")).map((b) => b.textContent);
-    expect(buttons).toEqual(["Approve", "Start work"]);
+    expect(buttons).toEqual(["Approve", "Return for rework"]);
   });
 
   it("sends the status change and shows the updated task", async () => {

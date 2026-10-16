@@ -1,5 +1,5 @@
-const CACHE_NAME = "cleaning-platform-v3";
-const APP_SHELL = ["/", "/index.html", "/manifest.json", "/logo192.png", "/favicon.ico"];
+const CACHE_NAME = "cleaning-platform-v4";
+const APP_SHELL = ["/", "/index.html", "/manifest.json", "/favicon.svg", "/favicon-32.png", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -79,8 +79,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || "Cleaning Platform", {
       body: data.body || "New notification",
-      icon: "/logo192.png",
-      badge: "/logo192.png",
+      icon: "/icon-192.png",
+      badge: "/favicon-32.png",
     }),
   );
 });

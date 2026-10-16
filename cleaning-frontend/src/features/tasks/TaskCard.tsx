@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 
 import type { TaskResponse } from "../../api/types";
 import { PriorityBadge, StatusBadge } from "../../components/Badges";
-import { countryName, formatDate, rruleLabel } from "../../labels";
+import { RelativeDate } from "../../components/People";
+import { countryName, rruleLabel } from "../../labels";
 
 export function TaskCard({ task, actions, pending }: { task: TaskResponse; actions?: ReactNode; pending?: boolean }) {
   return (
@@ -36,7 +37,9 @@ export function TaskCard({ task, actions, pending }: { task: TaskResponse; actio
         </div>
         <div>
           <dt>Created</dt>
-          <dd>{formatDate(task.created_at)}</dd>
+          <dd>
+            <RelativeDate value={task.created_at} />
+          </dd>
         </div>
         {task.rrule && (
           <div>

@@ -11,6 +11,13 @@ export function readPage(params: URLSearchParams): number {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
+export const PAGE_SIZES = [25, 50, 100] as const;
+
+export function readPageSize(params: URLSearchParams): number {
+  const size = Number(params.get("limit"));
+  return (PAGE_SIZES as readonly number[]).includes(size) ? size : PAGE_SIZES[0];
+}
+
 export function readDate(params: URLSearchParams, key: string): string | undefined {
   const value = params.get(key);
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;

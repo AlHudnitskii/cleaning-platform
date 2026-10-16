@@ -1,4 +1,4 @@
-import type { TaskPage, TaskResponse, TokenResponse, UserResponse } from "../api/types";
+import type { LocationResponse, TaskPage, TaskResponse, TokenResponse, UserResponse } from "../api/types";
 
 export function makeUser(overrides: Partial<UserResponse> = {}): UserResponse {
   return {
@@ -59,5 +59,19 @@ export function makePage(tasks: TaskResponse[], overrides: Partial<TaskPage["pag
   return {
     data: tasks,
     pagination: { page: 1, limit: 12, total: tasks.length, pages: 1, ...overrides },
+  };
+}
+
+export function makeLocation(overrides: Partial<LocationResponse> = {}): LocationResponse {
+  return {
+    id: "77777777-7777-4777-8777-777777777777",
+    name: "Germany",
+    country: "DE",
+    level: "country",
+    parent_id: null,
+    path: "77777777",
+    full_name: "Germany",
+    created_at: "2026-01-01T00:00:00+00:00",
+    ...overrides,
   };
 }

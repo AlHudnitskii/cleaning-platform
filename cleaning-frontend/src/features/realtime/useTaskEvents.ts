@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { refreshSession } from "../../api/client";
 import { getAccessToken } from "../../auth/session";
 import { config } from "../../config";
+import { statsKeys } from "../stats/api";
 import { taskKeys } from "../tasks/api";
 
 const INITIAL_DELAY_MS = 2_000;
@@ -48,6 +49,7 @@ export function useTaskEvents(enabled: boolean): void {
         const event = parseEvent(message.data);
         if (!event || !TASK_EVENTS.has(event.type)) return;
         void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+        void queryClient.invalidateQueries({ queryKey: statsKeys.all });
         const taskId = event.data?.task_id;
         if (taskId) void queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
       };

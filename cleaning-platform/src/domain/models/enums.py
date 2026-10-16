@@ -57,3 +57,12 @@ class TaskSort(StrEnum):
     CREATED_AT = "created_at"
     PRIORITY = "priority"
     STATUS = "status"
+    TITLE = "title"
+    COUNTRY = "country"
+    LOCATION = "location"
+    ASSIGNEE = "assignee"
+
+
+class SortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"

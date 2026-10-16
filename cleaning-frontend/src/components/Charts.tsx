@@ -16,8 +16,15 @@ export function StatCard({
 }) {
   const body = (
     <>
+      <span className="stat-head">
+        <span className="stat-label">{label}</span>
+        {to && (
+          <span className="stat-open" aria-hidden="true">
+            Open
+          </span>
+        )}
+      </span>
       <span className="stat-value">{value}</span>
-      <span className="stat-label">{label}</span>
       {sub && <span className="stat-sub">{sub}</span>}
     </>
   );
@@ -164,5 +171,57 @@ export function LineChart({ points, emptyText, title }: { points: SeriesPoint[];
         </tbody>
       </table>
     </figure>
+  );
+}
+
+export interface BreakdownItem {
+  key: string;
+  label: string;
+  value: number;
+  tone: string;
+  to?: string;
+}
+
+export function StatusBreakdown({ items, title }: { items: BreakdownItem[]; title: string }) {
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+  if (total === 0) return <p className="muted">No tasks yet</p>;
+  return (
+    <div className="breakdown">
+      <div className="breakdown-bar" role="img" aria-label={title}>
+        {items
+          .filter((item) => item.value > 0)
+          .map((item) => (
+            <span
+              key={item.key}
+              className={`breakdown-segment tone-${item.tone}`}
+              style={{ flexGrow: item.value }}
+              title={`${item.label}: ${item.value}`}
+            />
+          ))}
+      </div>
+      <ul className="breakdown-legend">
+        {items.map((item) => {
+          const content = (
+            <>
+              <span className={`breakdown-dot tone-${item.tone}`} aria-hidden="true" />
+              <span className="breakdown-label">{item.label}</span>
+              <span className="breakdown-value">{item.value}</span>
+              <span className="breakdown-share">{Math.round((item.value / total) * 100)}%</span>
+            </>
+          );
+          return (
+            <li key={item.key}>
+              {item.to ? (
+                <Link className="breakdown-item breakdown-link" to={item.to}>
+                  {content}
+                </Link>
+              ) : (
+                <div className="breakdown-item">{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

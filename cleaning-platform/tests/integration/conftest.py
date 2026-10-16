@@ -72,10 +72,12 @@ class Account:
         return {"Authorization": f"Bearer {self.token}"}
 
 
-async def create_account(role: str, country: str | None = "DE", password: str = "secret123") -> Account:
+async def create_account(
+    role: str, country: str | None = "DE", password: str = "secret123", email: str | None = None
+) -> Account:
     async with session_scope() as session, session.begin():
         user = User(
-            email=f"{role}-{uuid.uuid4().hex[:8]}@example.com",
+            email=email or f"{role}-{uuid.uuid4().hex[:8]}@example.com",
             hashed_password=hash_password(password),
             role=role,
             country=country,

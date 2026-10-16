@@ -43,6 +43,10 @@ export const SORT_LABELS: Record<TaskSort, string> = {
   created_at: "Newest first",
   priority: "Priority",
   status: "Status",
+  title: "Title",
+  country: "Country",
+  location: "Location",
+  assignee: "Assignee",
 };
 
 export const COUNTRY_NAMES: Record<Country, string> = {
@@ -102,10 +106,22 @@ export function formatOccurrence(value: string): string {
   return occurrenceFormat.format(new Date(value));
 }
 
-export function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+
+const relativeFormat = new Intl.RelativeTimeFormat("en-GB", { numeric: "auto" });
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+export function formatRelative(value: string, now: number = Date.now()): string {
+  const elapsed = now - new Date(value).getTime();
+  if (elapsed < 0 || elapsed >= 7 * DAY) return formatDate(value);
+  if (elapsed < MINUTE) return "Just now";
+  if (elapsed < HOUR) return relativeFormat.format(-Math.floor(elapsed / MINUTE), "minute");
+  if (elapsed < DAY) return relativeFormat.format(-Math.floor(elapsed / HOUR), "hour");
+  const label = relativeFormat.format(-Math.floor(elapsed / DAY), "day");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export function daysAgo(days: number): string {
-  return isoDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
+export function emailName(email: string): string {
+  return email.split("@")[0] ?? email;
 }

@@ -4,10 +4,11 @@ from typing import Any
 
 from sqlalchemy import Select, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
 from src.api.http import ApiError, not_found
-from src.domain.models.enums import Country, TaskPriority, TaskSort, TaskStatus
+from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus
 from src.domain.models.task import TaskResponse
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
@@ -19,6 +20,17 @@ PRIORITY_RANK = case(
     value=Task.priority,
 )
 STATUS_RANK = case({s.value: rank for rank, s in enumerate(TaskStatus)}, value=Task.status)
+
+SORT_COLUMNS: dict[TaskSort, ColumnElement[Any] | InstrumentedAttribute[Any]] = {
+    TaskSort.CREATED_AT: Task.created_at,
+    TaskSort.PRIORITY: PRIORITY_RANK,
+    TaskSort.STATUS: STATUS_RANK,
+    TaskSort.TITLE: func.lower(Task.title),
+    TaskSort.COUNTRY: Task.country,
+    TaskSort.LOCATION: func.lower(Location.name),
+    TaskSort.ASSIGNEE: func.lower(User.email),
+}
+DESCENDING_BY_DEFAULT = {TaskSort.CREATED_AT, TaskSort.PRIORITY}
 
 
 def day_start(value: date) -> datetime:
@@ -53,13 +65,13 @@ def task_rows() -> Select[Task, str, str]:
     )
 
 
-def ordering(sort: TaskSort) -> list[ColumnElement[Any]]:
-    tie_breakers: list[ColumnElement[Any]] = [Task.created_at.desc(), Task.id.desc()]
-    if sort == TaskSort.PRIORITY:
-        return [PRIORITY_RANK.desc(), *tie_breakers]
-    if sort == TaskSort.STATUS:
-        return [STATUS_RANK.asc(), *tie_breakers]
-    return tie_breakers
+def ordering(sort: TaskSort, order: SortOrder | None = None) -> list[ColumnElement[Any]]:
+    descending = order == SortOrder.DESC if order else sort in DESCENDING_BY_DEFAULT
+    column = SORT_COLUMNS[sort]
+    primary = (column.desc() if descending else column.asc()).nulls_last()
+    if sort == TaskSort.CREATED_AT:
+        return [primary, Task.id.desc() if descending else Task.id.asc()]
+    return [primary, Task.created_at.desc(), Task.id.desc()]
 
 
 def to_response(

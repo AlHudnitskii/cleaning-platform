@@ -33,3 +33,6 @@ npm-debug.log*
 *.swp
 .DS_Store
 Thumbs.db
+
+LCS Admin Console*.html
+LCS Admin Console*_files/

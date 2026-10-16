@@ -2,6 +2,7 @@ import { useId, useState, type ChangeEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import { Notice } from "../../components/Feedback";
+import { showToast } from "../../components/toast";
 import { useUploadPhoto } from "./api";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -21,7 +22,7 @@ export function PhotoUpload({ taskId, online }: { taskId: string; online: boolea
       return;
     }
     setLocalError(null);
-    upload.mutate({ id: taskId, file });
+    upload.mutate({ id: taskId, file }, { onSuccess: () => showToast("Photo uploaded.") });
   };
 
   return (
@@ -38,7 +39,6 @@ export function PhotoUpload({ taskId, online }: { taskId: string; online: boolea
         {upload.isPending ? "Uploading…" : "Upload photo"}
       </label>
       {!online && <span className="muted">Photo upload is unavailable offline.</span>}
-      {upload.isSuccess && <Notice tone="success">Photo uploaded.</Notice>}
       {(localError ?? upload.isError) && (
         <Notice tone="error">{localError ?? errorMessage(upload.error)}</Notice>
       )}

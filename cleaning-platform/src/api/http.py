@@ -22,11 +22,18 @@ PublicHandler = Callable[[func.HttpRequest], Awaitable[func.HttpResponse]]
 
 
 class ApiError(Exception):
-    def __init__(self, status_code: int, message: str, details: list[dict[str, str]] | None = None):
+    def __init__(
+        self,
+        status_code: int,
+        message: str,
+        details: list[dict[str, str]] | None = None,
+        retry_after: int | None = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.message = message
         self.details = details
+        self.retry_after = retry_after
 
 
 def not_found(entity: str) -> ApiError:
@@ -46,11 +53,19 @@ def json_response(data: Any, status_code: int = 200, headers: dict[str, str] | N
     )
 
 
-def error_response(status_code: int, message: str, details: list[dict[str, str]] | None = None) -> func.HttpResponse:
+def error_response(
+    status_code: int,
+    message: str,
+    details: list[dict[str, str]] | None = None,
+    retry_after: int | None = None,
+) -> func.HttpResponse:
     body: dict[str, Any] = {"error": message}
     if details:
         body["details"] = details
-    return json_response(body, status_code)
+    if retry_after is None:
+        return json_response(body, status_code)
+    body["retry_after"] = retry_after
+    return json_response(body, status_code, headers={"Retry-After": str(retry_after)})
 
 
 def validation_details(error: ValidationError) -> list[dict[str, str]]:
@@ -172,7 +187,7 @@ def cookie_header(name: str, value: str, max_age: int, path: str, secure: bool) 
 
 def _error_from_exception(e: Exception) -> func.HttpResponse:
     if isinstance(e, ApiError):
-        return error_response(e.status_code, e.message, e.details)
+        return error_response(e.status_code, e.message, e.details, e.retry_after)
     if isinstance(e, AuthError):
         return error_response(e.status_code, e.message)
     if isinstance(e, ValidationError):

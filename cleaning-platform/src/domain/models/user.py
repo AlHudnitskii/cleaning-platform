@@ -35,6 +35,11 @@ class CurrentUser:
         return self.role == UserRole.CLEANER
 
 
+def _validate_country_for_role(role: UserRole, country: Country | None) -> None:
+    if role in (UserRole.MANAGER, UserRole.CLEANER) and not country:
+        raise ValueError("Country is required for manager and cleaner roles")
+
+
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
@@ -48,9 +53,28 @@ class UserRegister(BaseModel):
 
     @model_validator(mode="after")
     def validate_country_for_role(self) -> "UserRegister":
-        if self.role in (UserRole.MANAGER, UserRole.CLEANER) and not self.country:
-            raise ValueError("Country is required for manager and cleaner roles")
+        _validate_country_for_role(self.role, self.country)
         return self
+
+
+class UserUpdate(BaseModel):
+    email: EmailStr
+    role: UserRole
+    country: Country | None = None
+
+    @model_validator(mode="after")
+    def validate_country_for_role(self) -> "UserUpdate":
+        _validate_country_for_role(self.role, self.country)
+        return self
+
+
+class PasswordReset(BaseModel):
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return _validate_password(v)
 
 
 class UserLogin(BaseModel):

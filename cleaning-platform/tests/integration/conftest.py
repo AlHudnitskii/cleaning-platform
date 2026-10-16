@@ -26,6 +26,7 @@ TABLES = [
     "task_status_history",
     "task_photos",
     "push_subscriptions",
+    "login_failures",
     "tasks",
     "locations",
     "users",

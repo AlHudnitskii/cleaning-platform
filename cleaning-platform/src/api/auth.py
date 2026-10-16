@@ -1,3 +1,6 @@
+import logging
+from datetime import datetime
+
 import azure.functions as func
 from sqlalchemy import delete, select
 
@@ -11,6 +14,7 @@ from src.api.http import (
     read_model,
 )
 from src.domain.models.user import CurrentUser, TokenResponse, UserLogin, UserResponse
+from src.domain.services.login_throttle import retry_after, throttle_key, window_start
 from src.infrastructure.auth.jwt_handler import (
     InvalidTokenError,
     create_access_token,
@@ -19,10 +23,11 @@ from src.infrastructure.auth.jwt_handler import (
     verify_password,
 )
 from src.infrastructure.database.connection import session_scope
-from src.infrastructure.database.models import PushSubscription, User
+from src.infrastructure.database.models import LoginFailure, PushSubscription, User, utcnow
 from src.settings import get_settings
 
 bp = func.Blueprint()
+logger = logging.getLogger(__name__)
 
 REFRESH_COOKIE = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/auth"
@@ -62,16 +67,43 @@ async def user_from_refresh_token(token: str | None) -> User:
     return user
 
 
+async def recent_failures(key: str) -> list[datetime]:
+    async with session_scope() as session, session.begin():
+        await session.execute(
+            delete(LoginFailure).where(LoginFailure.email == key, LoginFailure.failed_at <= window_start(utcnow()))
+        )
+        return list(await session.scalars(select(LoginFailure.failed_at).where(LoginFailure.email == key)))
+
+
+async def record_failure(key: str) -> None:
+    async with session_scope() as session, session.begin():
+        session.add(LoginFailure(email=key, failed_at=utcnow()))
+
+
+async def clear_failures(key: str) -> None:
+    async with session_scope() as session, session.begin():
+        await session.execute(delete(LoginFailure).where(LoginFailure.email == key))
+
+
 @bp.route(route="auth/login", methods=["POST"])
 @public
 async def login(req: func.HttpRequest) -> func.HttpResponse:
     data = read_model(req, UserLogin)
+    key = throttle_key(data.email)
+
+    wait = retry_after(await recent_failures(key), utcnow())
+    if wait is not None:
+        logger.warning("Sign-in throttled", extra={"retry_after": wait})
+        raise ApiError(429, "Too many failed sign-in attempts. Try again later.", retry_after=wait)
 
     async with session_scope() as session:
         user = await session.scalar(select(User).where(User.email == data.email))
 
     if user is None or not verify_password(data.password, user.hashed_password):
+        await record_failure(key)
+        logger.info("Sign-in failed")
         raise ApiError(401, "Invalid email or password")
+    await clear_failures(key)
     if not user.is_active:
         raise ApiError(403, "User is disabled")
 

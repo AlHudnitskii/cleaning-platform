@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+from dataclasses import dataclass
 from enum import StrEnum
 
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -16,6 +17,16 @@ GONE_STATUSES = frozenset({403, 404, 410})
 PUSH_TIMEOUT_SECONDS = 10
 
 
+@dataclass(frozen=True)
+class PushMessage:
+    title: str
+    body: str
+    task_id: str | None = None
+
+    def payload(self) -> str:
+        return json.dumps({"title": self.title, "body": self.body, "task_id": self.task_id})
+
+
 class PushResult(StrEnum):
     SENT = "sent"
     GONE = "gone"
@@ -28,12 +39,12 @@ def get_public_key_base64() -> str:
     return base64.urlsafe_b64encode(public_key_bytes).decode().rstrip("=")
 
 
-def _send(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> PushResult:
+def _send(endpoint: str, p256dh: str, auth: str, message: PushMessage) -> PushResult:
     settings = get_settings()
     try:
         webpush(
             subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
-            data=json.dumps({"title": title, "body": body}),
+            data=message.payload(),
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
             timeout=PUSH_TIMEOUT_SECONDS,
@@ -47,5 +58,5 @@ def _send(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> PushR
     return PushResult.SENT
 
 
-async def send_push_notification(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> PushResult:
-    return await asyncio.to_thread(_send, endpoint, p256dh, auth, title, body)
+async def send_push_notification(endpoint: str, p256dh: str, auth: str, message: PushMessage) -> PushResult:
+    return await asyncio.to_thread(_send, endpoint, p256dh, auth, message)

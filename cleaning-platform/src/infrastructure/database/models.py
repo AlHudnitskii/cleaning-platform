@@ -143,6 +143,16 @@ class TaskComment(Base):
     __table_args__ = (Index("ix_task_comments_task_id_created_at", "task_id", "created_at"),)
 
 
+class LoginFailure(Base):
+    __tablename__ = "login_failures"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255))
+    failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (Index("ix_login_failures_email_failed_at", "email", "failed_at"),)
+
+
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
 

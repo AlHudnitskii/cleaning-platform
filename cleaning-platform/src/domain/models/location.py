@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field, field_validator
 from src.domain.models.enums import Country, LocationLevel
 
 
+def _validate_name(value: str) -> str:
+    if len(value.strip()) < 2:
+        raise ValueError("Name must be at least 2 characters")
+    return value.strip()
+
+
 class LocationCreate(BaseModel):
     name: str = Field(max_length=255)
     country: Country
@@ -15,9 +21,16 @@ class LocationCreate(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        if len(v.strip()) < 2:
-            raise ValueError("Name must be at least 2 characters")
-        return v.strip()
+        return _validate_name(v)
+
+
+class LocationUpdate(BaseModel):
+    name: str = Field(max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        return _validate_name(v)
 
 
 class LocationResponse(BaseModel):

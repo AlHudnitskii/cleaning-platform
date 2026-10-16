@@ -15,11 +15,13 @@ import { showToast } from "../components/toast";
 import { StarDisplay, StarInput } from "../components/StarRating";
 import { useOfflineSync } from "../features/offline/useOfflineSync";
 import { useDeleteTask, useOccurrences, usePhotos, useReviewQuality, useTask } from "../features/tasks/api";
+import { Checklist } from "../features/tasks/Checklist";
 import { DueDate } from "../features/tasks/DueDate";
 import { PhotoUpload } from "../features/tasks/PhotoUpload";
 import { StatusActions } from "../features/tasks/StatusActions";
 import { TaskActivity } from "../features/tasks/TaskActivity";
 import { TaskForm } from "../features/tasks/TaskForm";
+import { blockerText } from "../features/tasks/workflow";
 import { countryName, formatDateTime, formatOccurrence, rruleLabel } from "../labels";
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -129,6 +131,9 @@ function TaskDetailContent({ id }: { id: string }) {
           <p>Its comments, status history and photos are deleted too. This cannot be undone.</p>
         </ConfirmDialog>
       )}
+      {data.status === "in_progress" && data.review_blockers.length > 0 && (
+        <Notice tone="info">{blockerText(data)}</Notice>
+      )}
       {!offline.online && (
         <Notice tone="warning">You are offline. Status changes will be sent when the connection is back.</Notice>
       )}
@@ -136,6 +141,7 @@ function TaskDetailContent({ id }: { id: string }) {
 
       <div className="task-layout">
         <div className="task-main">
+          <Checklist task={data} canTick={!queued} canEdit={canManage} />
           {data.description && (
             <section className="card" aria-labelledby="description-title">
               <h2 id="description-title" className="section-title">

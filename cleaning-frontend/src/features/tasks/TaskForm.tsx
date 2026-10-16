@@ -1,4 +1,4 @@
-import { useState, type SubmitEvent } from "react";
+import { useId, useState, type SubmitEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import {
@@ -13,6 +13,7 @@ import {
 import { DatePicker } from "../../components/DatePicker";
 import { Notice } from "../../components/Feedback";
 import { Field } from "../../components/Field";
+import { Icon } from "../../components/Icon";
 import { optionList, withEmpty } from "../../components/options";
 import { Select } from "../../components/Select";
 import { today } from "../../dates";
@@ -30,6 +31,8 @@ interface FormState {
   priority: TaskPriority;
   rrule: string;
   dueDate: string;
+  photoRequired: boolean;
+  checklist: string[];
 }
 
 function initialState(user: UserResponse, task?: TaskResponse): FormState {
@@ -43,6 +46,8 @@ function initialState(user: UserResponse, task?: TaskResponse): FormState {
       priority: task.priority,
       rrule: task.rrule ?? "",
       dueDate: task.due_date ?? "",
+      photoRequired: task.photo_required,
+      checklist: [],
     };
   }
   return {
@@ -54,6 +59,8 @@ function initialState(user: UserResponse, task?: TaskResponse): FormState {
     priority: "normal",
     rrule: "",
     dueDate: "",
+    photoRequired: false,
+    checklist: [],
   };
 }
 
@@ -66,6 +73,7 @@ function changesFrom(initial: FormState, form: FormState): TaskUpdate {
   if (form.priority !== initial.priority) changes.priority = form.priority;
   if (form.rrule !== initial.rrule) changes.rrule = form.rrule || null;
   if (form.dueDate !== initial.dueDate) changes.due_date = form.dueDate || null;
+  if (form.photoRequired !== initial.photoRequired) changes.photo_required = form.photoRequired;
   return changes;
 }
 
@@ -81,6 +89,7 @@ export function TaskForm({
   onCancel: () => void;
 }) {
   const [initial] = useState<FormState>(() => initialState(user, task));
+  const photoHintId = useId();
   const [form, setForm] = useState<FormState>(initial);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask(task?.id ?? "");
@@ -114,6 +123,8 @@ export function TaskForm({
         assigned_to: form.assigneeId || undefined,
         rrule: form.rrule || undefined,
         due_date: form.dueDate || undefined,
+        photo_required: form.photoRequired || undefined,
+        checklist: form.checklist.length > 0 ? form.checklist : undefined,
       },
       { onSuccess: onSaved },
     );
@@ -191,6 +202,24 @@ export function TaskForm({
             onChange={(rrule) => set("rrule", rrule)}
           />
         </Field>
+        {!task && (
+          <ChecklistEditor items={form.checklist} onChange={(checklist) => set("checklist", checklist)} />
+        )}
+        <div className="check-field">
+          <label className="check-field-label">
+            <input
+              type="checkbox"
+              className="checkbox"
+              checked={form.photoRequired}
+              aria-describedby={photoHintId}
+              onChange={(e) => set("photoRequired", e.target.checked)}
+            />
+            Require a photo of the result
+          </label>
+          <p className="field-hint" id={photoHintId}>
+            The cleaner cannot send the task for review without a photo.
+          </p>
+        </div>
         <Field label="Description">
           <textarea
             className="input"
@@ -210,5 +239,60 @@ export function TaskForm({
         </button>
       </div>
     </form>
+  );
+}
+
+const MAX_ITEMS = 50;
+
+function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (items: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+
+  const addDraft = () => {
+    const value = draft.trim();
+    if (!value || items.length >= MAX_ITEMS) return;
+    onChange([...items, value]);
+    setDraft("");
+  };
+
+  return (
+    <fieldset className="checklist-editor">
+      <legend className="field-label">Checklist</legend>
+      {items.length > 0 && (
+        <ol className="checklist-editor-items">
+          {items.map((item, index) => (
+            <li key={`${item}-${index}`}>
+              <span>{item}</span>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Remove “${item}”`}
+                onClick={() => onChange(items.filter((_, position) => position !== index))}
+              >
+                <Icon name="close" size={13} />
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="checklist-add">
+        <input
+          className="input"
+          value={draft}
+          maxLength={255}
+          placeholder="Add a step and press Enter"
+          aria-label="New checklist step"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addDraft();
+            }
+          }}
+        />
+        <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={addDraft}>
+          Add
+        </button>
+      </div>
+    </fieldset>
   );
 }

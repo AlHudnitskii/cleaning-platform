@@ -1,5 +1,5 @@
 import { makeTask } from "../../test/fixtures";
-import { actionLabel, dueLabel, dueState, nextStep } from "./workflow";
+import { actionLabel, blockerText, dueLabel, dueState, isBlocked, nextStep } from "./workflow";
 
 describe("actionLabel", () => {
   it.each([
@@ -46,5 +46,25 @@ describe("dueState", () => {
     expect(dueLabel("2026-10-16", "today", TODAY)).toBe("Due today");
     expect(dueLabel("2026-10-17", "soon", TODAY)).toBe("Due tomorrow");
     expect(dueLabel("2026-10-30", "later", TODAY)).toBe("Due 30 Oct 2026");
+  });
+});
+
+describe("review readiness", () => {
+  it("blocks only the move to review and explains every missing piece", () => {
+    const task = makeTask({ review_blockers: ["photo", "checklist"], checklist_done: 2, checklist_total: 5 });
+
+    expect(isBlocked(task, "on_review")).toBe(true);
+    expect(isBlocked(task, "on_hold")).toBe(false);
+    expect(blockerText(task)).toBe(
+      "To send for review, upload a photo of the result and finish the checklist (2 of 5 done).",
+    );
+  });
+
+  it("does not suggest a blocked review as the next step", () => {
+    const blocked = makeTask({ status: "in_progress", allowed_statuses: ["on_review"], review_blockers: ["photo"] });
+    const ready = makeTask({ status: "in_progress", allowed_statuses: ["on_review"] });
+
+    expect(nextStep(blocked)).toBeNull();
+    expect(nextStep(ready)).toBe("on_review");
   });
 });

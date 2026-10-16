@@ -11,7 +11,21 @@ const NEXT_STEP: Partial<Record<TaskStatus, TaskStatus>> = {
 
 export function nextStep(task: TaskResponse): TaskStatus | null {
   const next = NEXT_STEP[task.status];
-  return next && task.allowed_statuses.includes(next) ? next : null;
+  if (!next || !task.allowed_statuses.includes(next)) return null;
+  return isBlocked(task, next) ? null : next;
+}
+
+export function isBlocked(task: Pick<TaskResponse, "review_blockers">, target: TaskStatus): boolean {
+  return target === "on_review" && task.review_blockers.length > 0;
+}
+
+export function blockerText(task: Pick<TaskResponse, "review_blockers" | "checklist_done" | "checklist_total">): string {
+  const parts: string[] = [];
+  if (task.review_blockers.includes("photo")) parts.push("upload a photo of the result");
+  if (task.review_blockers.includes("checklist")) {
+    parts.push(`finish the checklist (${task.checklist_done} of ${task.checklist_total} done)`);
+  }
+  return parts.length > 0 ? `To send for review, ${parts.join(" and ")}.` : "";
 }
 
 const REOPEN_FROM: readonly TaskStatus[] = ["completed", "cancelled"];

@@ -1,5 +1,5 @@
 import type { TaskResponse, TaskStatus } from "../../api/types";
-import { actionLabel, nextStep } from "./workflow";
+import { actionLabel, blockerText, isBlocked, nextStep } from "./workflow";
 
 function buttonClass(status: TaskStatus, next: TaskStatus | null): string {
   if (status === "cancelled") return "btn btn-danger";
@@ -16,7 +16,7 @@ export function StatusActions({
   disabled?: boolean;
 }) {
   if (task.allowed_statuses.length === 0) return null;
-  const next = nextStep(task);
+  const next = nextStep(task) ?? (task.status === "in_progress" ? "on_review" : null);
   const ordered = [...task.allowed_statuses].sort((a, b) => Number(b === next) - Number(a === next));
   return (
     <div className="button-row" role="group" aria-label={`Change status of ${task.title}`}>
@@ -25,7 +25,8 @@ export function StatusActions({
           key={status}
           type="button"
           className={buttonClass(status, next)}
-          disabled={disabled}
+          disabled={disabled || isBlocked(task, status)}
+          title={isBlocked(task, status) ? blockerText(task) : undefined}
           onClick={() => onChange(status)}
         >
           {actionLabel(task.status, status)}

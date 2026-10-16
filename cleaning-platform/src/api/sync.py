@@ -46,7 +46,7 @@ async def batch_sync(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespo
                     last_change = await last_status_change(session, task.id)
                     if change.timestamp and last_change and last_change > change.timestamp:
                         raise ApiError(409, "Task was changed on the server after this offline change")
-                    change_status(session, user, task, change.status)
+                    await change_status(session, user, task, change.status)
             except ApiError as e:
                 errors.append(sync_error(raw, e.message))
                 continue

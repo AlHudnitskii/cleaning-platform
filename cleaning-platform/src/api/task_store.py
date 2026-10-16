@@ -8,11 +8,11 @@ from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
 from src.api.http import ApiError, not_found
-from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus
+from src.domain.models.enums import Country, ReviewBlocker, SortOrder, TaskPriority, TaskSort, TaskStatus
 from src.domain.models.task import TaskResponse
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
-from src.infrastructure.database.models import Location, Task, TaskStatusHistory, User
+from src.infrastructure.database.models import Location, Task, TaskChecklistItem, TaskPhoto, TaskStatusHistory, User
 from src.infrastructure.messaging import outbox
 
 PRIORITY_RANK = case(
@@ -33,6 +33,16 @@ SORT_COLUMNS: dict[TaskSort, ColumnElement[Any] | InstrumentedAttribute[Any]] = 
 }
 OPEN_STATUSES = [s.value for s in TaskStatus if s not in (TaskStatus.COMPLETED, TaskStatus.CANCELLED)]
 DESCENDING_BY_DEFAULT = {TaskSort.CREATED_AT, TaskSort.PRIORITY}
+
+
+def task_event(task: Task, **extra: object) -> dict[str, object]:
+    return {
+        "task_id": str(task.id),
+        "title": task.title,
+        "country": task.country,
+        "assigned_to": str(task.assigned_to) if task.assigned_to else None,
+        **extra,
+    }
 
 
 def overdue_condition() -> ColumnElement[bool]:
@@ -80,9 +90,39 @@ def ordering(sort: TaskSort, order: SortOrder | None = None) -> list[ColumnEleme
     return [primary, Task.created_at.desc(), Task.id.desc()]
 
 
+async def task_progress(session: AsyncSession, task_ids: list[uuid.UUID]) -> dict[uuid.UUID, task_access.TaskProgress]:
+    if not task_ids:
+        return {}
+    checklist = (
+        await session.execute(
+            select(
+                TaskChecklistItem.task_id,
+                func.count().filter(TaskChecklistItem.done.is_(True)),
+                func.count(),
+            )
+            .where(TaskChecklistItem.task_id.in_(task_ids))
+            .group_by(TaskChecklistItem.task_id)
+        )
+    ).all()
+    photo_counts = (
+        select(TaskPhoto.task_id, func.count()).where(TaskPhoto.task_id.in_(task_ids)).group_by(TaskPhoto.task_id)
+    )
+    photos = {task_id: count for task_id, count in (await session.execute(photo_counts)).all()}
+    counts = {task_id: (done, total) for task_id, done, total in checklist}
+    return {
+        task_id: task_access.TaskProgress(
+            checklist_done=counts.get(task_id, (0, 0))[0],
+            checklist_total=counts.get(task_id, (0, 0))[1],
+            photo_count=photos.get(task_id, 0),
+        )
+        for task_id in task_ids
+    }
+
+
 def to_response(
     task: Task,
     user: CurrentUser,
+    progress: task_access.TaskProgress,
     assignee_email: str | None = None,
     location_name: str | None = None,
     location_path: list[str] | None = None,
@@ -104,6 +144,11 @@ def to_response(
         scheduled_for=task.scheduled_for,
         priority=TaskPriority(task.priority),
         due_date=task.due_date,
+        photo_required=task.photo_required,
+        checklist_done=progress.checklist_done,
+        checklist_total=progress.checklist_total,
+        photo_count=progress.photo_count,
+        review_blockers=task_access.review_blockers(task.photo_required, progress),
         quality_score=task.quality_score,
         quality_comment=task.quality_comment,
         quality_reviewed_by=task.quality_reviewed_by,
@@ -129,7 +174,17 @@ async def detailed_response(session: AsyncSession, user: CurrentUser, task: Task
             )
             location_path = list(ancestors)
 
-    return to_response(task, user, assignee_email, location_name, location_path)
+    progress = (await task_progress(session, [task.id]))[task.id]
+    return to_response(task, user, progress, assignee_email, location_name, location_path)
+
+
+def blocker_message(blockers: list[ReviewBlocker], progress: task_access.TaskProgress) -> str:
+    parts = []
+    if ReviewBlocker.PHOTO in blockers:
+        parts.append("upload a photo of the result")
+    if ReviewBlocker.CHECKLIST in blockers:
+        parts.append(f"finish the checklist ({progress.checklist_done} of {progress.checklist_total} done)")
+    return "Before sending for review, " + " and ".join(parts)
 
 
 async def load_visible_task(
@@ -153,10 +208,15 @@ async def last_status_change(session: AsyncSession, task_id: uuid.UUID) -> datet
     )
 
 
-def change_status(session: AsyncSession, user: CurrentUser, task: Task, target: TaskStatus) -> TaskStatus:
+async def change_status(session: AsyncSession, user: CurrentUser, task: Task, target: TaskStatus) -> TaskStatus:
     current = TaskStatus(task.status)
     if not task_access.can_change_status(user, current, target):
         raise ApiError(409, f"Cannot change status from {current} to {target}")
+    if target == TaskStatus.ON_REVIEW:
+        progress = (await task_progress(session, [task.id]))[task.id]
+        blockers = task_access.review_blockers(task.photo_required, progress)
+        if blockers:
+            raise ApiError(409, blocker_message(blockers, progress))
 
     now = datetime.now(UTC)
     task.status = target

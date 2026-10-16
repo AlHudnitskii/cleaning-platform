@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 
 import { client, getJson } from "../../api/client";
 import type {
+  ChecklistItem,
   CommentResponse,
   Country,
   HistoryEntryResponse,
@@ -42,6 +43,7 @@ export const taskKeys = {
   history: (id: string) => [...taskKeys.detail(id), "history"] as const,
   photos: (id: string) => [...taskKeys.detail(id), "photos"] as const,
   occurrences: (id: string) => [...taskKeys.detail(id), "occurrences"] as const,
+  checklist: (id: string) => [...taskKeys.detail(id), "checklist"] as const,
 };
 
 export async function invalidateTaskData(queryClient: QueryClient): Promise<void> {
@@ -167,7 +169,12 @@ export function useUploadPhoto() {
       form.append("photo", file);
       return (await client.post<PhotoResponse>(`/tasks/${id}/photos`, form)).data;
     },
-    onSuccess: (photo) => queryClient.invalidateQueries({ queryKey: taskKeys.photos(photo.task_id) }),
+    onSuccess: (photo) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: taskKeys.photos(photo.task_id) }),
+        queryClient.invalidateQueries({ queryKey: taskKeys.detail(photo.task_id), exact: true }),
+        invalidateTaskData(queryClient),
+      ]),
   });
 }
 
@@ -207,5 +214,60 @@ export function useBulkStatus() {
       return { updated, failed, skipped: tasks.length - eligible.length };
     },
     onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: taskKeys.all }), invalidateTaskData(queryClient)]),
+  });
+}
+
+export function useChecklist(taskId: string) {
+  return useQuery({
+    queryKey: taskKeys.checklist(taskId),
+    queryFn: () => getJson<ChecklistItem[]>(`/tasks/${taskId}/checklist`),
+  });
+}
+
+function refreshChecklist(queryClient: QueryClient, taskId: string): Promise<unknown> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: taskKeys.checklist(taskId) }),
+    queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId), exact: true }),
+    invalidateTaskData(queryClient),
+  ]);
+}
+
+export function useAddChecklistItem(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (text: string) =>
+      (await client.post<ChecklistItem>(`/tasks/${taskId}/checklist`, { text })).data,
+    onSettled: () => refreshChecklist(queryClient, taskId),
+  });
+}
+
+export function useToggleChecklistItem(taskId: string) {
+  const queryClient = useQueryClient();
+  const key = taskKeys.checklist(taskId);
+  return useMutation({
+    mutationFn: async ({ id, done }: { id: string; done: boolean }) =>
+      (await client.patch<ChecklistItem>(`/tasks/${taskId}/checklist/${id}`, { done })).data,
+    onMutate: async ({ id, done }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ChecklistItem[]>(key);
+      queryClient.setQueryData<ChecklistItem[]>(key, (items) =>
+        items?.map((item) => (item.id === id ? { ...item, done } : item)),
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSettled: () => refreshChecklist(queryClient, taskId),
+  });
+}
+
+export function useDeleteChecklistItem(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await client.delete(`/tasks/${taskId}/checklist/${id}`);
+    },
+    onSettled: () => refreshChecklist(queryClient, taskId),
   });
 }

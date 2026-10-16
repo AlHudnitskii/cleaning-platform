@@ -73,6 +73,7 @@ class Task(Base):
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     priority: Mapped[str] = mapped_column(String(20), default=TaskPriority.NORMAL, server_default="normal")
     due_date: Mapped[date | None] = mapped_column(Date)
+    photo_required: Mapped[bool] = mapped_column(default=False, server_default="false")
     quality_score: Mapped[int | None] = mapped_column(Integer)
     quality_comment: Mapped[str | None] = mapped_column(Text)
     quality_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -112,6 +113,20 @@ class TaskStatusHistory(Base):
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
 
     __table_args__ = (Index("ix_task_status_history_task_id_changed_at", "task_id", "changed_at"),)
+
+
+class TaskChecklistItem(Base):
+    __tablename__ = "task_checklist_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(String(255))
+    done: Mapped[bool] = mapped_column(default=False, server_default="false")
+    done_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("ix_task_checklist_items_task_id_position", "task_id", "position"),)
 
 
 class TaskComment(Base):

@@ -74,6 +74,24 @@ def test_an_event_without_a_readable_task_or_type_is_dropped():
     assert TaskEvent.from_message({"type": "unknown", "task_id": str(uuid.uuid4())}) is None
 
 
+async def test_a_new_task_names_its_country_in_the_device_language(monkeypatch):
+    sent: list[PushMessage] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append(message)
+
+    async def fake_managers(country: str) -> list[uuid.UUID]:
+        return [uuid.uuid4()]
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+    monkeypatch.setattr(consumer, "active_managers", fake_managers)
+
+    await consumer.handle_task_created(task_event("task_created", title="Clean lobby", country="DE"))
+
+    assert [message.body.render(Locale.RU) for message in sent] == ["Clean lobby (Германия)"]
+    assert [message.body.render(Locale.EN) for message in sent] == ["Clean lobby (Germany)"]
+
+
 async def test_the_creator_is_not_notified_about_their_own_task(monkeypatch):
     manager, other = uuid.uuid4(), uuid.uuid4()
     sent: list[uuid.UUID] = []

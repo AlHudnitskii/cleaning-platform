@@ -3932,3 +3932,152 @@ mark {
 .app-collapsed .nav-counter > span[aria-hidden="true"] {
   display: none;
 }
+
+.stat-grid-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.due {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.due-none,
+.due-closed,
+.due-later {
+  color: var(--t3);
+}
+
+.due-soon {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.due-today {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.due-overdue {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.due-overdue::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 6px;
+  background: currentColor;
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 13px;
+  border-radius: var(--radius-control);
+  background: var(--s3);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.task-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.icon-button-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.btn-danger-solid {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger-solid:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.dialog-layer {
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog {
+  position: relative;
+  width: 440px;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  animation: pop-in 0.14s ease both;
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.dialog-title {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.dialog-body {
+  color: var(--t2);
+  line-height: 1.5;
+}
+
+.dialog-error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+@media (max-width: 1100px) {
+  .stat-grid-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .stat-grid-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

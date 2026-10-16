@@ -47,6 +47,7 @@ export const SORT_LABELS: Record<TaskSort, string> = {
   country: "Country",
   location: "Location",
   assignee: "Assignee",
+  due_date: "Due date",
 };
 
 export const COUNTRY_NAMES: Record<Country, string> = {

@@ -61,6 +61,7 @@ class TaskSort(StrEnum):
     COUNTRY = "country"
     LOCATION = "location"
     ASSIGNEE = "assignee"
+    DUE_DATE = "due_date"
 
 
 class SortOrder(StrEnum):

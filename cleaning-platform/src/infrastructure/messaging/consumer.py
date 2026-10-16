@@ -9,7 +9,7 @@ from sqlalchemy import delete, select
 from src.domain.models.enums import UserRole
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, User
-from src.infrastructure.messaging.outbox import TASK_CREATED, TASK_STATUS_CHANGED
+from src.infrastructure.messaging.outbox import TASK_CREATED, TASK_DELETED, TASK_STATUS_CHANGED, TASK_UPDATED
 from src.infrastructure.messaging.rabbitmq import connect, declare_push_queue, decode_event
 from src.infrastructure.push.notifications import PushResult, send_push_notification
 from src.settings import get_settings
@@ -75,9 +75,25 @@ async def handle_task_status_changed(event: dict[str, Any]) -> None:
     )
 
 
+async def handle_task_updated(event: dict[str, Any]) -> None:
+    assignee = _optional_uuid(event.get("assigned_to"))
+    if assignee is None or assignee == _optional_uuid(event.get("previous_assigned_to")):
+        return
+    if assignee == _optional_uuid(event.get("changed_by")):
+        return
+    title = str(event.get("title") or "Task")
+    await notify_user(assignee, "New task assigned", f"You have been assigned: {title}")
+
+
+async def ignore_event(event: dict[str, Any]) -> None:
+    return None
+
+
 HANDLERS = {
     TASK_CREATED: handle_task_created,
     TASK_STATUS_CHANGED: handle_task_status_changed,
+    TASK_UPDATED: handle_task_updated,
+    TASK_DELETED: ignore_event,
 }
 
 

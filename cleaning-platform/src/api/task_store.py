@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
-from sqlalchemy import Select, case, func, select
+from sqlalchemy import Select, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
@@ -29,8 +29,14 @@ SORT_COLUMNS: dict[TaskSort, ColumnElement[Any] | InstrumentedAttribute[Any]] = 
     TaskSort.COUNTRY: Task.country,
     TaskSort.LOCATION: func.lower(Location.name),
     TaskSort.ASSIGNEE: func.lower(User.email),
+    TaskSort.DUE_DATE: Task.due_date,
 }
+OPEN_STATUSES = [s.value for s in TaskStatus if s not in (TaskStatus.COMPLETED, TaskStatus.CANCELLED)]
 DESCENDING_BY_DEFAULT = {TaskSort.CREATED_AT, TaskSort.PRIORITY}
+
+
+def overdue_condition() -> ColumnElement[bool]:
+    return and_(Task.due_date < func.current_date(), Task.status.in_(OPEN_STATUSES))
 
 
 def day_start(value: date) -> datetime:
@@ -97,6 +103,7 @@ def to_response(
         is_recurring=task.is_recurring,
         scheduled_for=task.scheduled_for,
         priority=TaskPriority(task.priority),
+        due_date=task.due_date,
         quality_score=task.quality_score,
         quality_comment=task.quality_comment,
         quality_reviewed_by=task.quality_reviewed_by,

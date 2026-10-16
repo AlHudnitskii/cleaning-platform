@@ -16,6 +16,7 @@ from src.domain.models.task import (
     TaskCreate,
     TaskResponse,
     TaskStatusUpdate,
+    TaskUpdate,
 )
 from src.domain.models.user import (
     AssigneeResponse,
@@ -42,6 +43,7 @@ SCHEMAS: list[type[BaseModel]] = [
     TaskCreate,
     TaskResponse,
     TaskStatusUpdate,
+    TaskUpdate,
     TokenResponse,
     UserLogin,
     UserRegister,
@@ -67,6 +69,8 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("get", "/tasks", "List tasks visible to the caller", None, "TaskResponse", True),
     ("post", "/tasks", "Create a task (admin, manager)", "TaskCreate", "TaskResponse", True),
     ("get", "/tasks/{task_id}", "Task details", None, "TaskResponse", True),
+    ("patch", "/tasks/{task_id}", "Edit a task (admin, manager)", "TaskUpdate", "TaskResponse", True),
+    ("delete", "/tasks/{task_id}", "Delete a task with its comments, history and photos", None, None, True),
     ("patch", "/tasks/{task_id}/status", "Change task status", "TaskStatusUpdate", "TaskResponse", True),
     ("post", "/tasks/{task_id}/quality", "Review quality of a completed task", "QualityReview", "TaskResponse", True),
     ("get", "/tasks/{task_id}/occurrences", "Next occurrences of a recurring task", None, None, True),

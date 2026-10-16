@@ -1,11 +1,23 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from src.domain.models.enums import Country, TaskPriority, TaskStatus
 from src.domain.services.recurring_tasks import validate_rrule
+
+
+def clean_title(value: str) -> str:
+    if len(value.strip()) < 3:
+        raise ValueError("Title must be at least 3 characters")
+    return value.strip()
+
+
+def checked_rrule(value: str | None) -> str | None:
+    if value is not None and not validate_rrule(value):
+        raise ValueError("Invalid rrule format")
+    return value
 
 
 class TaskCreate(BaseModel):
@@ -17,22 +29,46 @@ class TaskCreate(BaseModel):
     rrule: str | None = Field(default=None, max_length=500)
     scheduled_for: datetime | None = None
     priority: TaskPriority = TaskPriority.NORMAL
+    due_date: date | None = None
 
     @field_validator("title")
     @classmethod
     def validate_title(cls, v: str) -> str:
-        if len(v.strip()) < 3:
-            raise ValueError("Title must be at least 3 characters")
-        return v.strip()
+        return clean_title(v)
 
     @field_validator("rrule")
     @classmethod
     def check_rrule(cls, v: str | None) -> str | None:
+        return checked_rrule(v)
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=5000)
+    location_id: uuid.UUID | None = None
+    assigned_to: uuid.UUID | None = None
+    rrule: str | None = Field(default=None, max_length=500)
+    priority: TaskPriority | None = None
+    due_date: date | None = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str | None) -> str | None:
         if v is None:
-            return None
-        if not validate_rrule(v):
-            raise ValueError("Invalid rrule format")
+            raise ValueError("Title cannot be empty")
+        return clean_title(v)
+
+    @field_validator("priority")
+    @classmethod
+    def validate_priority(cls, v: TaskPriority | None) -> TaskPriority | None:
+        if v is None:
+            raise ValueError("Priority cannot be empty")
         return v
+
+    @field_validator("rrule")
+    @classmethod
+    def check_rrule(cls, v: str | None) -> str | None:
+        return checked_rrule(v)
 
 
 class TaskStatusUpdate(BaseModel):
@@ -54,6 +90,7 @@ class TaskResponse(BaseModel):
     is_recurring: bool = False
     scheduled_for: datetime | None = None
     priority: TaskPriority = TaskPriority.NORMAL
+    due_date: date | None = None
     quality_score: int | None = None
     quality_comment: str | None = None
     quality_reviewed_by: uuid.UUID | None = None

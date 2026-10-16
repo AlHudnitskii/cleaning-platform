@@ -1,6 +1,8 @@
+import logging
 from datetime import UTC, datetime
 
 import azure.functions as func
+from azure.core.exceptions import AzureError
 from sqlalchemy import func as sql
 from sqlalchemy import select
 
@@ -28,20 +30,23 @@ from src.api.task_store import (
     load_visible_task,
     location_subtree,
     ordering,
+    overdue_condition,
     scope_conditions,
     task_rows,
     to_response,
 )
 from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus, UserRole
-from src.domain.models.task import QualityReview, TaskCreate, TaskStatusUpdate
+from src.domain.models.task import QualityReview, TaskCreate, TaskStatusUpdate, TaskUpdate
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.domain.services.recurring_tasks import get_next_occurrences
+from src.infrastructure.blob.storage import PHOTOS_CONTAINER, delete_prefix
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task
 from src.infrastructure.messaging import outbox
 
 bp = func.Blueprint()
+logger = logging.getLogger(__name__)
 
 MAX_PAGE = 10_000
 MAX_LIMIT = 100
@@ -78,6 +83,7 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
             is_recurring=bool(data.rrule),
             scheduled_for=data.scheduled_for,
             priority=data.priority,
+            due_date=data.due_date,
             created_at=datetime.now(UTC),
         )
         session.add(task)
@@ -98,6 +104,87 @@ async def create_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
     return json_response(response, 201)
 
 
+EDITABLE_FIELDS = ("title", "description", "location_id", "assigned_to", "priority", "due_date")
+
+
+def task_event(task: Task, **extra: object) -> dict[str, object]:
+    return {
+        "task_id": str(task.id),
+        "title": task.title,
+        "country": task.country,
+        "assigned_to": str(task.assigned_to) if task.assigned_to else None,
+        **extra,
+    }
+
+
+@bp.route(route="tasks/{task_id}", methods=["PATCH"])
+@authenticated(UserRole.ADMIN, UserRole.MANAGER)
+async def update_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    task_id = route_uuid(req, "task_id", "task ID")
+    data = read_model(req, TaskUpdate)
+    changes = data.model_fields_set
+    if not changes:
+        raise ApiError(400, "Nothing to update")
+
+    async with session_scope() as session, session.begin():
+        task = await load_visible_task(session, user, task_id, for_update=True)
+        if not task_access.can_manage_country(user, task.country):
+            raise forbidden("You can only edit tasks in your country")
+
+        if "location_id" in changes and data.location_id:
+            location = await session.get(Location, data.location_id)
+            if location is None:
+                raise not_found("Location")
+            if location.country != task.country:
+                raise ApiError(400, "Location must be in the task's country")
+        if "assigned_to" in changes and data.assigned_to and data.assigned_to != task.assigned_to:
+            await ensure_assignable(session, data.assigned_to, task.country)
+
+        previous_assignee = task.assigned_to
+        for field in EDITABLE_FIELDS:
+            if field in changes:
+                setattr(task, field, getattr(data, field))
+        if "description" in changes:
+            task.description = (data.description or "").strip() or None
+        if "rrule" in changes:
+            task.rrule = data.rrule
+            task.is_recurring = bool(data.rrule)
+
+        outbox.enqueue(
+            session,
+            outbox.TASK_UPDATED,
+            task_event(
+                task,
+                previous_assigned_to=str(previous_assignee) if previous_assignee else None,
+                changed_by=str(user.id),
+                fields=sorted(changes),
+            ),
+        )
+        response = await detailed_response(session, user, task)
+
+    return json_response(response)
+
+
+@bp.route(route="tasks/{task_id}", methods=["DELETE"])
+@authenticated(UserRole.ADMIN, UserRole.MANAGER)
+async def delete_task(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    task_id = route_uuid(req, "task_id", "task ID")
+
+    async with session_scope() as session, session.begin():
+        task = await load_visible_task(session, user, task_id, for_update=True)
+        if not task_access.can_manage_country(user, task.country):
+            raise forbidden("You can only delete tasks in your country")
+        outbox.enqueue(session, outbox.TASK_DELETED, task_event(task, changed_by=str(user.id)))
+        await session.delete(task)
+
+    try:
+        await delete_prefix(PHOTOS_CONTAINER, f"{task_id}/")
+    except AzureError:
+        logger.exception("Failed to delete photos of a deleted task", extra={"task_id": str(task_id)})
+
+    return func.HttpResponse(status_code=204)
+
+
 @bp.route(route="tasks", methods=["GET"])
 @authenticated()
 async def get_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
@@ -112,10 +199,13 @@ async def get_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
     date_from = optional_date(req, "date_from")
     date_to = optional_date(req, "date_to")
     search = query_text(req, "search", MAX_SEARCH)
+    overdue = req.params.get("overdue") == "true"
 
     conditions = scope_conditions(user)
     if search:
         conditions.append(Task.title.ilike(like_pattern(search), escape="\\"))
+    if overdue:
+        conditions.append(overdue_condition())
     if country and user.is_admin:
         conditions.append(Task.country == country)
     if status:

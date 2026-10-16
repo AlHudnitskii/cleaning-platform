@@ -16,7 +16,7 @@ import { SORT_LABELS, STATUS_LABELS } from "../labels";
 import { readEnum, readPage, useUrlState } from "../urlState";
 
 const PAGE_SIZE = 20;
-const MY_TASK_SORTS: readonly TaskSort[] = ["priority", "created_at", "status"];
+const MY_TASK_SORTS: readonly TaskSort[] = ["priority", "due_date", "created_at", "status"];
 
 export function MyTasks() {
   const user = useCurrentUser();

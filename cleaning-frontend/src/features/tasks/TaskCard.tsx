@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import type { TaskResponse } from "../../api/types";
 import { PriorityBadge, StatusBadge } from "../../components/Badges";
 import { RelativeDate } from "../../components/People";
+import { DueDate } from "./DueDate";
 import { countryName, rruleLabel } from "../../labels";
 
 export function TaskCard({ task, actions, pending }: { task: TaskResponse; actions?: ReactNode; pending?: boolean }) {
@@ -35,6 +36,14 @@ export function TaskCard({ task, actions, pending }: { task: TaskResponse; actio
           <dt>Assignee</dt>
           <dd>{task.assigned_to_email ?? "Unassigned"}</dd>
         </div>
+        {task.due_date && (
+          <div>
+            <dt>Due</dt>
+            <dd>
+              <DueDate task={task} />
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Created</dt>
           <dd>

@@ -32,7 +32,7 @@ export function Dashboard() {
         <EmptyState title="No tasks yet" hint="Statistics appear once tasks are created or imported." />
       ) : (
         <>
-          <div className="stat-grid stat-grid-4">
+          <div className="stat-grid stat-grid-5">
             <StatCard
               label="Total tasks"
               value={data.total_tasks}
@@ -41,11 +41,18 @@ export function Dashboard() {
               sub={`${data.recurring_count} recurring · ${data.total_users} users`}
             />
             <StatCard
-              label="Waiting for review"
+              label="To review"
               value={data.status_stats.on_review}
               tone="status-on_review"
               to={tasksLink({ status: "on_review" })}
               sub={data.status_stats.on_review > 0 ? "Need your approval" : "Nothing to review"}
+            />
+            <StatCard
+              label="Overdue"
+              value={data.overdue_count}
+              tone="danger"
+              to={tasksLink({ overdue: "true" })}
+              sub={data.overdue_count > 0 ? "Past their due date" : "Everything is on time"}
             />
             <StatCard
               label="Completion rate"

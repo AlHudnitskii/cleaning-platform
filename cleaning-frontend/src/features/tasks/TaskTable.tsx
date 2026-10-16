@@ -6,6 +6,7 @@ import { Person, RelativeDate } from "../../components/People";
 import { SortHeader } from "../../components/SortHeader";
 import { countryName, rruleLabel } from "../../labels";
 import type { SortState } from "../../sorting";
+import { DueDate } from "./DueDate";
 import { actionLabel, nextStep } from "./workflow";
 
 export function TaskTable({
@@ -59,6 +60,7 @@ export function TaskTable({
             {showCountry && <SortHeader label="Country" column="country" sort={sort} onSort={onSort} />}
             <SortHeader label="Location" column="location" sort={sort} onSort={onSort} />
             <SortHeader label="Assignee" column="assignee" sort={sort} onSort={onSort} />
+            <SortHeader label="Due" column="due_date" sort={sort} onSort={onSort} />
             <SortHeader label="Created" column="created_at" sort={sort} onSort={onSort} />
             <th scope="col" className="cell-actions">
               <span className="visually-hidden">Actions</span>
@@ -100,6 +102,9 @@ export function TaskTable({
               </td>
               <td data-label="Assignee">
                 <Person email={task.assigned_to_email} />
+              </td>
+              <td className="cell-nowrap" data-label="Due">
+                <DueDate task={task} />
               </td>
               <td className="cell-muted cell-nowrap" data-label="Created">
                 <RelativeDate value={task.created_at} />

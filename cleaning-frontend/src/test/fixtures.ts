@@ -45,6 +45,7 @@ export function makeTask(overrides: Partial<TaskResponse> = {}): TaskResponse {
     is_recurring: false,
     scheduled_for: null,
     priority: "normal",
+    due_date: null,
     quality_score: null,
     quality_comment: null,
     quality_reviewed_by: null,

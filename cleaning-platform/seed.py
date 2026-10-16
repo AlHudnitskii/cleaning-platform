@@ -1,7 +1,7 @@
 import asyncio
 import random
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +91,11 @@ def random_moment(rng: random.Random, days_min: int, days_max: int) -> datetime:
     return datetime.now(UTC) - delta
 
 
+def random_due_date(rng: random.Random) -> date | None:
+    offset = rng.choice([None, None, -3, -1, 0, 1, 2, 5, 10])
+    return None if offset is None else datetime.now(UTC).date() + timedelta(days=offset)
+
+
 async def cleanup(session: AsyncSession) -> None:
     for model in (OutboxMessage, TaskComment, TaskStatusHistory, TaskPhoto, PushSubscription, Task, Location, User):
         await session.execute(delete(model))
@@ -152,6 +157,7 @@ def create_tasks(session: AsyncSession, users: dict[str, User], locations: dict[
                 assigned_to=assignee.id if assignee else None,
                 priority=priority,
                 created_at=created_at,
+                due_date=random_due_date(rng),
             )
             session.add(task)
 

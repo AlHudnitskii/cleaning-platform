@@ -14,7 +14,7 @@ import type { TaskListParams } from "./api";
 
 const SEARCH_DELAY_MS = 300;
 
-type FilterKey = "status" | "priority" | "country" | "location_id" | "date_from" | "date_to";
+type FilterKey = "status" | "priority" | "country" | "location_id" | "date_from" | "date_to" | "overdue";
 type Changes = Partial<Record<FilterKey | "search", string | undefined>>;
 
 export function SearchBox({
@@ -131,6 +131,15 @@ export function FilterMenu({
               onChange={(location_id) => onChange({ location_id })}
             />
           </FilterControl>
+          <label className="filter-toggle">
+            <input
+              type="checkbox"
+              className="checkbox"
+              checked={filters.overdue === "true"}
+              onChange={(e) => onChange({ overdue: e.target.checked ? "true" : undefined })}
+            />
+            Overdue only
+          </label>
           <FilterControl label="Created from">
             <DatePicker
               variant="inline"
@@ -154,8 +163,15 @@ export function FilterMenu({
 }
 
 function activeFilterCount(filters: TaskListParams): number {
-  return [filters.status, filters.priority, filters.country, filters.location_id, filters.date_from, filters.date_to].filter(Boolean)
-    .length;
+  return [
+    filters.status,
+    filters.priority,
+    filters.country,
+    filters.location_id,
+    filters.date_from,
+    filters.date_to,
+    filters.overdue,
+  ].filter(Boolean).length;
 }
 
 export function ActiveFilters({
@@ -177,6 +193,7 @@ export function ActiveFilters({
   if (filters.location_id) chips.push({ key: "location_id", label: "Location", value: locationName });
   if (filters.date_from) chips.push({ key: "date_from", label: "From", value: formatDay(filters.date_from) });
   if (filters.date_to) chips.push({ key: "date_to", label: "To", value: formatDay(filters.date_to) });
+  if (filters.overdue) chips.push({ key: "overdue", label: "Due", value: "Overdue" });
 
   if (chips.length === 0 && !filters.search) return null;
 

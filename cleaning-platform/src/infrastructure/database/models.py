@@ -1,7 +1,7 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
@@ -69,9 +69,10 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
     rrule: Mapped[str | None] = mapped_column(String(500))
     is_recurring: Mapped[bool] = mapped_column(default=False, server_default="false")
-    parent_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"))
+    parent_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"))
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     priority: Mapped[str] = mapped_column(String(20), default=TaskPriority.NORMAL, server_default="normal")
+    due_date: Mapped[date | None] = mapped_column(Date)
     quality_score: Mapped[int | None] = mapped_column(Integer)
     quality_comment: Mapped[str | None] = mapped_column(Text)
     quality_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -86,6 +87,7 @@ class Task(Base):
         Index("ix_tasks_status", "status"),
         Index("ix_tasks_created_at_id", "created_at", "id"),
         Index("ix_tasks_location_id", "location_id"),
+        Index("ix_tasks_due_date", "due_date"),
     )
 
 

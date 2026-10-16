@@ -22,7 +22,11 @@ RETRY_SECONDS = 5.0
 async def notify_user(user_id: uuid.UUID, title: str, body: str) -> None:
     async with session_scope() as session:
         subscriptions = (
-            await session.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id))
+            await session.scalars(
+                select(PushSubscription)
+                .join(User, User.id == PushSubscription.user_id)
+                .where(PushSubscription.user_id == user_id, User.is_active.is_(True))
+            )
         ).all()
 
     gone: list[uuid.UUID] = []

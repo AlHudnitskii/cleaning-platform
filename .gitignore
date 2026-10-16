@@ -3,6 +3,7 @@
 !.env.example
 local.settings.json
 secrets.json
+*.pem
 
 __pycache__/
 *.py[cod]

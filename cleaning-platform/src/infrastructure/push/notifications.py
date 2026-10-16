@@ -12,7 +12,7 @@ from src.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-GONE_STATUSES = frozenset({404, 410})
+GONE_STATUSES = frozenset({403, 404, 410})
 PUSH_TIMEOUT_SECONDS = 10
 
 

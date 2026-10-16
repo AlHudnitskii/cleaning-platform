@@ -306,6 +306,7 @@ function TopbarActions() {
   const offline = state.status === "authenticated" && state.offline;
 
   const handleLogout = async () => {
+    await push.forget();
     await logout();
     void navigate("/login");
   };

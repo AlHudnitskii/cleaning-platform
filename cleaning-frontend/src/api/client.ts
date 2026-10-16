@@ -5,7 +5,7 @@ import { config } from "../config";
 import { toApiError } from "./errors";
 import type { TokenResponse } from "./types";
 
-const AUTH_PATHS = ["/auth/login", "/auth/refresh", "/auth/logout", "/auth/register"];
+const AUTH_PATHS = ["/auth/login", "/auth/refresh", "/auth/logout"];
 
 export const client = axios.create({
   baseURL: config.apiBaseUrl,

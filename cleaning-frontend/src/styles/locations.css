@@ -1,0 +1,121 @@
+.tree,
+.tree ul {
+  list-style: none;
+}
+
+.tree {
+  padding: 8px;
+}
+
+.tree ul {
+  margin-left: 22px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 4px 10px;
+  border-radius: 10px;
+}
+
+.tree-row:hover {
+  background: var(--s2);
+}
+
+.tree-name {
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.level-country > .tree-row .tree-name {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.level-city > .tree-row .tree-name {
+  font-weight: 600;
+}
+
+.tree-toggle,
+.tree-toggle-placeholder {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: var(--s3);
+  color: var(--t2);
+  cursor: pointer;
+}
+
+.tree-toggle:hover {
+  background: var(--s4);
+  color: var(--text);
+}
+
+.tree-count {
+  font-size: 13px;
+  color: var(--t3);
+  white-space: nowrap;
+}
+
+.tree-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.tree-add {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  opacity: 0;
+}
+
+.tree-row:hover .tree-add,
+.tree-row:focus-within .tree-add {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .tree-add {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .tree {
+    padding: 4px;
+  }
+
+  .tree ul {
+    margin-left: 11px;
+    padding-left: 8px;
+  }
+
+  .tree-row {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 6px;
+  }
+
+  .tree-actions {
+    gap: 0;
+  }
+
+  .tree-count {
+    display: none;
+  }
+}

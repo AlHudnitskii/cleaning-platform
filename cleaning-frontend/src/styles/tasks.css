@@ -1,0 +1,545 @@
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 15px;
+  color: var(--t3);
+}
+
+.back-link:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.task-card {
+  gap: 14px;
+}
+
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.task-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+.task-card-description {
+  color: var(--t2);
+}
+
+.task-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.meta-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px 18px;
+}
+
+.meta-list dt,
+.detail-list dt {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+
+.meta-list dd {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  border-top: 1px solid var(--border);
+}
+
+.detail-list dt,
+.detail-list dd {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-list dt {
+  padding-top: 14px;
+}
+
+.detail-list dd {
+  overflow-wrap: anywhere;
+}
+
+.tabs {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  position: relative;
+  padding: 4px 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--t2);
+  font-size: 15px;
+  font-weight: 450;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.comment-list,
+.timeline,
+.occurrence-list,
+.photo-grid {
+  list-style: none;
+}
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.comment-author {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.comment-text {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 18px 22px;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 8px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.timeline-item::after {
+  content: "";
+  position: absolute;
+  left: 7.5px;
+  top: 22px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--border2);
+}
+
+.timeline-item:last-child::after {
+  display: none;
+}
+
+.occurrence-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.occurrence-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.occurrence-list li:last-child {
+  border-bottom: 0;
+}
+
+.photo-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.photo-upload .notice {
+  flex-basis: 100%;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.photo-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+}
+
+.photo-thumb:hover {
+  text-decoration: none;
+}
+
+.photo-thumb img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border2);
+  background: var(--s3);
+}
+
+.stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.star {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--border2);
+}
+
+.star-on {
+  color: #e0a526;
+}
+
+.stars-value {
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .detail-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-list dt {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .detail-list dd {
+    padding-top: 4px;
+  }
+}
+
+.task-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.task-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.task-title {
+  font-size: 34px;
+  overflow-wrap: anywhere;
+}
+
+.task-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+}
+
+.task-main {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.task-aside {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.task-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.property-card {
+  padding: 18px 20px;
+  gap: 12px;
+}
+
+.property-list > div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.property-list > div:last-child {
+  border-bottom: 0;
+}
+
+.property-list dt {
+  font-size: 13.5px;
+  color: var(--t3);
+}
+
+.property-list dd {
+  min-width: 0;
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+
+.location-path {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+}
+
+.location-path span:not(:last-child)::after {
+  content: "/";
+  margin: 0 6px;
+  color: var(--t4);
+}
+
+.location-path span:last-child {
+  font-weight: 600;
+}
+
+.activity-empty {
+  padding: 18px 0 4px;
+  color: var(--t3);
+  font-size: 14.5px;
+}
+
+.comment-form {
+  padding-top: 4px;
+}
+
+@media (max-width: 1100px) {
+  .task-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .task-aside {
+    position: static;
+    order: -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .task-title {
+    font-size: 26px;
+  }
+}
+
+.task-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.checklist-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t3);
+}
+
+.checklist-count.is-complete {
+  color: var(--accent-text);
+}
+
+.checklist-progress {
+  height: 6px;
+  border-radius: 6px;
+  background: var(--s3);
+  overflow: hidden;
+}
+
+.checklist-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.checklist {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border);
+}
+
+.checklist-item:last-child {
+  border-bottom: 0;
+}
+
+.checklist-label {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.checklist-label:has(.checkbox:disabled) {
+  cursor: default;
+}
+
+.checklist-text {
+  overflow-wrap: anywhere;
+}
+
+.checklist-item.is-done .checklist-text {
+  color: var(--t3);
+  text-decoration: line-through;
+  text-decoration-color: var(--border2);
+}
+
+.checklist-remove {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  opacity: 0;
+}
+
+.checklist-item:hover .checklist-remove,
+.checklist-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .checklist-remove {
+    opacity: 1;
+  }
+}
+
+.checklist-add {
+  display: flex;
+  gap: 8px;
+}
+
+.checklist-add .input {
+  flex: 1 1 auto;
+}
+
+.checklist-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist-editor-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 22px;
+  color: var(--text);
+}
+
+.checklist-editor-items li {
+  padding-left: 4px;
+}
+
+.checklist-editor-items li > span {
+  display: inline-block;
+  min-width: 0;
+  max-width: calc(100% - 40px);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.checklist-editor-items .icon-button {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  vertical-align: middle;
+}
+
+.task-card-hint {
+  font-size: 13.5px;
+  color: var(--info);
+}

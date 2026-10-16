@@ -1,0 +1,160 @@
+body.has-drawer {
+  overflow: hidden;
+}
+
+.drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(10, 12, 11, 0.32);
+  animation: fade-in 0.16s ease both;
+}
+
+.drawer {
+  position: relative;
+  width: 480px;
+  max-width: 100%;
+  height: calc(100% - 24px);
+  margin: 12px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  animation: slide-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.drawer:focus {
+  outline: none;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 20px 18px 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-title {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.022em;
+}
+
+.drawer-description {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--t2);
+}
+
+.drawer-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 26px;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid var(--border);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@media (max-width: 700px) {
+  .drawer {
+    width: 100%;
+    height: calc(100% - 16px);
+    margin: 16px 0 0;
+    border-radius: 22px 22px 0 0;
+  }
+}
+
+.drawer-footer-start {
+  margin-right: auto;
+}
+
+.dialog-layer {
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog {
+  position: relative;
+  width: 440px;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  animation: pop-in 0.14s ease both;
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.dialog-title {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.dialog-body {
+  color: var(--t2);
+  line-height: 1.5;
+}
+
+.dialog-body .field {
+  margin-top: 16px;
+}
+
+.dialog-error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}

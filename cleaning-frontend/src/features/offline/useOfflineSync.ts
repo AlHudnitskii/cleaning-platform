@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { client } from "../../api/client";
+import { api } from "../../api/client";
 import { isNetworkError } from "../../api/errors";
 import type { SyncResult, TaskPage, TaskResponse, TaskStatus } from "../../api/types";
 import { patchStatus, taskKeys } from "../tasks/api";
@@ -28,7 +28,7 @@ export function useOfflineSync(userId: string) {
     mutationFn: async (): Promise<SyncResult> => {
       const changes = pendingChanges(userId);
       if (changes.length === 0) return { synced: 0, errors: [] };
-      const result = (await client.post<SyncResult>("/sync/batch", { changes })).data;
+      const result = await api.post<SyncResult>("/sync/batch", { changes });
       removeChanges(userId, changes);
       return result;
     },

@@ -18,8 +18,8 @@ describe("Export page", () => {
     );
     const { user } = renderApp("/export", MANAGER);
 
-    expect(await screen.findByText("12")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download 12 tasks" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Download 12 tasks" })).toBeEnabled();
+    expect(screen.getByText("12", { selector: ".export-count-value" })).toBeInTheDocument();
     expect(requests.at(-1)?.get("date_from")).toBe(daysAgo(30));
     expect(requests.at(-1)?.get("date_to")).toBe(today());
 

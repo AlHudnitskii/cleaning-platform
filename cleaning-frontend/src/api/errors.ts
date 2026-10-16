@@ -1,5 +1,4 @@
-import { isAxiosError } from "axios";
-
+import { t } from "../i18n/locale";
 import type { ValidationDetail } from "./types";
 
 export type ApiErrorKind =
@@ -30,18 +29,6 @@ export class ApiError extends Error {
     return this.kind === "network";
   }
 }
-
-const DEFAULT_MESSAGES: Record<ApiErrorKind, string> = {
-  unauthorized: "Your session has expired. Please sign in again.",
-  forbidden: "You do not have access to this action.",
-  not_found: "Not found.",
-  validation: "Please check the entered values.",
-  conflict: "The action conflicts with the current state.",
-  too_large: "The file is too large.",
-  server: "The server failed to process the request. Try again later.",
-  network: "No connection to the server.",
-  unknown: "Something went wrong.",
-};
 
 function kindForStatus(status: number): ApiErrorKind {
   if (status === 401) return "unauthorized";
@@ -76,17 +63,21 @@ function readBody(data: unknown): { message: string | null; details: ValidationD
   };
 }
 
+export function responseError(status: number, data: unknown): ApiError {
+  const body = readBody(data);
+  const kind = body.offline ? "network" : kindForStatus(status);
+  const messages = t().errors;
+  const message = kind === "server" ? messages.server : (body.message ?? messages[kind]);
+  return new ApiError(kind, message, status, body.details);
+}
+
+export function networkError(): ApiError {
+  return new ApiError("network", t().errors.network);
+}
+
 export function toApiError(error: unknown): ApiError {
   if (error instanceof ApiError) return error;
-  if (isAxiosError(error)) {
-    if (!error.response) return new ApiError("network", DEFAULT_MESSAGES.network);
-    const status = error.response.status;
-    const body = readBody(error.response.data);
-    const kind = body.offline ? "network" : kindForStatus(status);
-    const message = kind === "server" ? DEFAULT_MESSAGES.server : (body.message ?? DEFAULT_MESSAGES[kind]);
-    return new ApiError(kind, message, status, body.details);
-  }
-  return new ApiError("unknown", DEFAULT_MESSAGES.unknown);
+  return new ApiError("unknown", t().errors.unknown);
 }
 
 export function errorMessage(error: unknown): string {

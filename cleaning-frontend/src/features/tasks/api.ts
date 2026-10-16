@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { client, getJson } from "../../api/client";
+import { api } from "../../api/client";
 import type {
   ChecklistItem,
   CommentResponse,
@@ -63,7 +63,7 @@ export function useTaskCount(status: TaskStatus, enabled = true) {
 }
 
 export function fetchTasks(params: TaskListParams): Promise<TaskPage> {
-  return getJson<TaskPage>("/tasks", { ...params });
+  return api.get<TaskPage>("/tasks", { ...params });
 }
 
 export function useTasks(params: TaskListParams) {
@@ -75,31 +75,31 @@ export function useTasks(params: TaskListParams) {
 }
 
 export function useTask(id: string) {
-  return useQuery({ queryKey: taskKeys.detail(id), queryFn: () => getJson<TaskResponse>(`/tasks/${id}`) });
+  return useQuery({ queryKey: taskKeys.detail(id), queryFn: () => api.get<TaskResponse>(`/tasks/${id}`) });
 }
 
 export function useComments(id: string) {
   return useQuery({
     queryKey: taskKeys.comments(id),
-    queryFn: () => getJson<CommentResponse[]>(`/tasks/${id}/comments`),
+    queryFn: () => api.get<CommentResponse[]>(`/tasks/${id}/comments`),
   });
 }
 
 export function useHistory(id: string) {
   return useQuery({
     queryKey: taskKeys.history(id),
-    queryFn: () => getJson<HistoryEntryResponse[]>(`/tasks/${id}/history`),
+    queryFn: () => api.get<HistoryEntryResponse[]>(`/tasks/${id}/history`),
   });
 }
 
 export function usePhotos(id: string) {
-  return useQuery({ queryKey: taskKeys.photos(id), queryFn: () => getJson<PhotoResponse[]>(`/tasks/${id}/photos`) });
+  return useQuery({ queryKey: taskKeys.photos(id), queryFn: () => api.get<PhotoResponse[]>(`/tasks/${id}/photos`) });
 }
 
 export function useOccurrences(id: string, enabled: boolean) {
   return useQuery({
     queryKey: taskKeys.occurrences(id),
-    queryFn: () => getJson<OccurrencesResponse>(`/tasks/${id}/occurrences`),
+    queryFn: () => api.get<OccurrencesResponse>(`/tasks/${id}/occurrences`),
     enabled,
   });
 }
@@ -107,7 +107,7 @@ export function useOccurrences(id: string, enabled: boolean) {
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: TaskCreate) => (await client.post<TaskResponse>("/tasks", data)).data,
+    mutationFn: (data: TaskCreate) => api.post<TaskResponse>("/tasks", data),
     onSuccess: () => invalidateTaskData(queryClient),
   });
 }
@@ -115,7 +115,7 @@ export function useCreateTask() {
 export function useUpdateTask(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (changes: TaskUpdate) => (await client.patch<TaskResponse>(`/tasks/${id}`, changes)).data,
+    mutationFn: (changes: TaskUpdate) => api.patch<TaskResponse>(`/tasks/${id}`, changes),
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void invalidateTaskData(queryClient);
@@ -127,7 +127,7 @@ export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await client.delete(`/tasks/${id}`);
+      await api.delete(`/tasks/${id}`);
       return id;
     },
     onSuccess: (id) => {
@@ -137,8 +137,8 @@ export function useDeleteTask() {
   });
 }
 
-export async function patchStatus(id: string, status: TaskStatus): Promise<TaskResponse> {
-  return (await client.patch<TaskResponse>(`/tasks/${id}/status`, { status })).data;
+export function patchStatus(id: string, status: TaskStatus): Promise<TaskResponse> {
+  return api.patch<TaskResponse>(`/tasks/${id}/status`, { status });
 }
 
 export function useChangeStatus() {
@@ -156,7 +156,7 @@ export function useChangeStatus() {
 export function useAddComment(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (text: string) => (await client.post<CommentResponse>(`/tasks/${id}/comments`, { text })).data,
+    mutationFn: (text: string) => api.post<CommentResponse>(`/tasks/${id}/comments`, { text }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: taskKeys.comments(id) }),
   });
 }
@@ -164,10 +164,10 @@ export function useAddComment(id: string) {
 export function useUploadPhoto() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+    mutationFn: ({ id, file }: { id: string; file: File }) => {
       const form = new FormData();
       form.append("photo", file);
-      return (await client.post<PhotoResponse>(`/tasks/${id}/photos`, form)).data;
+      return api.post<PhotoResponse>(`/tasks/${id}/photos`, form);
     },
     onSuccess: (photo) =>
       Promise.all([
@@ -181,8 +181,8 @@ export function useUploadPhoto() {
 export function useReviewQuality(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (review: { score: number; comment?: string }) =>
-      (await client.post<TaskResponse>(`/tasks/${id}/quality`, review)).data,
+    mutationFn: (review: { score: number; comment?: string }) =>
+      api.post<TaskResponse>(`/tasks/${id}/quality`, review),
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(id), task);
       void invalidateTaskData(queryClient);
@@ -220,7 +220,7 @@ export function useBulkStatus() {
 export function useChecklist(taskId: string) {
   return useQuery({
     queryKey: taskKeys.checklist(taskId),
-    queryFn: () => getJson<ChecklistItem[]>(`/tasks/${taskId}/checklist`),
+    queryFn: () => api.get<ChecklistItem[]>(`/tasks/${taskId}/checklist`),
   });
 }
 
@@ -235,8 +235,8 @@ function refreshChecklist(queryClient: QueryClient, taskId: string): Promise<unk
 export function useAddChecklistItem(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (text: string) =>
-      (await client.post<ChecklistItem>(`/tasks/${taskId}/checklist`, { text })).data,
+    mutationFn: (text: string) =>
+      api.post<ChecklistItem>(`/tasks/${taskId}/checklist`, { text }),
     onSettled: () => refreshChecklist(queryClient, taskId),
   });
 }
@@ -245,8 +245,8 @@ export function useToggleChecklistItem(taskId: string) {
   const queryClient = useQueryClient();
   const key = taskKeys.checklist(taskId);
   return useMutation({
-    mutationFn: async ({ id, done }: { id: string; done: boolean }) =>
-      (await client.patch<ChecklistItem>(`/tasks/${taskId}/checklist/${id}`, { done })).data,
+    mutationFn: ({ id, done }: { id: string; done: boolean }) =>
+      api.patch<ChecklistItem>(`/tasks/${taskId}/checklist/${id}`, { done }),
     onMutate: async ({ id, done }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ChecklistItem[]>(key);
@@ -266,7 +266,7 @@ export function useDeleteChecklistItem(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await client.delete(`/tasks/${taskId}/checklist/${id}`);
+      await api.delete(`/tasks/${taskId}/checklist/${id}`);
     },
     onSettled: () => refreshChecklist(queryClient, taskId),
   });

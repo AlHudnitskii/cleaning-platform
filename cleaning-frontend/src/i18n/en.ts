@@ -8,6 +8,7 @@ export const en = {
   app: {
     name: "Cleaning Platform",
     restoringSession: "Restoring session",
+    loadingPage: "Loading page",
   },
   status: {
     pending: "Pending",
@@ -64,6 +65,17 @@ export const en = {
   },
   time: {
     justNow: "Just now",
+  },
+  errors: {
+    unauthorized: "Your session has expired. Please sign in again.",
+    forbidden: "You do not have access to this action.",
+    not_found: "Not found.",
+    validation: "Please check the entered values.",
+    conflict: "The action conflicts with the current state.",
+    too_large: "The file is too large.",
+    server: "The server failed to process the request. Try again later.",
+    network: "No connection to the server.",
+    unknown: "Something went wrong.",
   },
   common: {
     all: "All",

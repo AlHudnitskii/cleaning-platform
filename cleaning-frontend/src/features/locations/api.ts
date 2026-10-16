@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { client, getJson } from "../../api/client";
+import { api } from "../../api/client";
 import type { Country, LocationCreate, LocationResponse } from "../../api/types";
 
 export const locationKeys = {
@@ -11,7 +11,7 @@ export const locationKeys = {
 export function useLocations(country?: Country) {
   return useQuery({
     queryKey: locationKeys.list(country),
-    queryFn: () => getJson<LocationResponse[]>("/locations", { country }),
+    queryFn: () => api.get<LocationResponse[]>("/locations", { country }),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -19,7 +19,7 @@ export function useLocations(country?: Country) {
 export function useCreateLocation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: LocationCreate) => (await client.post<LocationResponse>("/locations", data)).data,
+    mutationFn: (data: LocationCreate) => api.post<LocationResponse>("/locations", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: locationKeys.all }),
   });
 }

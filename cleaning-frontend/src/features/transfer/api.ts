@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { client, cleanParams } from "../../api/client";
+import { api } from "../../api/client";
 import type { Country, ImportResult } from "../../api/types";
 import { invalidateTaskData } from "../tasks/api";
 
@@ -31,10 +31,10 @@ export function exportFilename(params: ExportParams): string {
 export function useExportTasks() {
   return useMutation({
     mutationFn: async (params: ExportParams) => {
-      const response = await client.get<Blob>("/export/tasks", { params: cleanParams({ ...params }), responseType: "blob" });
+      const { blob, headers } = await api.download("/export/tasks", { ...params });
       const filename = exportFilename(params);
-      saveBlob(response.data, filename);
-      return { filename, total: Number(response.headers["x-total-tasks"] ?? 0) };
+      saveBlob(blob, filename);
+      return { filename, total: Number(headers.get("x-total-tasks") ?? 0) };
     },
   });
 }
@@ -42,8 +42,8 @@ export function useExportTasks() {
 export function useDownloadTemplate() {
   return useMutation({
     mutationFn: async () => {
-      const response = await client.get<Blob>("/import/template", { responseType: "blob" });
-      saveBlob(response.data, "import_template.xlsx");
+      const { blob } = await api.download("/import/template");
+      saveBlob(blob, "import_template.xlsx");
     },
   });
 }
@@ -52,7 +52,7 @@ async function uploadImport(file: File, dryRun: boolean): Promise<ImportResult> 
   const form = new FormData();
   form.append("file", file);
   const params = dryRun ? { dry_run: "true" } : undefined;
-  return (await client.post<ImportResult>("/import/tasks", form, { params })).data;
+  return api.post<ImportResult>("/import/tasks", form, params);
 }
 
 export function useImportPreview() {

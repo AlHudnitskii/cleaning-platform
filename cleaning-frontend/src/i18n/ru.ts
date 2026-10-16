@@ -16,6 +16,7 @@ export const ru: Messages = {
   app: {
     name: "Cleaning Platform",
     restoringSession: "Восстанавливаем сессию",
+    loadingPage: "Загружаем страницу",
   },
   status: {
     pending: "Ожидает",
@@ -69,6 +70,17 @@ export const ru: Messages = {
   },
   time: {
     justNow: "Только что",
+  },
+  errors: {
+    unauthorized: "Сессия истекла. Войдите снова.",
+    forbidden: "У вас нет доступа к этому действию.",
+    not_found: "Не найдено.",
+    validation: "Проверьте введённые значения.",
+    conflict: "Действие противоречит текущему состоянию.",
+    too_large: "Файл слишком большой.",
+    server: "Сервер не смог обработать запрос. Попробуйте позже.",
+    network: "Нет связи с сервером.",
+    unknown: "Что-то пошло не так.",
   },
   common: {
     all: "Все",

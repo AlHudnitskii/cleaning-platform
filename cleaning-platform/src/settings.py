@@ -45,6 +45,7 @@ class Settings:
     refresh_token_days: int = 30
     sse_host: str = "127.0.0.1"
     sse_port: int = 8080
+    blob_public_url: str | None = None
 
     def __repr__(self) -> str:
         return "Settings(<redacted>)"
@@ -66,4 +67,5 @@ def get_settings() -> Settings:
         refresh_token_days=int(os.environ.get("REFRESH_TOKEN_DAYS", "30")),
         sse_host=os.environ.get("SSE_HOST", "127.0.0.1"),
         sse_port=int(os.environ.get("SSE_PORT", "8080")),
+        blob_public_url=os.environ.get("BLOB_PUBLIC_URL") or None,
     )

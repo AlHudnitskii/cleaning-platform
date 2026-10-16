@@ -10,6 +10,7 @@
     "JWT_REFRESH_SECRET": "replace-with-another-output-of-openssl-rand-hex-32",
     "VAPID_PRIVATE_KEY": "private_key.pem",
     "VAPID_CLAIMS_EMAIL": "admin@cleaning.com",
-    "SECURE_COOKIES": "false"
+    "SECURE_COOKIES": "false",
+    "BLOB_PUBLIC_URL": "/blob"
   }
 }

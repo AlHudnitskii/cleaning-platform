@@ -87,14 +87,14 @@ export function Calendar() {
           </button>
           <button
             type="button"
-            className="icon-button calendar-next"
+            className="icon-button planner-next"
             aria-label={view === "month" ? t().planner.nextMonth : t().planner.nextWeek}
             onClick={() => shift(1)}
           >
             <Icon name="back" size={15} />
           </button>
         </div>
-        <h2 className="subsection-title calendar-period" aria-live="polite">
+        <h2 className="subsection-title planner-period" aria-live="polite">
           {periodLabel(view, anchor, first, last)}
         </h2>
         <span className="toolbar-spacer" />
@@ -136,16 +136,16 @@ export function Calendar() {
         </div>
       </div>
 
-      {!isCleaner && <p className="field-hint calendar-hint">{t().planner.moveHint}</p>}
+      {!isCleaner && <p className="field-hint planner-hint">{t().planner.moveHint}</p>}
 
       {tasks.isPending ? (
         <ListSkeleton label={t().planner.loading} rows={5} columns={7} />
       ) : tasks.isError ? (
         <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
       ) : (
-        <div className="card calendar-card" aria-busy={tasks.isFetching || reschedule.isPending}>
+        <div className="card planner-card" aria-busy={tasks.isFetching || reschedule.isPending}>
           {tasks.data.truncated && <Notice tone="warning">{t().planner.truncated}</Notice>}
-          {tasks.data.data.length === 0 && <p className="muted calendar-empty">{t().planner.empty}</p>}
+          {tasks.data.data.length === 0 && <p className="muted planner-empty">{t().planner.empty}</p>}
           <CalendarGrid
             days={days}
             tasks={tasks.data.data}

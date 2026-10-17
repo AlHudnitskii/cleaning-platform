@@ -25,6 +25,7 @@ describe("Checklist templates", () => {
     renderApp("/checklist-templates", MANAGER);
 
     expect(await screen.findByText("No templates yet")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Checklist templates");
   });
 
   it("offers a retry when the list fails to load", async () => {

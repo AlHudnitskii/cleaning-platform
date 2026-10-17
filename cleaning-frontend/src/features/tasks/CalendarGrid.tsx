@@ -26,7 +26,7 @@ export function CalendarGrid({ days, tasks, today, view, month, canMove, onMove,
   for (const task of tasks) byDay.set(task.due_date, [...(byDay.get(task.due_date) ?? []), task]);
   const [target, setTarget] = useState<string | null>(null);
   const weekdays = days.slice(0, 7).map((day) => dateFormatter("weekday", { weekday: "short" }).format(day));
-  const dayLabel = dateFormatter("calendar-day", { weekday: "long", day: "numeric", month: "long" });
+  const dayLabel = dateFormatter("planner-day", { weekday: "long", day: "numeric", month: "long" });
 
   const handleDrop = (event: DragEvent<HTMLLIElement>, day: string) => {
     event.preventDefault();
@@ -36,20 +36,20 @@ export function CalendarGrid({ days, tasks, today, view, month, canMove, onMove,
   };
 
   return (
-    <div className={`calendar calendar-${view}`}>
-      <div className="calendar-weekdays" aria-hidden="true">
+    <div className={`planner planner-${view}`}>
+      <div className="planner-weekdays" aria-hidden="true">
         {weekdays.map((name) => (
           <span key={name}>{name}</span>
         ))}
       </div>
-      <ol className="calendar-days">
+      <ol className="planner-days">
         {days.map((date) => {
           const day = toDay(date);
           const dayTasks = byDay.get(day) ?? [];
           const shown = view === "month" ? dayTasks.slice(0, MONTH_PREVIEW) : dayTasks;
           const hidden = dayTasks.length - shown.length;
           const classes = [
-            "calendar-day",
+            "planner-day",
             day === today ? "is-today" : "",
             month !== undefined && date.getMonth() !== month ? "is-outside" : "",
             target === day ? "is-target" : "",
@@ -70,11 +70,12 @@ export function CalendarGrid({ days, tasks, today, view, month, canMove, onMove,
               onDragLeave={canMove ? () => setTarget(null) : undefined}
               onDrop={canMove ? (event) => handleDrop(event, day) : undefined}
             >
-              <span className="calendar-date" aria-hidden="true">
+              <span className="planner-date" aria-hidden="true">
+                <span className="planner-weekday">{weekdays[(date.getDay() + 6) % 7]} </span>
                 {date.getDate()}
               </span>
               {shown.length > 0 && (
-                <ul className="calendar-tasks">
+                <ul className="planner-tasks">
                   {shown.map((task) => (
                     <li key={task.id}>
                       <CalendarChip task={task} overdue={day < today} draggable={canMove && !LOCKED.has(task.status)} />
@@ -83,7 +84,7 @@ export function CalendarGrid({ days, tasks, today, view, month, canMove, onMove,
                 </ul>
               )}
               {hidden > 0 && (
-                <button type="button" className="link-button calendar-more" onClick={() => onShowDay(day)}>
+                <button type="button" className="link-button planner-more" onClick={() => onShowDay(day)}>
                   {t().planner.more(hidden)}
                 </button>
               )}
@@ -102,7 +103,7 @@ function CalendarChip({ task, overdue, draggable }: { task: CalendarTask; overdu
   return (
     <Link
       to={`/tasks/${task.id}`}
-      className={`calendar-chip tone-status-${task.status}${late ? " is-late" : ""}`}
+      className={`planner-chip tone-status-${task.status}${late ? " is-late" : ""}`}
       draggable={draggable}
       onDragStart={(event) => {
         event.dataTransfer.setData(DRAG_TYPE, task.id);
@@ -111,7 +112,7 @@ function CalendarChip({ task, overdue, draggable }: { task: CalendarTask; overdu
       title={`${task.title} · ${details.join(", ")}`}
     >
       <span className="status-dot" aria-hidden="true" />
-      <span className="calendar-chip-title">{task.title}</span>
+      <span className="planner-chip-title">{task.title}</span>
       <span className="visually-hidden">, {details.join(", ")}</span>
     </Link>
   );

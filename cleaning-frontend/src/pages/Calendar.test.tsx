@@ -59,6 +59,7 @@ describe("Calendar", () => {
       "/tasks/44444444-4444-4444-8444-444444444444",
     );
     expect(screen.getByRole("heading", { name: "October 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Calendar");
     expect([requests[0]?.get("date_from"), requests[0]?.get("date_to")]).toEqual(["2026-09-28", "2026-11-08"]);
   });
 

@@ -78,6 +78,8 @@ function pageTitle(section: string): string {
     tasks: nav.tasks,
     "my-tasks": nav.myTasks,
     locations: nav.locations,
+    calendar: nav.calendar,
+    "checklist-templates": nav.templates,
     import: nav.import,
     export: nav.export,
     users: nav.users,

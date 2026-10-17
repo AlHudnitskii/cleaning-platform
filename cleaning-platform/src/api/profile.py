@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import azure.functions as func
 from azure.core.exceptions import AzureError
@@ -7,6 +8,8 @@ from azure.core.exceptions import AzureError
 from src.api.accounts import user_response
 from src.api.http import ApiError, authenticated, json_response, read_model
 from src.api.schemas.user import ProfileUpdate
+from src.api.stats_queries import personal_summary
+from src.api.task_queries import day_start, scope_conditions
 from src.domain.models.user import CurrentUser
 from src.domain.services.photos import detect_image_type
 from src.infrastructure.blob.storage import AVATARS_CONTAINER, delete_blob, upload_blob
@@ -15,6 +18,8 @@ from src.infrastructure.database.models import User
 from src.translations import phrases
 
 bp = func.Blueprint()
+
+STATS_DAYS = 30
 logger = logging.getLogger(__name__)
 
 MAX_AVATAR_BYTES = 5 * 1024 * 1024
@@ -85,3 +90,12 @@ async def delete_avatar(req: func.HttpRequest, user: CurrentUser) -> func.HttpRe
 
     await forget_blob(previous)
     return json_response(user_response(record))
+
+
+@bp.route(route="profile/stats", methods=["GET"])
+@authenticated()
+async def get_profile_stats(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    since = day_start(datetime.now(UTC).date() - timedelta(days=STATS_DAYS - 1))
+    async with session_scope() as session:
+        summary = await personal_summary(session, scope_conditions(user), since)
+    return json_response({"period_days": STATS_DAYS, **summary})

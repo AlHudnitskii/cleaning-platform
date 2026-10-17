@@ -319,6 +319,16 @@ export interface WorkTimeStats {
   by_location: LocationWorkTime[];
 }
 
+export interface ProfileStats {
+  period_days: number;
+  completed: number;
+  open: number;
+  on_review: number;
+  overdue: number;
+  avg_quality: number | null;
+  avg_work_seconds: number | null;
+}
+
 export interface ReportStats {
   period: { date_from: string; date_to: string };
   total_tasks: number;

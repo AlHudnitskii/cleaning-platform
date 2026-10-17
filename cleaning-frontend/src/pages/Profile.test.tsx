@@ -21,6 +21,38 @@ describe("Profile page", () => {
     expect(screen.getByRole("combobox", { name: "Theme" })).toHaveTextContent("Dark theme");
   });
 
+  it("shows the cleaner's own figures", async () => {
+    server.use(
+      http.get("*/api/profile/stats", () =>
+        HttpResponse.json({
+          period_days: 30,
+          completed: 12,
+          open: 3,
+          on_review: 1,
+          overdue: 2,
+          avg_quality: 4.5,
+          avg_work_seconds: 5400,
+        }),
+      ),
+    );
+    renderApp("/profile", CLEANER);
+
+    const card = (await screen.findByRole("heading", { name: "My figures" })).closest("section") as HTMLElement;
+    expect(await within(card).findByText("12")).toBeInTheDocument();
+    expect(within(card).getByText(/Tasks assigned to you/)).toBeInTheDocument();
+    expect(within(card).getByText("1 on review")).toBeInTheDocument();
+    expect(within(card).getByText("4.5")).toBeInTheDocument();
+    expect(within(card).getByText("1 h 30 min")).toBeInTheDocument();
+  });
+
+  it("offers a retry when the figures fail to load", async () => {
+    server.use(http.get("*/api/profile/stats", () => HttpResponse.json({ error: "Internal server error" }, { status: 500 })));
+    renderApp("/profile", CLEANER);
+
+    const card = (await screen.findByRole("heading", { name: "My figures" })).closest("section") as HTMLElement;
+    expect(await within(card).findByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
   it("saves the name and phone and shows the name in the top bar", async () => {
     let sent: unknown = null;
     server.use(

@@ -1,10 +1,11 @@
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, case, select
 from sqlalchemy import func as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.task_queries import in_progress_spans, overdue_condition, work_seconds
+from src.api.task_queries import OPEN_STATUS_VALUES, in_progress_spans, overdue_condition, work_seconds
 from src.domain.models.enums import TaskPriority, TaskStatus, UserRole
 from src.infrastructure.database.models import Location, Task, TaskStatusHistory, User
 
@@ -168,4 +169,43 @@ async def work_summary(session: AsyncSession, conditions: list[ColumnElement[boo
             {"id": location_id, "name": name, "task_count": count, "avg_seconds": round(avg)}
             for location_id, name, count, avg in by_location.all()
         ],
+    }
+
+
+async def personal_summary(session: AsyncSession, scope: list[ColumnElement[bool]], since: datetime) -> dict[str, Any]:
+    """Figures for one user's profile: work finished since a moment and the state of their open tasks now."""
+    finished = (
+        select(TaskStatusHistory.task_id)
+        .where(TaskStatusHistory.new_status == TaskStatus.COMPLETED, TaskStatusHistory.changed_at >= since)
+        .distinct()
+    )
+    completed = [*scope, Task.status == TaskStatus.COMPLETED, Task.id.in_(finished)]
+    spans = in_progress_spans(TaskStatusHistory.task_id.in_(select(Task.id).where(*completed)))
+    per_task = select(spans.c.task_id, work_seconds(spans).label("seconds")).group_by(spans.c.task_id).subquery()
+
+    def count(*conditions: ColumnElement[bool]) -> Any:
+        return select(sql.count()).select_from(Task).where(*scope, *conditions).scalar_subquery()
+
+    row = (
+        await session.execute(
+            select(
+                count(Task.status == TaskStatus.COMPLETED, Task.id.in_(finished)),
+                count(Task.status.in_(OPEN_STATUS_VALUES)),
+                count(Task.status == TaskStatus.ON_REVIEW),
+                count(overdue_condition()),
+                select(sql.round(sql.avg(Task.quality_score), 1))
+                .where(*scope, Task.quality_score.is_not(None), Task.quality_reviewed_at >= since)
+                .scalar_subquery(),
+                select(sql.avg(per_task.c.seconds)).scalar_subquery(),
+            )
+        )
+    ).one()
+    done, open_now, on_review, overdue, quality, work = row
+    return {
+        "completed": done,
+        "open": open_now,
+        "on_review": on_review,
+        "overdue": overdue,
+        "avg_quality": float(quality) if quality is not None else None,
+        "avg_work_seconds": round(work) if work is not None else None,
     }

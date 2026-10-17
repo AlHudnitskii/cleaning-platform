@@ -116,6 +116,7 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
         True,
     ),
     ("delete", "/profile/avatar", "Remove own profile photo", None, "UserResponse", True),
+    ("get", "/profile/stats", "Own figures for the last 30 days, scoped like the task list", None, None, True),
     ("get", "/tasks", "List tasks visible to the caller", None, "TaskResponse", True),
     ("post", "/tasks", "Create a task (admin, manager)", "TaskCreate", "TaskResponse", True),
     ("get", "/tasks/{task_id}", "Task details", None, "TaskResponse", True),

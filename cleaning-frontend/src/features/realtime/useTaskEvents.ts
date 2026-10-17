@@ -48,6 +48,7 @@ export function useTaskEvents(enabled: boolean): void {
         const event = parseEvent(message.data);
         if (!event || !TASK_EVENTS.has(event.type)) return;
         void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+        void queryClient.invalidateQueries({ queryKey: taskKeys.calendars() });
         void queryClient.invalidateQueries({ queryKey: statsKeys.all });
         const taskId = event.data?.task_id;
         if (taskId) void queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });

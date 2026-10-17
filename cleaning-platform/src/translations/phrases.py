@@ -51,6 +51,7 @@ USER = Phrase("User", "Пользователь")
 LOCATION = Phrase("Location", "Локация")
 PARENT_LOCATION = Phrase("Parent location", "Родительская локация")
 CHECKLIST_ITEM = Phrase("Checklist item", "Пункт чек-листа")
+CHECKLIST_TEMPLATE = Phrase("Checklist template", "Шаблон чек-листа")
 
 FIELD = {
     "title": Phrase("Title", "Название"),
@@ -76,6 +77,7 @@ FIELD = {
     "checklist": Phrase("Checklist", "Чек-лист"),
     "photo_required": Phrase("Photo requirement", "Требование фото"),
     "done": Phrase("Done", "Выполнено"),
+    "items": Phrase("Steps", "Пункты"),
     "endpoint": Phrase("Push endpoint", "Адрес push-подписки"),
 }
 
@@ -193,8 +195,21 @@ CHECKLIST_TOO_LONG = Phrase(
 )
 CANNOT_TICK = Phrase("You cannot tick items of this task", "Отмечать пункты этой задачи вы не можете")
 
+TEMPLATE_EMPTY = Phrase("A template needs at least one step", "В шаблоне должен быть хотя бы один пункт")
+TEMPLATE_NAME_TAKEN = Phrase(
+    "A template with this name already exists in this country", "Шаблон с таким названием в этой стране уже есть"
+)
+TEMPLATE_COUNTRY_REQUIRED = Phrase("Choose the country of the template", "Укажите страну шаблона")
+TEMPLATE_IN_OWN_COUNTRY = Phrase(
+    "You can only create templates in your country", "Создавать шаблоны можно только в своей стране"
+)
+TEMPLATES_TOO_MANY = Phrase(
+    "A country can have at most {limit} templates", "В одной стране может быть не больше {limit} шаблонов"
+)
+
 NO_PHOTO = Phrase("No photo file provided. Use form-data with key 'photo'", "Файл фото не передан (поле формы «photo»)")
 PHOTO_TOO_LARGE = Phrase("Photo must be at most {megabytes} MB", "Фото должно быть не больше {megabytes} МБ")
+PHOTO_KIND = Phrase("Photo kind must be before or after", "Тип фото: before (до) или after (после)")
 PHOTO_TYPE = Phrase("Only JPEG, PNG and WebP images are supported", "Поддерживаются только JPEG, PNG и WebP")
 
 PARENT_OTHER_COUNTRY = Phrase(
@@ -217,6 +232,9 @@ SYNC_CONFLICT = Phrase(
 PERIOD_REQUIRED = Phrase("date_from and date_to are required (YYYY-MM-DD)", "Укажите date_from и date_to (ГГГГ-ММ-ДД)")
 PERIOD_REVERSED = Phrase("The start date must not be after the end date", "Дата начала не может быть позже даты конца")
 EXPORT_PERIOD_TOO_LONG = Phrase("Export period must not exceed {days} days", "Период выгрузки — не больше {days} дней")
+CALENDAR_PERIOD_TOO_LONG = Phrase(
+    "A calendar period must not exceed {days} days", "Период календаря — не больше {days} дней"
+)
 REPORT_PERIOD_TOO_LONG = Phrase("Report period must not exceed {days} days", "Период отчёта — не больше {days} дней")
 
 IMPORT_UNREADABLE = Phrase(
@@ -257,6 +275,10 @@ PUSH_CREATED_TITLE = Phrase("New task created", "Создана задача")
 PUSH_CREATED_BODY = Phrase("{title} ({country})", "{title} ({country})")
 PUSH_STATUS_TITLE = Phrase("Task status updated", "Статус задачи изменён")
 PUSH_STATUS_BODY = Phrase("{title}: {old} → {new}", "{title}: {old} → {new}")
+PUSH_DUE_SOON_TITLE = Phrase("Due tomorrow", "Срок завтра")
+PUSH_DUE_SOON_BODY = Phrase("{title} is due tomorrow", "Задачу «{title}» нужно выполнить завтра")
+PUSH_OVERDUE_TITLE = Phrase("Task overdue", "Задача просрочена")
+PUSH_OVERDUE_BODY = Phrase("{title} is past its due date", "У задачи «{title}» прошёл срок")
 
 
 def tasks_count(n: int) -> Plural:

@@ -59,6 +59,13 @@ export function formatRelative(value: string, now: number = Date.now()): string 
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+export function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 1) return t().time.underMinute;
+  if (minutes < 60) return t().time.minutes(minutes);
+  return t().time.hoursMinutes(Math.floor(minutes / 60), minutes % 60);
+}
+
 export function emailName(email: string): string {
   return email.split("@")[0] ?? email;
 }

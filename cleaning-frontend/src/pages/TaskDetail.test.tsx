@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
 import { MANAGER, makeTask } from "../test/fixtures";
@@ -62,6 +62,63 @@ describe("Task detail", () => {
     renderApp(`/tasks/${TASK_ID}`, MANAGER);
 
     expect(await screen.findByText("This page does not exist")).toBeInTheDocument();
+  });
+
+  it("links a scheduled task to the first task of its series", async () => {
+    const parentId = "55555555-5555-4555-8555-555555555555";
+    server.use(...detailHandlers(makeTask({ parent_task_id: parentId })));
+    renderApp(`/tasks/${TASK_ID}`, MANAGER);
+
+    expect(await screen.findByRole("link", { name: "Open the first task" })).toHaveAttribute(
+      "href",
+      `/tasks/${parentId}`,
+    );
+  });
+
+  it("shows how long the cleaner worked on the task", async () => {
+    server.use(
+      ...detailHandlers(makeTask({ status: "completed", started_at: "2026-10-01T10:00:00+00:00", work_seconds: 2700 })),
+    );
+    renderApp(`/tasks/${TASK_ID}`, MANAGER);
+
+    const properties = await screen.findByRole("complementary", { name: "Task properties" });
+    expect(within(properties).getByText("45 min")).toBeInTheDocument();
+    expect(within(properties).getByText("Started")).toBeInTheDocument();
+  });
+
+  it("shows before and after photos side by side and uploads into the chosen column", async () => {
+    let uploaded = false;
+    // Node's fetch cannot serialise jsdom's FormData, so the test reads the fields the client appends.
+    const append = vi.spyOn(FormData.prototype, "append");
+    const photo = (kind: "before" | "after", id: string) => ({
+      id,
+      task_id: TASK_ID,
+      url: `https://blob.example/${id}.jpg`,
+      filename: `${id}.jpg`,
+      kind,
+      uploaded_at: "2026-10-01T10:00:00+00:00",
+    });
+    server.use(
+      http.get(`*/api/tasks/${TASK_ID}/photos`, () => HttpResponse.json([photo("before", "dusty")])),
+      ...detailHandlers(),
+      http.post(`*/api/tasks/${TASK_ID}/photos`, () => {
+        uploaded = true;
+        return HttpResponse.json(photo("after", "clean"), { status: 201 });
+      }),
+    );
+    const { user } = renderApp(`/tasks/${TASK_ID}`, MANAGER);
+
+    const column = (heading: HTMLElement) => heading.closest("section") as HTMLElement;
+    const before = column(await screen.findByRole("heading", { name: "Before · 1" }));
+    const after = column(screen.getByRole("heading", { name: "After · 0" }));
+    expect(within(before).getByRole("img", { name: "Before: dusty.jpg" })).toBeInTheDocument();
+    expect(within(after).getByText("No photos of the result yet.")).toBeInTheDocument();
+
+    await user.upload(within(after).getByLabelText("Add a result photo"), new File(["x"], "clean.jpg", { type: "image/jpeg" }));
+
+    await waitFor(() => expect(uploaded).toBe(true));
+    expect(append).toHaveBeenCalledWith("kind", "after");
+    append.mockRestore();
   });
 
   it("does not call the API for a malformed task id", async () => {

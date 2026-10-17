@@ -22,6 +22,7 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 TABLES = [
     "outbox_messages",
+    "checklist_templates",
     "task_comments",
     "task_status_history",
     "task_photos",
@@ -153,10 +154,16 @@ def payload(response: func.HttpResponse) -> Any:
     return json.loads(response.get_body())
 
 
-def multipart(field: str, filename: str, data: bytes, content_type: str) -> tuple[bytes, dict[str, str]]:
+def multipart(
+    field: str, filename: str, data: bytes, content_type: str, fields: dict[str, str] | None = None
+) -> tuple[bytes, dict[str, str]]:
     boundary = "integrationboundary"
+    extra = "".join(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'
+        for name, value in (fields or {}).items()
+    )
     head = (
-        f"--{boundary}\r\n"
+        extra + f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
         f"Content-Type: {content_type}\r\n\r\n"
     ).encode()

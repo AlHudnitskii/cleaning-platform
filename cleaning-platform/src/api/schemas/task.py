@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.domain.models.enums import Country, ReviewBlocker, TaskPriority, TaskStatus
+from src.domain.models.enums import Country, PhotoKind, ReviewBlocker, TaskPriority, TaskStatus
 from src.domain.services.recurring_tasks import validate_rrule
 from src.translations import phrases
 
@@ -116,20 +116,44 @@ class TaskResponse(BaseModel):
     assigned_to_email: str | None = None
     rrule: str | None = None
     is_recurring: bool = False
+    parent_task_id: uuid.UUID | None = None
     scheduled_for: datetime | None = None
     priority: TaskPriority = TaskPriority.NORMAL
     due_date: date | None = None
     photo_required: bool = False
     checklist_done: int = 0
     checklist_total: int = 0
-    photo_count: int = 0
+    photo_count: int = Field(default=0, description="Photos of the result; before photos are not counted")
     review_blockers: list[ReviewBlocker] = []
     quality_score: int | None = None
     quality_comment: str | None = None
     quality_reviewed_by: uuid.UUID | None = None
     quality_reviewed_at: datetime | None = None
     created_at: datetime
+    started_at: datetime | None = None
+    work_seconds: int | None = None
     allowed_statuses: list[TaskStatus] = []
+
+
+class CalendarTask(BaseModel):
+    id: uuid.UUID
+    title: str
+    status: TaskStatus
+    priority: TaskPriority
+    country: Country
+    due_date: date
+    assigned_to: uuid.UUID | None
+    assigned_to_email: str | None
+    location_name: str | None
+    is_recurring: bool
+    parent_task_id: uuid.UUID | None
+
+
+class CalendarResponse(BaseModel):
+    date_from: date
+    date_to: date
+    data: list[CalendarTask]
+    truncated: bool = Field(description="True when the period holds more tasks than the response carries")
 
 
 class QualityReview(BaseModel):
@@ -173,6 +197,7 @@ class PhotoResponse(BaseModel):
     task_id: uuid.UUID
     url: str
     filename: str
+    kind: PhotoKind
     uploaded_at: datetime
 
     model_config = {"from_attributes": True}

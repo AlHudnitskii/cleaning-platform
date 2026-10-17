@@ -121,3 +121,59 @@ async def test_checklist_changes_do_not_look_like_a_new_assignment(monkeypatch):
     await consumer.handle_task_updated(task_event("task_updated", assigned_to=str(uuid.uuid4()), fields=["checklist"]))
 
     assert sent == []
+
+
+async def test_a_scheduled_occurrence_notifies_its_assignee_and_no_managers(monkeypatch):
+    cleaner, manager = uuid.uuid4(), uuid.uuid4()
+    sent: list[uuid.UUID] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append(user_id)
+
+    async def fake_managers(country: str) -> list[uuid.UUID]:
+        return [manager]
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+    monkeypatch.setattr(consumer, "active_managers", fake_managers)
+    event = task_event("task_created", title="Lobby check", country="DE", assigned_to=str(cleaner), scheduled=True)
+
+    await consumer.handle_task_created(event)
+
+    assert sent == [cleaner]
+
+
+async def test_a_due_soon_reminder_goes_to_the_assignee(monkeypatch):
+    cleaner = uuid.uuid4()
+    sent: list[tuple[uuid.UUID, PushMessage]] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append((user_id, message))
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+
+    await consumer.handle_task_due_soon(task_event("task_due_soon", title="Lobby", assigned_to=str(cleaner)))
+
+    assert [(user_id, message.body.render(Locale.EN)) for user_id, message in sent] == [
+        (cleaner, "Lobby is due tomorrow")
+    ]
+
+
+async def test_an_overdue_task_reaches_its_assignee_and_the_country_managers(monkeypatch):
+    cleaner, manager = uuid.uuid4(), uuid.uuid4()
+    sent: list[uuid.UUID] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append(user_id)
+
+    async def fake_managers(country: str) -> list[uuid.UUID]:
+        return [manager] if country == "DE" else []
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+    monkeypatch.setattr(consumer, "active_managers", fake_managers)
+
+    await consumer.handle_task_overdue(
+        task_event("task_overdue", title="Lobby", country="DE", assigned_to=str(cleaner))
+    )
+    await consumer.handle_task_overdue(task_event("task_overdue", title="Hall", country="DE"))
+
+    assert sent == [cleaner, manager, manager]

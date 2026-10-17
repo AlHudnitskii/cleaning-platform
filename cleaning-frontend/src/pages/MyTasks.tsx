@@ -83,7 +83,11 @@ export function MyTasks() {
                       disabled={offline.changeStatus.isPending}
                       onChange={(status) => offline.changeStatus.mutate({ taskId: task.id, target: status })}
                     />
-                    <PhotoUpload taskId={task.id} online={offline.online} />
+                    <PhotoUpload
+                      taskId={task.id}
+                      kind={task.status === "pending" ? "before" : "after"}
+                      online={offline.online}
+                    />
                   </>
                 }
               />

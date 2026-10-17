@@ -13,11 +13,16 @@ cleaning-platform/   Python 3.11
   src/domain/        enums, the current user and the rules: task access, status transitions, import, locations
   src/translations/  catalog of server messages in English and Russian
   src/infrastructure/ database (SQLAlchemy ORM), JWT, Blob, RabbitMQ, outbox, push
+  src/scheduler/     background jobs: tasks of recurring series a week ahead, due date reminders
   migrations/        Alembic
 docker-compose.yml   Postgres 16 (ltree), RabbitMQ, Azurite; the app profile runs the whole app in containers
 ```
 
 Event flow: a handler changes a task and writes an event to `outbox_messages` in **the same transaction** → `relay` publishes it to the `task_events` exchange → the push consumer sends Web Push, and the SSE server forwards the event to users who can see the task.
+
+Recurring series: a task with a repeat rule starts a series. Every 10 minutes the scheduler creates the series' tasks for the next 7 days, each with the same title, location, assignee, priority, photo requirement and checklist, and a due date on its day. Cancelling the first task stops the series. Repeat rules run daily at most often.
+
+Due date reminders: the same run sends a push to the assignee the day before a task is due, and to the assignee and the country's managers once a task passes its due date. Each due date triggers each reminder once, and a task overdue for more than 3 days gets no new reminder. Dates follow UTC.
 
 ### Roles and visibility
 
@@ -46,7 +51,7 @@ python generate_keys.py                   # VAPID keys for push, if you have non
 
 cd ../cleaning-frontend && npm ci
 
-cd .. && python3 start.py                 # infrastructure, migrations, API, SSE, consumer, relay, frontend
+cd .. && python3 start.py                 # infrastructure, migrations, API, SSE, consumer, relay, scheduler, frontend
 ```
 
 Local environment security:

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from src.api.http import ApiError, authenticated, json_response, read_model, route_uuid
 from src.api.schemas.task import CommentCreate, CommentResponse, HistoryEntryResponse, PhotoResponse
 from src.api.task_queries import load_visible_task
-from src.domain.models.enums import TaskStatus
+from src.domain.models.enums import PhotoKind, TaskStatus
 from src.domain.models.user import CurrentUser
 from src.domain.services.photos import MAX_PHOTO_BYTES, detect_image_type, display_filename
 from src.infrastructure.blob.storage import PHOTOS_CONTAINER, read_link, upload_blob
@@ -134,6 +134,10 @@ async def upload_task_photo(req: func.HttpRequest, user: CurrentUser) -> func.Ht
     photo = req.files.get("photo")
     if photo is None:
         raise ApiError(400, phrases.NO_PHOTO())
+    try:
+        kind = PhotoKind(req.form.get("kind") or PhotoKind.AFTER)
+    except ValueError as e:
+        raise ApiError(400, phrases.PHOTO_KIND()) from e
 
     data = photo.read(MAX_PHOTO_BYTES + 1)
     if len(data) > MAX_PHOTO_BYTES:
@@ -156,6 +160,7 @@ async def upload_task_photo(req: func.HttpRequest, user: CurrentUser) -> func.Ht
             task_id=task_id,
             url=url,
             filename=display_filename(photo.filename, image_type),
+            kind=kind,
             uploaded_at=datetime.now(UTC),
         )
         session.add(record)

@@ -11,6 +11,7 @@ export function OccurrencesSection({ taskId }: { taskId: string }) {
       <h2 id="occurrences-title" className="section-title">
         {t().taskDetail.occurrences}
       </h2>
+      <p className="field-hint">{t().taskDetail.occurrencesHint}</p>
       {occurrences.isPending ? (
         <Loading label={t().taskDetail.loadingSchedule} />
       ) : occurrences.isError ? (

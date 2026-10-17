@@ -1,4 +1,11 @@
-import type { LocationResponse, TaskPage, TaskResponse, TokenResponse, UserResponse } from "../api/types";
+import type {
+  ChecklistTemplate,
+  LocationResponse,
+  TaskPage,
+  TaskResponse,
+  TokenResponse,
+  UserResponse,
+} from "../api/types";
 
 export function makeUser(overrides: Partial<UserResponse> = {}): UserResponse {
   return {
@@ -43,6 +50,7 @@ export function makeTask(overrides: Partial<TaskResponse> = {}): TaskResponse {
     assigned_to_email: CLEANER.email,
     rrule: null,
     is_recurring: false,
+    parent_task_id: null,
     scheduled_for: null,
     priority: "normal",
     due_date: null,
@@ -56,6 +64,8 @@ export function makeTask(overrides: Partial<TaskResponse> = {}): TaskResponse {
     quality_reviewed_by: null,
     quality_reviewed_at: null,
     created_at: "2026-10-01T09:00:00+00:00",
+    started_at: null,
+    work_seconds: null,
     allowed_statuses: ["in_progress", "on_hold", "cancelled"],
     ...overrides,
   };
@@ -78,6 +88,17 @@ export function makeLocation(overrides: Partial<LocationResponse> = {}): Locatio
     path: "77777777",
     full_name: "Germany",
     created_at: "2026-01-01T00:00:00+00:00",
+    ...overrides,
+  };
+}
+
+export function makeTemplate(overrides: Partial<ChecklistTemplate> = {}): ChecklistTemplate {
+  return {
+    id: "77777777-7777-4777-8777-777777777777",
+    name: "Bathroom",
+    country: "DE",
+    items: ["Clean the sink", "Mop the floor"],
+    created_at: "2026-10-01T09:00:00+00:00",
     ...overrides,
   };
 }

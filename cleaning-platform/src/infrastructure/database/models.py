@@ -1,12 +1,24 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
-from src.domain.models.enums import TaskPriority, TaskStatus
+from src.domain.models.enums import PhotoKind, ReminderKind, TaskPriority, TaskStatus
 from src.infrastructure.database.connection import Base
 
 
@@ -89,6 +101,13 @@ class Task(Base):
         Index("ix_tasks_created_at_id", "created_at", "id"),
         Index("ix_tasks_location_id", "location_id"),
         Index("ix_tasks_due_date", "due_date"),
+        Index(
+            "ix_tasks_parent_task_id_scheduled_for",
+            "parent_task_id",
+            "scheduled_for",
+            unique=True,
+            postgresql_where=text("parent_task_id IS NOT NULL"),
+        ),
     )
 
 
@@ -99,7 +118,10 @@ class TaskPhoto(Base):
     task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
     url: Mapped[str] = mapped_column(String(500))
     filename: Mapped[str] = mapped_column(String(255))
+    kind: Mapped[str] = mapped_column(String(10), default=PhotoKind.AFTER, server_default=PhotoKind.AFTER.value)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (CheckConstraint(_in_list("kind", [k.value for k in PhotoKind]), name="kind"),)
 
 
 class TaskStatusHistory(Base):
@@ -127,6 +149,40 @@ class TaskChecklistItem(Base):
     done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (Index("ix_task_checklist_items_task_id_position", "task_id", "position"),)
+
+
+class ChecklistTemplate(Base):
+    """A named list of checklist steps that managers of a country reuse when they create tasks."""
+
+    __tablename__ = "checklist_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100))
+    country: Mapped[str] = mapped_column(String(2))
+    items: Mapped[list[str]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("jsonb_typeof(items) = 'array'", name="items_array"),
+        UniqueConstraint("country", "name"),
+    )
+
+
+class TaskReminder(Base):
+    """One row per reminder sent, so each due date of a task triggers each kind of reminder once."""
+
+    __tablename__ = "task_reminders"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid())
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(20))
+    due_date: Mapped[date] = mapped_column(Date)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(_in_list("kind", [k.value for k in ReminderKind]), name="kind"),
+        UniqueConstraint("task_id", "kind", "due_date"),
+    )
 
 
 class TaskComment(Base):

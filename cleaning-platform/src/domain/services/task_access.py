@@ -84,6 +84,7 @@ OPEN_STATUSES = frozenset(TaskStatus) - LOCKED_STATUSES
 class TaskProgress:
     checklist_done: int = 0
     checklist_total: int = 0
+    # Photos of the result; "before" photos document the starting state and do not satisfy the requirement.
     photo_count: int = 0
 
 

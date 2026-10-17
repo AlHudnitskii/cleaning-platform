@@ -30,6 +30,7 @@ COLORS = {
     "SSE": "\033[34m",
     "CONSUMER": "\033[33m",
     "RELAY": "\033[33m",
+    "SCHEDULER": "\033[33m",
     "FRONT": "\033[32m",
     "ERROR": "\033[31m",
 }
@@ -136,6 +137,7 @@ def main() -> None:
     start("SSE", [str(python), "sse_server.py"], BACKEND, env)
     start("CONSUMER", [str(python), "-m", "src.infrastructure.messaging.consumer"], BACKEND, env)
     start("RELAY", [str(python), "-m", "src.infrastructure.messaging.relay"], BACKEND, env)
+    start("SCHEDULER", [str(python), "-m", "src.scheduler.worker"], BACKEND, env)
     wait_for("http://127.0.0.1:7071/api/docs", "FUNC")
 
     start("FRONT", ["npm.cmd" if IS_WINDOWS else "npm", "run", "dev"], FRONTEND, {**os.environ, "BROWSER": "none"})

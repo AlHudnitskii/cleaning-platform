@@ -59,7 +59,8 @@ def assigned_message(event: TaskEvent) -> PushMessage:
 async def handle_task_created(event: TaskEvent) -> None:
     if event.assigned_to:
         await notify_user(event.assigned_to, assigned_message(event))
-    if not event.country:
+    # Managers planned a recurring series already, so its scheduled tasks reach the assignee only.
+    if not event.country or event.scheduled:
         return
     body = phrases.PUSH_CREATED_BODY(title=event.title, country=phrases.country_name(event.country))
     created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, str(event.task_id))
@@ -91,6 +92,24 @@ async def handle_task_updated(event: TaskEvent) -> None:
     await notify_user(event.assigned_to, assigned_message(event))
 
 
+async def handle_task_due_soon(event: TaskEvent) -> None:
+    if event.assigned_to is None:
+        return
+    body = phrases.PUSH_DUE_SOON_BODY(title=event.title)
+    await notify_user(event.assigned_to, PushMessage(phrases.PUSH_DUE_SOON_TITLE(), body, str(event.task_id)))
+
+
+async def handle_task_overdue(event: TaskEvent) -> None:
+    overdue = PushMessage(
+        phrases.PUSH_OVERDUE_TITLE(), phrases.PUSH_OVERDUE_BODY(title=event.title), str(event.task_id)
+    )
+    recipients = [event.assigned_to] if event.assigned_to else []
+    if event.country:
+        recipients.extend(await active_managers(event.country))
+    for user_id in recipients:
+        await notify_user(user_id, overdue)
+
+
 async def ignore_event(event: TaskEvent) -> None:
     return None
 
@@ -100,6 +119,8 @@ HANDLERS: dict[TaskEventType, Callable[[TaskEvent], Awaitable[None]]] = {
     TaskEventType.STATUS_CHANGED: handle_task_status_changed,
     TaskEventType.UPDATED: handle_task_updated,
     TaskEventType.DELETED: ignore_event,
+    TaskEventType.DUE_SOON: handle_task_due_soon,
+    TaskEventType.OVERDUE: handle_task_overdue,
 }
 
 

@@ -5,8 +5,14 @@ from typing import Any
 import azure.functions as func
 from pydantic import BaseModel
 
+from src.api.schemas.checklist_template import (
+    ChecklistTemplateCreate,
+    ChecklistTemplateResponse,
+    ChecklistTemplateUpdate,
+)
 from src.api.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from src.api.schemas.task import (
+    CalendarResponse,
     ChecklistItemCreate,
     ChecklistItemResponse,
     ChecklistItemUpdate,
@@ -36,6 +42,10 @@ bp = func.Blueprint()
 
 SCHEMAS: list[type[BaseModel]] = [
     AssigneeResponse,
+    CalendarResponse,
+    ChecklistTemplateCreate,
+    ChecklistTemplateResponse,
+    ChecklistTemplateUpdate,
     CommentCreate,
     CommentResponse,
     HistoryEntryResponse,
@@ -66,10 +76,13 @@ PATH_PARAMS = {
     "location_id": "Location ID",
     "user_id": "User ID",
     "item_id": "Checklist item ID",
+    "template_id": "Checklist template ID",
 }
 
 CHECKLIST = "/tasks/{task_id}/checklist"
 CHECKLIST_ITEM = "/tasks/{task_id}/checklist/{item_id}"
+TEMPLATES = "/checklist-templates"
+TEMPLATE = "/checklist-templates/{template_id}"
 
 ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     (
@@ -98,11 +111,37 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("delete", "/tasks/{task_id}", "Delete a task with its comments, history and photos", None, None, True),
     ("patch", "/tasks/{task_id}/status", "Change task status", "TaskStatusUpdate", "TaskResponse", True),
     ("post", "/tasks/{task_id}/quality", "Review quality of a completed task", "QualityReview", "TaskResponse", True),
+    (
+        "get",
+        "/calendar/tasks",
+        "Tasks due between date_from and date_to (at most 42 days); filters: assigned_to, country (admin)",
+        None,
+        "CalendarResponse",
+        True,
+    ),
     ("get", "/tasks/{task_id}/occurrences", "Next occurrences of a recurring task", None, None, True),
     ("get", CHECKLIST, "Checklist of a task", None, "ChecklistItemResponse", True),
     ("post", CHECKLIST, "Add a checklist item (admin, manager)", "ChecklistItemCreate", "ChecklistItemResponse", True),
     ("patch", CHECKLIST_ITEM, "Tick or rename a checklist item", "ChecklistItemUpdate", "ChecklistItemResponse", True),
     ("delete", CHECKLIST_ITEM, "Remove a checklist item (admin, manager)", None, None, True),
+    (
+        "get",
+        TEMPLATES,
+        "Checklist templates of the caller's country (admin: ?country)",
+        None,
+        "ChecklistTemplateResponse",
+        True,
+    ),
+    ("post", TEMPLATES, "Create a checklist template", "ChecklistTemplateCreate", "ChecklistTemplateResponse", True),
+    (
+        "patch",
+        TEMPLATE,
+        "Rename a template or replace its steps",
+        "ChecklistTemplateUpdate",
+        "ChecklistTemplateResponse",
+        True,
+    ),
+    ("delete", TEMPLATE, "Delete a checklist template", None, None, True),
     ("get", "/tasks/{task_id}/comments", "Task comments", None, "CommentResponse", True),
     ("post", "/tasks/{task_id}/comments", "Add a comment", "CommentCreate", "CommentResponse", True),
     ("get", "/tasks/{task_id}/history", "Status history", None, "HistoryEntryResponse", True),
@@ -110,7 +149,7 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     (
         "post",
         "/tasks/{task_id}/photos",
-        "Upload a JPEG/PNG/WebP photo (form field 'photo')",
+        "Upload a JPEG/PNG/WebP photo (form field 'photo'; 'kind' is before or after, after by default)",
         None,
         "PhotoResponse",
         True,

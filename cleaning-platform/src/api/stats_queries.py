@@ -4,12 +4,13 @@ from sqlalchemy import ColumnElement, and_, case, select
 from sqlalchemy import func as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.task_queries import overdue_condition
+from src.api.task_queries import in_progress_spans, overdue_condition, work_seconds
 from src.domain.models.enums import TaskPriority, TaskStatus, UserRole
-from src.infrastructure.database.models import Location, Task, User
+from src.infrastructure.database.models import Location, Task, TaskStatusHistory, User
 
 TOP_LOCATIONS = 5
 TOP_CLEANERS = 10
+TOP_WORK_ROWS = 10
 
 
 def country_scope(country: str | None) -> list[ColumnElement[bool]]:
@@ -123,3 +124,46 @@ async def top_cleaners(
         }
         for email, cleaner_country, tasks, completed in (await session.execute(stmt)).all()
     ]
+
+
+async def work_summary(session: AsyncSession, conditions: list[ColumnElement[bool]]) -> dict[str, Any]:
+    """Average time in progress of completed tasks that match conditions, overall, per cleaner and per location."""
+    completed = select(Task.id).where(*conditions, Task.status == TaskStatus.COMPLETED)
+    spans = in_progress_spans(TaskStatusHistory.task_id.in_(completed))
+    per_task = select(spans.c.task_id, work_seconds(spans).label("seconds")).group_by(spans.c.task_id).subquery()
+    measured = per_task.c.seconds.is_not(None)
+    average = sql.avg(per_task.c.seconds)
+    tasks = sql.count(per_task.c.task_id).label("tasks")
+
+    overall_avg, overall_count = (await session.execute(select(average, sql.count()).where(measured))).one()
+    by_cleaner = await session.execute(
+        select(User.email, tasks, average)
+        .select_from(per_task)
+        .join(Task, Task.id == per_task.c.task_id)
+        .join(User, User.id == Task.assigned_to)
+        .where(measured)
+        .group_by(User.id)
+        .order_by(tasks.desc(), User.email)
+        .limit(TOP_WORK_ROWS)
+    )
+    by_location = await session.execute(
+        select(Location.id, Location.name, tasks, average)
+        .select_from(per_task)
+        .join(Task, Task.id == per_task.c.task_id)
+        .join(Location, Location.id == Task.location_id)
+        .where(measured)
+        .group_by(Location.id)
+        .order_by(tasks.desc(), Location.name)
+        .limit(TOP_WORK_ROWS)
+    )
+    return {
+        "avg_seconds": round(overall_avg) if overall_avg is not None else None,
+        "task_count": overall_count,
+        "by_cleaner": [
+            {"email": email, "task_count": count, "avg_seconds": round(avg)} for email, count, avg in by_cleaner.all()
+        ],
+        "by_location": [
+            {"id": location_id, "name": name, "task_count": count, "avg_seconds": round(avg)}
+            for location_id, name, count, avg in by_location.all()
+        ],
+    }

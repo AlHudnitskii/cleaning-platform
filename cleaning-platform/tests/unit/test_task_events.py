@@ -54,3 +54,12 @@ def test_the_payload_keeps_the_keys_the_browser_reads():
     payload = TaskEvent.of(TaskEventType.CREATED, make_task(), uuid.uuid4()).payload()
 
     assert {"task_id", "title", "country", "assigned_to", "changed_by"} <= payload.keys()
+
+
+def test_a_scheduled_event_keeps_its_flag_and_has_no_author():
+    event = TaskEvent.of(TaskEventType.CREATED, make_task(), None, scheduled=True)
+
+    received = TaskEvent.from_message({"type": event.type.value, **event.payload()})
+
+    assert received == event
+    assert (received.scheduled, received.changed_by) == (True, None)

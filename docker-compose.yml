@@ -102,6 +102,10 @@ services:
     <<: *worker
     command: ["python", "-m", "src.infrastructure.messaging.relay"]
 
+  scheduler:
+    <<: *worker
+    command: ["python", "-m", "src.scheduler.worker"]
+
 volumes:
   postgres_data:
   azurite_data:

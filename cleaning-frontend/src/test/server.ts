@@ -9,6 +9,7 @@ export const server = setupServer(
   http.get("*/api/users/assignees", () => HttpResponse.json([])),
   http.get("*/api/tasks", () => HttpResponse.json(makePage([]))),
   http.get("*/api/tasks/:id/checklist", () => HttpResponse.json([])),
+  http.get("*/api/checklist-templates", () => HttpResponse.json([])),
 );
 
 export function sessionHandlers(user: UserResponse) {

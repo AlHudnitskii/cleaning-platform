@@ -1,14 +1,15 @@
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
-from sqlalchemy import Select, and_, case, func, select
+from sqlalchemy import Select, Subquery, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
 from src.api.http import not_found
-from src.domain.models.enums import SortOrder, TaskPriority, TaskSort, TaskStatus
+from src.domain.models.enums import PhotoKind, SortOrder, TaskPriority, TaskSort, TaskStatus
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem, TaskPhoto, TaskStatusHistory, User
@@ -94,7 +95,9 @@ async def task_progress(session: AsyncSession, task_ids: list[uuid.UUID]) -> dic
         )
     ).all()
     photo_counts = (
-        select(TaskPhoto.task_id, func.count()).where(TaskPhoto.task_id.in_(task_ids)).group_by(TaskPhoto.task_id)
+        select(TaskPhoto.task_id, func.count())
+        .where(TaskPhoto.task_id.in_(task_ids), TaskPhoto.kind == PhotoKind.AFTER)
+        .group_by(TaskPhoto.task_id)
     )
     photos = {task_id: count for task_id, count in (await session.execute(photo_counts)).all()}
     counts = {task_id: (done, total) for task_id, done, total in checklist}
@@ -106,6 +109,51 @@ async def task_progress(session: AsyncSession, task_ids: list[uuid.UUID]) -> dic
         )
         for task_id in task_ids
     }
+
+
+@dataclass(frozen=True)
+class WorkTime:
+    started_at: datetime | None = None
+    work_seconds: int | None = None
+
+
+def in_progress_spans(*conditions: ColumnElement[bool]) -> Subquery:
+    """Each status history row with the time the next row replaced it; the latest row runs until now.
+
+    The window spans every row of a task, so conditions must select whole tasks, never single rows.
+    """
+    ended = func.lead(TaskStatusHistory.changed_at).over(
+        partition_by=TaskStatusHistory.task_id, order_by=(TaskStatusHistory.changed_at, TaskStatusHistory.id)
+    )
+    return (
+        select(
+            TaskStatusHistory.task_id,
+            TaskStatusHistory.new_status,
+            TaskStatusHistory.changed_at.label("started"),
+            func.coalesce(ended, func.now()).label("ended"),
+        )
+        .where(*conditions)
+        .subquery()
+    )
+
+
+def work_seconds(spans: Subquery) -> ColumnElement[Any]:
+    """Seconds a task spent in progress: on hold and review time do not count."""
+    working = spans.c.new_status == TaskStatus.IN_PROGRESS
+    return func.sum(func.extract("epoch", spans.c.ended - spans.c.started)).filter(working)
+
+
+async def work_times(session: AsyncSession, task_ids: list[uuid.UUID]) -> dict[uuid.UUID, WorkTime]:
+    if not task_ids:
+        return {}
+    spans = in_progress_spans(TaskStatusHistory.task_id.in_(task_ids))
+    started = func.min(spans.c.started).filter(spans.c.new_status == TaskStatus.IN_PROGRESS)
+    rows = await session.execute(select(spans.c.task_id, started, work_seconds(spans)).group_by(spans.c.task_id))
+    times = {
+        task_id: WorkTime(first, round(seconds) if seconds is not None else None)
+        for task_id, first, seconds in rows.all()
+    }
+    return {task_id: times.get(task_id, WorkTime()) for task_id in task_ids}
 
 
 async def load_visible_task(

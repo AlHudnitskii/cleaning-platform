@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
 import type { ChecklistItem } from "../api/types";
-import { CLEANER, MANAGER, makePage, makeTask } from "../test/fixtures";
+import { CLEANER, MANAGER, makePage, makeTask, makeTemplate } from "../test/fixtures";
 import { chooseOption, renderApp } from "../test/render";
 import { server } from "../test/server";
 
@@ -161,6 +161,30 @@ describe("Checklist", () => {
         checklist: ["Wipe counters", "Empty bins"],
       }),
     );
+  });
+
+  it("adds the steps of a template to the new task without repeating a step", async () => {
+    let created: { checklist?: string[] } | null = null;
+    server.use(
+      http.get("*/api/checklist-templates", () => HttpResponse.json([makeTemplate()])),
+      http.post("*/api/tasks", async ({ request }) => {
+        created = (await request.json()) as { checklist?: string[] };
+        return HttpResponse.json(makeTask(), { status: 201 });
+      }),
+    );
+    const { user } = renderApp("/tasks", MANAGER);
+    await screen.findByText("No tasks yet");
+
+    await user.click(screen.getByRole("button", { name: "Create task" }));
+    const panel = screen.getByRole("dialog", { name: "New task" });
+    await user.type(within(panel).getByLabelText("Title"), "Clean bathroom");
+    await user.type(within(panel).getByRole("textbox", { name: "New checklist step" }), "Mop the floor{Enter}");
+    await waitFor(() => expect(within(panel).getByLabelText("Add steps from a template")).toBeEnabled());
+    await chooseOption(user, "Add steps from a template", "Bathroom", panel);
+
+    expect(await screen.findByText("Steps from “Bathroom” added")).toBeInTheDocument();
+    await user.click(within(panel).getByRole("button", { name: "Create task" }));
+    await waitFor(() => expect(created?.checklist).toEqual(["Mop the floor", "Clean the sink"]));
   });
 
   it("keeps the task page usable when the checklist cannot be loaded", async () => {

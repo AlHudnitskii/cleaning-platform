@@ -57,6 +57,7 @@ export interface TaskResponse {
   assigned_to_email: string | null;
   rrule: string | null;
   is_recurring: boolean;
+  parent_task_id: string | null;
   scheduled_for: string | null;
   priority: TaskPriority;
   due_date: string | null;
@@ -70,7 +71,30 @@ export interface TaskResponse {
   quality_reviewed_by: string | null;
   quality_reviewed_at: string | null;
   created_at: string;
+  started_at: string | null;
+  work_seconds: number | null;
   allowed_statuses: TaskStatus[];
+}
+
+export interface CalendarTask {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  country: Country;
+  due_date: string;
+  assigned_to: string | null;
+  assigned_to_email: string | null;
+  location_name: string | null;
+  is_recurring: boolean;
+  parent_task_id: string | null;
+}
+
+export interface CalendarResponse {
+  date_from: string;
+  date_to: string;
+  data: CalendarTask[];
+  truncated: boolean;
 }
 
 export interface Pagination {
@@ -110,6 +134,25 @@ export interface ChecklistItem {
   done_at: string | null;
 }
 
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  country: Country;
+  items: string[];
+  created_at: string;
+}
+
+export interface ChecklistTemplateCreate {
+  name: string;
+  country?: Country;
+  items: string[];
+}
+
+export interface ChecklistTemplateUpdate {
+  name?: string;
+  items?: string[];
+}
+
 export interface TaskUpdate {
   title?: string;
   description?: string | null;
@@ -141,11 +184,16 @@ export interface HistoryEntryResponse {
   changed_at: string;
 }
 
+export const PHOTO_KINDS = ["before", "after"] as const;
+
+export type PhotoKind = (typeof PHOTO_KINDS)[number];
+
 export interface PhotoResponse {
   id: string;
   task_id: string;
   url: string;
   filename: string;
+  kind: PhotoKind;
   uploaded_at: string;
 }
 
@@ -237,6 +285,26 @@ export interface TopCleaner {
   completion_rate: number;
 }
 
+export interface CleanerWorkTime {
+  email: string;
+  task_count: number;
+  avg_seconds: number;
+}
+
+export interface LocationWorkTime {
+  id: string;
+  name: string;
+  task_count: number;
+  avg_seconds: number;
+}
+
+export interface WorkTimeStats {
+  avg_seconds: number | null;
+  task_count: number;
+  by_cleaner: CleanerWorkTime[];
+  by_location: LocationWorkTime[];
+}
+
 export interface ReportStats {
   period: { date_from: string; date_to: string };
   total_tasks: number;
@@ -247,6 +315,7 @@ export interface ReportStats {
   weekly_stats: WeeklyCount[];
   quality_stats: QualityStats;
   top_cleaners: TopCleaner[];
+  work_time: WorkTimeStats;
 }
 
 export interface ImportPreviewRow {

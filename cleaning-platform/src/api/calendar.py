@@ -63,11 +63,12 @@ async def get_calendar(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
             due_date=task.due_date,
             assigned_to=task.assigned_to,
             assigned_to_email=email,
+            assigned_to_name=name,
             location_name=location_name,
             is_recurring=task.is_recurring,
             parent_task_id=task.parent_task_id,
         )
-        for task, email, location_name in rows[:MAX_CALENDAR_TASKS]
+        for task, email, location_name, name in rows[:MAX_CALENDAR_TASKS]
         # The query filters by due date, so this only narrows the type.
         if task.due_date is not None
     ]

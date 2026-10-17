@@ -10,12 +10,14 @@ import { sendPendingChanges } from "../features/offline/useOfflineSync";
 import { usePushNotifications } from "../features/push/usePushNotifications";
 import { useTaskCount } from "../features/tasks/api";
 import { t } from "../i18n/locale";
+import { displayName } from "../labels";
 import { focusPageSearch, shortcutsBlocked, useShortcut } from "../shortcuts";
 import { BrandMark } from "./BrandMark";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageErrorBoundary } from "./ErrorBoundary";
 import { Icon, type IconName } from "./Icon";
 import { LanguageSwitch } from "./LanguageSwitch";
+import { Avatar } from "./People";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { ToastHost } from "./Toasts";
@@ -388,12 +390,14 @@ function TopbarActions() {
       )}
       <LanguageSwitch />
       <ThemeSwitch />
-      <Link to="/profile" className="user-chip" aria-label={t().nav.profileOf(user.email, t().role[user.role])}>
-        <span className="avatar" aria-hidden="true">
-          {user.email.charAt(0).toUpperCase()}
-        </span>
+      <Link
+        to="/profile"
+        className="user-chip"
+        aria-label={t().nav.profileOf(displayName(user.email, user.full_name), t().role[user.role])}
+      >
+        <Avatar user={user} />
         <span className="user-chip-text" aria-hidden="true">
-          <span className="user-chip-email">{user.email}</span>
+          <span className="user-chip-email">{user.full_name ?? user.email}</span>
           <span className="user-chip-role">{t().role[user.role]}</span>
         </span>
       </Link>

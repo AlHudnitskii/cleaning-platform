@@ -687,3 +687,18 @@ textarea.input {
   flex-basis: 28px;
   vertical-align: middle;
 }
+
+.notice-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+}
+
+.toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 0;
+}

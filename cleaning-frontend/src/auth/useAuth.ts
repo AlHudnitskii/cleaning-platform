@@ -12,6 +12,7 @@ export interface AuthContextValue {
   login: (email: string, password: string) => Promise<UserResponse>;
   logout: () => Promise<void>;
   acceptSession: (session: TokenResponse) => void;
+  updateUser: (user: UserResponse) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

@@ -14,7 +14,7 @@ import { useCalendarTasks, useRescheduleTask } from "../features/tasks/api";
 import { useAssignees } from "../features/users/api";
 import { dateFormatter } from "../i18n/format";
 import { t } from "../i18n/locale";
-import { countryNames } from "../labels";
+import { countryNames, personLabel } from "../labels";
 import { readDate, readEnum, readId, useUrlState } from "../urlState";
 
 const VIEWS = ["month", "week"] as const;
@@ -105,7 +105,10 @@ export function Calendar() {
               value={assignee ?? ""}
               options={withEmpty(
                 t().common.all,
-                (assignees.data ?? []).map((cleaner) => ({ value: cleaner.id, label: cleaner.email })),
+                (assignees.data ?? []).map((cleaner) => ({
+                  value: cleaner.id,
+                  label: personLabel(cleaner.email, cleaner.full_name),
+                })),
               )}
               onChange={(value) => update({ assignee: value })}
             />

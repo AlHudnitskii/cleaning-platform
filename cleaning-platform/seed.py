@@ -39,6 +39,15 @@ USERS = [
     ("cleaner3@cleaning.com", "cleaner123", "cleaner", "NL"),
 ]
 
+NAMES = {
+    "admin@cleaning.com": "Olga Admin",
+    "manager.de@cleaning.com": "Max Vogel",
+    "manager.nl@cleaning.com": "Sanne de Vries",
+    "cleaner1@cleaning.com": "Anna Berg",
+    "cleaner2@cleaning.com": "Jonas Klein",
+    "cleaner3@cleaning.com": "Lotte Jansen",
+}
+
 LOCATIONS = [
     ("Germany", "DE", "country", None),
     ("Berlin", "DE", "city", "Germany"),
@@ -132,7 +141,13 @@ async def cleanup(session: AsyncSession) -> None:
 def create_users(session: AsyncSession) -> dict[str, User]:
     users = {}
     for email, password, role, country in USERS:
-        user = User(email=email, hashed_password=hash_password(password), role=role, country=country)
+        user = User(
+            email=email,
+            hashed_password=hash_password(password),
+            role=role,
+            country=country,
+            full_name=NAMES.get(email),
+        )
         session.add(user)
         users[email] = user
     return users

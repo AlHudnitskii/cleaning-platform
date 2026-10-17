@@ -11,6 +11,7 @@ from src.api.events import bp as events_bp
 from src.api.export import bp as export_bp
 from src.api.import_tasks import bp as import_bp
 from src.api.locations import bp as locations_bp
+from src.api.profile import bp as profile_bp
 from src.api.push import bp as push_bp
 from src.api.stats import bp as stats_bp
 from src.api.sync import bp as sync_bp
@@ -28,6 +29,7 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 for blueprint in (
     auth_bp,
     users_bp,
+    profile_bp,
     tasks_bp,
     calendar_bp,
     task_activity_bp,

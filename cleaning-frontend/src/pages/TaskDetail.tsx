@@ -167,7 +167,7 @@ function TaskDetailContent({ id }: { id: string }) {
               <div>
                 <dt>{t().taskDetail.assignee}</dt>
                 <dd>
-                  <Person email={data.assigned_to_email} />
+                  <Person email={data.assigned_to_email} name={data.assigned_to_name} />
                 </dd>
               </div>
               <div>

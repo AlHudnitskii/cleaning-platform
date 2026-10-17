@@ -1,4 +1,12 @@
-import type { LocationLevel, PhotoKind, TaskPriority, TaskSort, TaskStatus, UserRole } from "../api/types";
+import type {
+  LocationLevel,
+  NotificationTopic,
+  PhotoKind,
+  TaskPriority,
+  TaskSort,
+  TaskStatus,
+  UserRole,
+} from "../api/types";
 
 function count(n: number, one: string, other: string): string {
   return `${n} ${n === 1 ? one : other}`;
@@ -233,7 +241,19 @@ export const en = {
   },
   profile: {
     title: "Profile",
-    description: "Your account, password, language and theme.",
+    description: "Your details, account, password, language and theme.",
+    details: "Personal details",
+    fullName: "Name",
+    fullNameHint: "Colleagues see this name instead of your email.",
+    phone: "Phone",
+    phoneHint: "Managers can call you about a task. Digits, spaces, brackets and dashes.",
+    saveDetails: "Save details",
+    detailsSaved: "Details saved.",
+    addPhoto: "Add a photo",
+    changePhoto: "Change photo",
+    removePhoto: "Remove photo",
+    photoHint: "JPEG, PNG or WebP, up to 5 MB.",
+    photoTooLarge: "A profile photo must be at most 5 MB.",
     account: "Account",
     email: "Email",
     role: "Role",
@@ -328,6 +348,43 @@ export const en = {
     noCleaners: (country: string) => `No active cleaners in ${country} yet. Add one on the Users page.`,
     noLocations: (country: string) => `No locations in ${country} yet.`,
     listFailed: (message: string) => `Could not load the list: ${message}`,
+  },
+  notifications: {
+    title: "Notifications",
+    loading: "Loading notification settings",
+    deviceOff: "Notifications are off on this device. Your choices below apply once you turn them on.",
+    turnOn: "Turn on on this device",
+    unsupported: "This browser cannot show push notifications. Your choices apply on your other devices.",
+    topics: {
+      assigned: "A task is assigned to me",
+      task_created: "A task is created in my country",
+      status_changed: "A manager changes the status of my task",
+      due_soon: "My task is due tomorrow",
+      overdue: "A task is overdue",
+    } as Record<NotificationTopic, string>,
+    hints: {
+      assigned: "Includes tasks of recurring series.",
+      task_created: "Scheduled tasks of recurring series do not count.",
+      status_changed: "For example, when a manager approves your work or returns it for rework.",
+      due_soon: "Sent the day before the due date.",
+      overdue: "Sent once, the day after the due date passes.",
+    } as Record<NotificationTopic, string>,
+  },
+  myStats: {
+    title: "My figures",
+    loading: "Loading your figures",
+    scopeOwn: "Tasks assigned to you,",
+    scopeCountry: (country: string) => `Tasks in ${country},`,
+    scopeAll: "Tasks in all countries,",
+    period: (days: number) => `completed and reviewed in the last ${days} days; open tasks as of now.`,
+    completed: "Completed",
+    open: "Open now",
+    onReview: (n: number) => `${n} on review`,
+    overdue: "Overdue",
+    quality: "Average quality",
+    noReviews: "No reviews yet",
+    workTime: "Average work time",
+    noWork: "No measured work yet",
   },
   planner: {
     title: "Calendar",

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 
 import { api, applySession, refreshSession } from "../api/client";
 import { toApiError } from "../api/errors";
-import type { TokenResponse } from "../api/types";
+import type { TokenResponse, UserResponse } from "../api/types";
 import { showToast } from "../components/toast";
 import { t } from "../i18n/locale";
 import {
@@ -100,6 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearSession]);
 
-  const value = useMemo(() => ({ state, login, logout, acceptSession }), [state, login, logout, acceptSession]);
+  const updateUser = useCallback((user: UserResponse) => {
+    saveProfile(user);
+    setState((previous) => (previous.status === "authenticated" ? { ...previous, user } : previous));
+  }, []);
+
+  const value = useMemo(
+    () => ({ state, login, logout, acceptSession, updateUser }),
+    [state, login, logout, acceptSession, updateUser],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

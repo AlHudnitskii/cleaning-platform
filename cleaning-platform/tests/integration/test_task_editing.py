@@ -101,7 +101,7 @@ async def test_reassignment_records_previous_assignee_and_notifies_the_new_one(a
 
     notified: list[tuple[object, str]] = []
 
-    async def fake_notify(user_id, message):
+    async def fake_notify(user_id, message, topic):
         notified.append((user_id, str(message.title)))
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)

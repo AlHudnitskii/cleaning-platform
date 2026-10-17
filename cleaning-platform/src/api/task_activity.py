@@ -29,6 +29,7 @@ def comment_response(comment: TaskComment, author: User) -> CommentResponse:
         task_id=comment.task_id,
         user_id=comment.user_id,
         user_email=author.email,
+        user_name=author.full_name,
         user_role=author.role,
         text=comment.text,
         created_at=comment.created_at,
@@ -60,18 +61,13 @@ async def add_comment(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
 
     async with session_scope() as session, session.begin():
         await load_visible_task(session, user, task_id)
+        author = await session.get(User, user.id)
+        if author is None:
+            raise ApiError(401, phrases.SESSION_INVALID())
         comment = TaskComment(task_id=task_id, user_id=user.id, text=data.text, created_at=datetime.now(UTC))
         session.add(comment)
         await session.flush()
-        response = CommentResponse(
-            id=comment.id,
-            task_id=task_id,
-            user_id=user.id,
-            user_email=user.email,
-            user_role=user.role,
-            text=comment.text,
-            created_at=comment.created_at,
-        )
+        response = comment_response(comment, author)
 
     return json_response(response, 201)
 

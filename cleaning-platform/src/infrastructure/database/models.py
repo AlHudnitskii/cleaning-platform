@@ -64,6 +64,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(50))
     country: Mapped[str | None] = mapped_column(String(2))
     is_active: Mapped[bool] = mapped_column(default=True)
+    full_name: Mapped[str | None] = mapped_column(String(100))
+    phone: Mapped[str | None] = mapped_column(String(32))
+    avatar_url: Mapped[str | None] = mapped_column(String(500))
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
 

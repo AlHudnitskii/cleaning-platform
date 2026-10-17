@@ -17,6 +17,7 @@ def to_response(
     location_name: str | None = None,
     location_path: list[str] | None = None,
     work: WorkTime | None = None,
+    assignee_name: str | None = None,
 ) -> TaskResponse:
     status = TaskStatus(task.status)
     return TaskResponse(
@@ -30,6 +31,7 @@ def to_response(
         location_path=location_path or [],
         assigned_to=task.assigned_to,
         assigned_to_email=assignee_email,
+        assigned_to_name=assignee_name,
         rrule=task.rrule,
         is_recurring=task.is_recurring,
         parent_task_id=task.parent_task_id,
@@ -53,9 +55,13 @@ def to_response(
 
 
 async def detailed_response(session: AsyncSession, user: CurrentUser, task: Task) -> TaskResponse:
-    assignee_email = None
+    assignee_email = assignee_name = None
     if task.assigned_to:
-        assignee_email = await session.scalar(select(User.email).where(User.id == task.assigned_to))
+        assignee = (
+            await session.execute(select(User.email, User.full_name).where(User.id == task.assigned_to))
+        ).first()
+        if assignee is not None:
+            assignee_email, assignee_name = assignee
 
     location_name = None
     location_path: list[str] = []
@@ -70,4 +76,4 @@ async def detailed_response(session: AsyncSession, user: CurrentUser, task: Task
 
     progress = (await task_progress(session, [task.id]))[task.id]
     work = (await work_times(session, [task.id]))[task.id]
-    return to_response(task, user, progress, assignee_email, location_name, location_path, work)
+    return to_response(task, user, progress, assignee_email, location_name, location_path, work, assignee_name)

@@ -28,13 +28,22 @@ export interface UserResponse {
   email: string;
   role: UserRole;
   country: Country | null;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+export interface ProfileUpdate {
+  full_name?: string | null;
+  phone?: string | null;
 }
 
 export interface AssigneeResponse {
   id: string;
   email: string;
+  full_name: string | null;
   country: Country | null;
 }
 
@@ -55,6 +64,7 @@ export interface TaskResponse {
   location_path: string[];
   assigned_to: string | null;
   assigned_to_email: string | null;
+  assigned_to_name: string | null;
   rrule: string | null;
   is_recurring: boolean;
   parent_task_id: string | null;
@@ -85,6 +95,7 @@ export interface CalendarTask {
   due_date: string;
   assigned_to: string | null;
   assigned_to_email: string | null;
+  assigned_to_name: string | null;
   location_name: string | null;
   is_recurring: boolean;
   parent_task_id: string | null;
@@ -169,6 +180,7 @@ export interface CommentResponse {
   task_id: string;
   user_id: string;
   user_email: string;
+  user_name: string | null;
   user_role: UserRole;
   text: string;
   created_at: string;
@@ -279,6 +291,7 @@ export interface QualityStats {
 
 export interface TopCleaner {
   email: string;
+  name: string | null;
   country: Country | null;
   task_count: number;
   completed_count: number;
@@ -287,6 +300,7 @@ export interface TopCleaner {
 
 export interface CleanerWorkTime {
   email: string;
+  name: string | null;
   task_count: number;
   avg_seconds: number;
 }

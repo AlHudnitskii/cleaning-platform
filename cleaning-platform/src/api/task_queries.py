@@ -63,9 +63,10 @@ def location_subtree(location_id: uuid.UUID) -> ColumnElement[bool]:
     return Task.location_id.in_(subtree)
 
 
-def task_rows() -> Select[Task, str, str]:
+def task_rows() -> Select[Task, str, str, str | None]:
+    """Tasks with the assignee's email and name and the location name, all None when absent."""
     return (
-        select(Task, User.email, Location.name)
+        select(Task, User.email, Location.name, User.full_name)
         .outerjoin(User, Task.assigned_to == User.id)
         .outerjoin(Location, Task.location_id == Location.id)
     )

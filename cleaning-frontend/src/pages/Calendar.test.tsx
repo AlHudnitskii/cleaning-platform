@@ -16,6 +16,7 @@ function entry(overrides: Partial<CalendarTask> = {}): CalendarTask {
     due_date: "2026-10-15",
     assigned_to: CLEANER.id,
     assigned_to_email: CLEANER.email,
+    assigned_to_name: null,
     location_name: null,
     is_recurring: false,
     parent_task_id: null,

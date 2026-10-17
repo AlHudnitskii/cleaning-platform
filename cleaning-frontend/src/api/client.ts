@@ -104,7 +104,7 @@ export const api = {
   get: <T>(path: string, params?: Params) => json<T>({ method: "GET", path, params }),
   post: <T = unknown>(path: string, body?: unknown, params?: Params) => json<T>({ method: "POST", path, body, params }),
   patch: <T = unknown>(path: string, body?: unknown) => json<T>({ method: "PATCH", path, body }),
-  delete: (path: string) => json<unknown>({ method: "DELETE", path }),
+  delete: <T = unknown>(path: string) => json<T>({ method: "DELETE", path }),
   download: async (path: string, params?: Params) => {
     const response = await authorized({ method: "GET", path, params });
     return { blob: await response.blob(), headers: response.headers };

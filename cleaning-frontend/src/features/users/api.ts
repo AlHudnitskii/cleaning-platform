@@ -4,6 +4,7 @@ import { api } from "../../api/client";
 import type {
   AssigneeResponse,
   Country,
+  ProfileUpdate,
   TokenResponse,
   UserCreate,
   UserResponse,
@@ -63,6 +64,24 @@ export function useToggleActive() {
     mutationFn: (userId: string) => api.patch<UserResponse>(`/users/${userId}/toggle-active`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
   });
+}
+
+export function useUpdateProfile() {
+  return useMutation({ mutationFn: (changes: ProfileUpdate) => api.patch<UserResponse>("/profile", changes) });
+}
+
+export function useUploadAvatar() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("photo", file);
+      return api.post<UserResponse>("/profile/avatar", form);
+    },
+  });
+}
+
+export function useDeleteAvatar() {
+  return useMutation({ mutationFn: () => api.delete<UserResponse>("/profile/avatar") });
 }
 
 export function useChangePassword() {

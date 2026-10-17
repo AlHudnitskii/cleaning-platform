@@ -3,7 +3,7 @@ import { useId, useState, type SubmitEvent, type KeyboardEvent } from "react";
 import { errorMessage } from "../../api/errors";
 import { RoleBadge, StatusBadge } from "../../components/Badges";
 import { ErrorState, Loading, Notice } from "../../components/Feedback";
-import { formatDateTime } from "../../labels";
+import { displayName, formatDateTime } from "../../labels";
 import { t } from "../../i18n/locale";
 import { useAddComment, useComments, useHistory } from "./api";
 
@@ -87,7 +87,9 @@ function Comments({
           {query.data.map((comment) => (
             <li key={comment.id} className="comment">
               <div className="comment-header">
-                <span className="comment-author">{comment.user_email}</span>
+                <span className="comment-author" title={comment.user_email}>
+                  {displayName(comment.user_email, comment.user_name)}
+                </span>
                 <RoleBadge role={comment.user_role} />
                 <time className="muted" dateTime={comment.created_at}>
                   {formatDateTime(comment.created_at)}

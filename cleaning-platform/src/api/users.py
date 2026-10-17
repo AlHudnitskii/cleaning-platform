@@ -5,6 +5,7 @@ from sqlalchemy import delete, select
 from sqlalchemy import func as sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.accounts import user_response
 from src.api.auth import session_response
 from src.api.http import (
     ApiError,
@@ -21,7 +22,6 @@ from src.api.schemas.user import (
     PasswordChange,
     PasswordReset,
     UserRegister,
-    UserResponse,
     UserUpdate,
 )
 from src.api.task_queries import OPEN_STATUS_VALUES
@@ -49,7 +49,7 @@ async def get_users(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
 
     async with session_scope() as session:
         users = (await session.scalars(stmt)).all()
-    return json_response([UserResponse.model_validate(u) for u in users])
+    return json_response([user_response(u) for u in users])
 
 
 @bp.route(route="users/assignees", methods=["GET"])
@@ -57,7 +57,11 @@ async def get_users(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
 async def get_assignees(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
     country = user.country if user.is_manager else query_choice(req, "country", Country)
 
-    stmt = select(User).where(User.role == UserRole.CLEANER, User.is_active.is_(True)).order_by(User.email)
+    stmt = (
+        select(User)
+        .where(User.role == UserRole.CLEANER, User.is_active.is_(True))
+        .order_by(sql.lower(sql.coalesce(User.full_name, User.email)), User.id)
+    )
     if country:
         stmt = stmt.where(User.country == country)
 
@@ -85,7 +89,7 @@ async def create_user(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
         await session.flush()
         await session.refresh(new_user)
 
-    return json_response(UserResponse.model_validate(new_user), 201)
+    return json_response(user_response(new_user), 201)
 
 
 def end_sessions(target: User) -> None:
@@ -127,7 +131,7 @@ async def update_user(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
         if access_changed:
             end_sessions(target)
 
-    return json_response(UserResponse.model_validate(target))
+    return json_response(user_response(target))
 
 
 @bp.route(route="users/{user_id}/password", methods=["POST"])
@@ -165,7 +169,7 @@ async def toggle_active(req: func.HttpRequest, user: CurrentUser) -> func.HttpRe
             end_sessions(target)
             await forget_devices(session, target.id)
 
-    return json_response(UserResponse.model_validate(target))
+    return json_response(user_response(target))
 
 
 @bp.route(route="users/me/password", methods=["PATCH"])

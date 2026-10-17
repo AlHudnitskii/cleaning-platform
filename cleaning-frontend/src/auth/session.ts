@@ -45,6 +45,10 @@ export function expireSession(): void {
   });
 }
 
+function optionalText(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
 function isProfile(value: unknown): value is UserResponse {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -64,7 +68,15 @@ export function loadProfile(): UserResponse | null {
     const raw = localStorage.getItem(PROFILE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isProfile(parsed) ? parsed : null;
+    if (!isProfile(parsed)) return null;
+    // Profiles saved before the name, phone and photo existed lack those fields.
+    const stored = parsed as unknown as Record<string, unknown>;
+    return {
+      ...parsed,
+      full_name: optionalText(stored.full_name),
+      phone: optionalText(stored.phone),
+      avatar_url: optionalText(stored.avatar_url),
+    };
   } catch {
     return null;
   }

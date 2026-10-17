@@ -29,7 +29,7 @@ describe("Reports", () => {
           makeReport({
             avg_seconds: 5400,
             task_count: 3,
-            by_cleaner: [{ email: "anna@example.com", task_count: 2, avg_seconds: 2700 }],
+            by_cleaner: [{ email: "anna@example.com", name: "Anna Berg", task_count: 2, avg_seconds: 2700 }],
             by_location: [{ id: "l1", name: "Lobby", task_count: 3, avg_seconds: 3600 }],
           }),
         ),

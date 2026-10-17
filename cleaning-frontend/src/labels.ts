@@ -69,3 +69,11 @@ export function formatDuration(seconds: number): string {
 export function emailName(email: string): string {
   return email.split("@")[0] ?? email;
 }
+
+export function displayName(email: string, name?: string | null): string {
+  return name?.trim() || emailName(email);
+}
+
+export function personLabel(email: string, name?: string | null): string {
+  return name?.trim() ? `${name.trim()} (${email})` : email;
+}

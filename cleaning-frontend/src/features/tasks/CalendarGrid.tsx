@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import type { CalendarTask } from "../../api/types";
 import { toDay } from "../../dates";
+import { displayName } from "../../labels";
 import { dateFormatter } from "../../i18n/format";
 import { t } from "../../i18n/locale";
 
@@ -98,7 +99,8 @@ export function CalendarGrid({ days, tasks, today, view, month, canMove, onMove,
 
 function CalendarChip({ task, overdue, draggable }: { task: CalendarTask; overdue: boolean; draggable: boolean }) {
   const late = overdue && !LOCKED.has(task.status);
-  const details = [t().status[task.status], task.assigned_to_email ?? t().common.unassigned];
+  const assignee = task.assigned_to_email ? displayName(task.assigned_to_email, task.assigned_to_name) : null;
+  const details = [t().status[task.status], assignee ?? t().common.unassigned];
   if (late) details.push(t().planner.overdue);
   return (
     <Link

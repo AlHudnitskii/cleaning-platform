@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageHeader";
 import { Select } from "../components/Select";
 import { LOCALES, setLocale, t, useLocale } from "../i18n/locale";
 import { useChangePassword } from "../features/users/api";
+import { ProfileDetails } from "../features/users/ProfileDetails";
 import { countryName } from "../labels";
 import { setTheme, useTheme, type Theme } from "../theme";
 
@@ -45,6 +46,7 @@ export function Profile() {
     <>
       <PageHeader title={t().profile.title} description={t().profile.description} />
       <div className="two-columns">
+        <ProfileDetails user={user} />
         <section className="card" aria-labelledby="account-title">
           <h2 id="account-title" className="section-title">
             {t().profile.account}
@@ -74,7 +76,9 @@ export function Profile() {
             />
           </Field>
         </section>
+      </div>
 
+      <div className="two-columns">
         <section className="card" aria-labelledby="password-title">
           <h2 id="password-title" className="section-title">
             {t().profile.changePassword}

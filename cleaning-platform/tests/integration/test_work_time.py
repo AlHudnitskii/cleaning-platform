@@ -5,7 +5,7 @@ import pytest
 
 from src.api import stats, tasks
 from src.infrastructure.database.connection import session_scope
-from src.infrastructure.database.models import TaskStatusHistory
+from src.infrastructure.database.models import TaskStatusHistory, User
 from tests.integration.conftest import call, payload
 
 pytestmark = pytest.mark.integration
@@ -84,6 +84,10 @@ async def test_the_report_averages_work_time_per_cleaner_and_location(account, t
         await account("cleaner", "DE", email="anna@example.com"),
         await account("cleaner", "DE", email="ben@example.com"),
     )
+    async with session_scope() as session, session.begin():
+        stored = await session.get(User, first.user.id)
+        assert stored is not None
+        stored.full_name = "Anna Berg"
     germany = await location_factory("Germany", "DE", "country")
     lobby = await location_factory("Lobby", "DE", "room", germany)
     created = NOW - timedelta(days=2)
@@ -101,8 +105,8 @@ async def test_the_report_averages_work_time_per_cleaner_and_location(account, t
 
     assert (work["avg_seconds"], work["task_count"]) == (3600, 3)
     assert work["by_cleaner"] == [
-        {"email": "anna@example.com", "task_count": 2, "avg_seconds": 3600},
-        {"email": "ben@example.com", "task_count": 1, "avg_seconds": 3600},
+        {"email": "anna@example.com", "name": "Anna Berg", "task_count": 2, "avg_seconds": 3600},
+        {"email": "ben@example.com", "name": None, "task_count": 1, "avg_seconds": 3600},
     ]
     assert work["by_location"] == [{"id": str(lobby.id), "name": "Lobby", "task_count": 2, "avg_seconds": 3600}]
 

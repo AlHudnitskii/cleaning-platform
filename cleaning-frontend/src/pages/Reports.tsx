@@ -201,7 +201,7 @@ export function Reports() {
                     {report.data.top_cleaners.map((cleaner) => (
                       <tr key={cleaner.email}>
                         <td>
-                          <Person email={cleaner.email} />
+                          <Person email={cleaner.email} name={cleaner.name} />
                         </td>
                         <td>{countryName(cleaner.country)}</td>
                         <td className="numeric">{cleaner.task_count}</td>
@@ -247,7 +247,7 @@ function WorkTimeSection({ work }: { work: WorkTimeStats }) {
               nameColumn={t().stats.cleaner}
               rows={work.by_cleaner.map((row) => ({
                 key: row.email,
-                name: <Person email={row.email} />,
+                name: <Person email={row.email} name={row.name} />,
                 tasks: row.task_count,
                 seconds: row.avg_seconds,
               }))}

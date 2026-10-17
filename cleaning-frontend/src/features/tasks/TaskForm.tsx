@@ -18,7 +18,7 @@ import { Select } from "../../components/Select";
 import { MAX_STEPS, StepsEditor } from "../../components/StepsEditor";
 import { showToast } from "../../components/toast";
 import { today } from "../../dates";
-import { countryNames, rruleOptions } from "../../labels";
+import { countryNames, personLabel, rruleOptions } from "../../labels";
 import { t } from "../../i18n/locale";
 import { sortedByFullName, useLocations } from "../locations/api";
 import { useChecklistTemplates } from "../checklists/api";
@@ -104,7 +104,10 @@ export function TaskForm({
   const changes = task ? changesFrom(initial, form) : null;
   const unchanged = changes !== null && Object.keys(changes).length === 0;
 
-  const assigneeOptions = (assignees.data ?? []).map((cleaner) => ({ value: cleaner.id, label: cleaner.email }));
+  const assigneeOptions = (assignees.data ?? []).map((cleaner) => ({
+    value: cleaner.id,
+    label: personLabel(cleaner.email, cleaner.full_name),
+  }));
   if (task?.assigned_to && task.assigned_to_email && !assigneeOptions.some((option) => option.value === task.assigned_to)) {
     assigneeOptions.unshift({ value: task.assigned_to, label: t().taskForm.inactive(task.assigned_to_email) });
   }

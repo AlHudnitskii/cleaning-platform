@@ -105,7 +105,7 @@ async def top_cleaners(
     task_count = sql.count(Task.id).label("task_count")
     completed_count = sql.count(case((Task.status == TaskStatus.COMPLETED, 1))).label("completed_count")
     stmt = (
-        select(User.email, User.country, task_count, completed_count)
+        select(User.email, User.full_name, User.country, task_count, completed_count)
         .outerjoin(Task, and_(Task.assigned_to == User.id, *period))
         .where(User.role == UserRole.CLEANER)
         .group_by(User.id)
@@ -117,12 +117,13 @@ async def top_cleaners(
     return [
         {
             "email": email,
+            "name": name,
             "country": cleaner_country,
             "task_count": tasks,
             "completed_count": completed,
             "completion_rate": round(completed / tasks * 100) if tasks else 0,
         }
-        for email, cleaner_country, tasks, completed in (await session.execute(stmt)).all()
+        for email, name, cleaner_country, tasks, completed in (await session.execute(stmt)).all()
     ]
 
 
@@ -137,7 +138,7 @@ async def work_summary(session: AsyncSession, conditions: list[ColumnElement[boo
 
     overall_avg, overall_count = (await session.execute(select(average, sql.count()).where(measured))).one()
     by_cleaner = await session.execute(
-        select(User.email, tasks, average)
+        select(User.email, User.full_name, tasks, average)
         .select_from(per_task)
         .join(Task, Task.id == per_task.c.task_id)
         .join(User, User.id == Task.assigned_to)
@@ -160,7 +161,8 @@ async def work_summary(session: AsyncSession, conditions: list[ColumnElement[boo
         "avg_seconds": round(overall_avg) if overall_avg is not None else None,
         "task_count": overall_count,
         "by_cleaner": [
-            {"email": email, "task_count": count, "avg_seconds": round(avg)} for email, count, avg in by_cleaner.all()
+            {"email": email, "name": name, "task_count": count, "avg_seconds": round(avg)}
+            for email, name, count, avg in by_cleaner.all()
         ],
         "by_location": [
             {"id": location_id, "name": name, "task_count": count, "avg_seconds": round(avg)}

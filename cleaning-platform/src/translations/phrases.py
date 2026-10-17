@@ -79,6 +79,8 @@ FIELD = {
     "done": Phrase("Done", "Выполнено"),
     "items": Phrase("Steps", "Пункты"),
     "endpoint": Phrase("Push endpoint", "Адрес push-подписки"),
+    "full_name": Phrase("Name", "Имя"),
+    "phone": Phrase("Phone", "Телефон"),
 }
 
 NOT_FOUND = Phrase("{entity} not found", "{entity}: не найдено")
@@ -110,6 +112,10 @@ FIELD_TOO_BIG = Phrase("{field}: must be at most {limit}", "{field}: не бол
 FIELD_INVALID = Phrase("{field}: invalid value", "{field}: некорректное значение")
 FIELD_PATTERN = Phrase("{field}: invalid format", "{field}: неверный формат")
 
+PHONE_INVALID = Phrase(
+    "Phone must contain digits, spaces, brackets or dashes, optionally starting with +",
+    "Телефон: цифры, пробелы, скобки или дефисы, в начале можно поставить +",
+)
 PASSWORD_TOO_SHORT = Phrase(
     "Password must be at least {length} characters", "Пароль должен быть не короче {length} символов"
 )
@@ -209,6 +215,7 @@ TEMPLATES_TOO_MANY = Phrase(
 
 NO_PHOTO = Phrase("No photo file provided. Use form-data with key 'photo'", "Файл фото не передан (поле формы «photo»)")
 PHOTO_TOO_LARGE = Phrase("Photo must be at most {megabytes} MB", "Фото должно быть не больше {megabytes} МБ")
+AVATAR_TOO_LARGE = Phrase("A profile photo must be at most {megabytes} MB", "Фото профиля — не больше {megabytes} МБ")
 PHOTO_KIND = Phrase("Photo kind must be before or after", "Тип фото: before (до) или after (после)")
 PHOTO_TYPE = Phrase("Only JPEG, PNG and WebP images are supported", "Поддерживаются только JPEG, PNG и WebP")
 

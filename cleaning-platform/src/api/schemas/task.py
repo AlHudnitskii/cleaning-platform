@@ -114,6 +114,7 @@ class TaskResponse(BaseModel):
     location_path: list[str] = []
     assigned_to: uuid.UUID | None
     assigned_to_email: str | None = None
+    assigned_to_name: str | None = None
     rrule: str | None = None
     is_recurring: bool = False
     parent_task_id: uuid.UUID | None = None
@@ -144,6 +145,7 @@ class CalendarTask(BaseModel):
     due_date: date
     assigned_to: uuid.UUID | None
     assigned_to_email: str | None
+    assigned_to_name: str | None
     location_name: str | None
     is_recurring: bool
     parent_task_id: uuid.UUID | None
@@ -177,6 +179,7 @@ class CommentResponse(BaseModel):
     task_id: uuid.UUID
     user_id: uuid.UUID
     user_email: str
+    user_name: str | None = None
     user_role: str
     text: str
     created_at: datetime

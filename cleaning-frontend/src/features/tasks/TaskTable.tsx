@@ -96,7 +96,7 @@ export function TaskTable({
                 {task.location_name ?? "—"}
               </td>
               <td data-label={t().tasks.assignee}>
-                <Person email={task.assigned_to_email} />
+                <Person email={task.assigned_to_email} name={task.assigned_to_name} />
               </td>
               <td className="cell-nowrap" data-label={t().tasks.due}>
                 <DueDate task={task} />

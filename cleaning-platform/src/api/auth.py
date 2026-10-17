@@ -4,6 +4,7 @@ from datetime import datetime
 import azure.functions as func
 from sqlalchemy import delete, select
 
+from src.api.accounts import user_response
 from src.api.http import (
     ApiError,
     authenticated,
@@ -13,7 +14,7 @@ from src.api.http import (
     read_cookie,
     read_model,
 )
-from src.api.schemas.user import TokenResponse, UserLogin, UserResponse
+from src.api.schemas.user import TokenResponse, UserLogin
 from src.domain.models.user import CurrentUser
 from src.domain.services.login_throttle import retry_after, throttle_key, window_start
 from src.infrastructure.auth.jwt_handler import (
@@ -48,7 +49,7 @@ def cleared_refresh_cookie() -> str:
 def session_response(user: User, status_code: int = 200) -> func.HttpResponse:
     body = TokenResponse(
         access_token=create_access_token(user.id, user.token_version),
-        user=UserResponse.model_validate(user),
+        user=user_response(user),
     )
     refresh = create_refresh_token(user.id, user.token_version)
     return json_response(body, status_code, headers={"Set-Cookie": refresh_cookie(refresh)})
@@ -143,4 +144,6 @@ async def logout(req: func.HttpRequest) -> func.HttpResponse:
 async def me(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
     async with session_scope() as session:
         record = await session.get(User, user.id)
-    return json_response(UserResponse.model_validate(record))
+    if record is None:
+        raise ApiError(401, phrases.SESSION_INVALID())
+    return json_response(user_response(record))

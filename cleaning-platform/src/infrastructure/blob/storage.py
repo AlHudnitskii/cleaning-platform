@@ -11,6 +11,7 @@ from azure.storage.blob.aio import BlobServiceClient
 from src.settings import get_settings
 
 PHOTOS_CONTAINER = "task-photos"
+AVATARS_CONTAINER = "avatars"
 EXPORTS_CONTAINER = "exports"
 READ_LINK_LIFETIME = timedelta(hours=2)
 CLOCK_SKEW = timedelta(minutes=5)
@@ -39,6 +40,14 @@ async def delete_prefix(container: str, prefix: str) -> int:
                 await container_client.delete_blob(blob.name)
                 deleted += 1
     return deleted
+
+
+async def delete_blob(blob_url: str) -> None:
+    """Delete the blob that blob_url points to; a blob that is already gone counts as deleted."""
+    blob = BlobClient.from_blob_url(blob_url.split("?", 1)[0])
+    async with _client() as client:
+        with suppress(ResourceNotFoundError):
+            await client.get_blob_client(blob.container_name, blob.blob_name).delete_blob()
 
 
 @lru_cache

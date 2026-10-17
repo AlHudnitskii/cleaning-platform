@@ -193,7 +193,8 @@ export function Users() {
                         >
                           <span className="visually-hidden">{user.is_active ? t().users.active : t().users.inactive}</span>
                         </span>{" "}
-                        <span className="cell-title">{user.email}</span>
+                        <span className="cell-title">{user.full_name ?? user.email}</span>
+                        {user.full_name && <span className="cell-sub muted">{user.email}</span>}
                       </span>
                     </td>
                     <td data-label={t().users.role}>

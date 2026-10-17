@@ -12,6 +12,7 @@ from src.api.schemas.checklist_template import (
 )
 from src.api.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from src.api.schemas.task import (
+    CalendarResponse,
     ChecklistItemCreate,
     ChecklistItemResponse,
     ChecklistItemUpdate,
@@ -41,6 +42,7 @@ bp = func.Blueprint()
 
 SCHEMAS: list[type[BaseModel]] = [
     AssigneeResponse,
+    CalendarResponse,
     ChecklistTemplateCreate,
     ChecklistTemplateResponse,
     ChecklistTemplateUpdate,
@@ -109,6 +111,14 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("delete", "/tasks/{task_id}", "Delete a task with its comments, history and photos", None, None, True),
     ("patch", "/tasks/{task_id}/status", "Change task status", "TaskStatusUpdate", "TaskResponse", True),
     ("post", "/tasks/{task_id}/quality", "Review quality of a completed task", "QualityReview", "TaskResponse", True),
+    (
+        "get",
+        "/calendar/tasks",
+        "Tasks due between date_from and date_to (at most 42 days); filters: assigned_to, country (admin)",
+        None,
+        "CalendarResponse",
+        True,
+    ),
     ("get", "/tasks/{task_id}/occurrences", "Next occurrences of a recurring task", None, None, True),
     ("get", CHECKLIST, "Checklist of a task", None, "ChecklistItemResponse", True),
     ("post", CHECKLIST, "Add a checklist item (admin, manager)", "ChecklistItemCreate", "ChecklistItemResponse", True),

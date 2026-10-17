@@ -51,6 +51,7 @@ function navGroups(): { title: string; items: NavItem[] }[] {
       items: [
         { to: "/tasks", label: nav.tasks, icon: "tasks", roles: MANAGERS, counter: "review" },
         { to: "/my-tasks", label: nav.myTasks, icon: "tasks", roles: ["cleaner"], counter: "pending" },
+        { to: "/calendar", label: nav.calendar, icon: "calendar", roles: ["admin", "manager", "cleaner"] },
         { to: "/locations", label: nav.locations, icon: "locations", roles: MANAGERS },
         { to: "/checklist-templates", label: nav.templates, icon: "check", roles: MANAGERS },
       ],

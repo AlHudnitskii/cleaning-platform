@@ -76,6 +76,27 @@ export interface TaskResponse {
   allowed_statuses: TaskStatus[];
 }
 
+export interface CalendarTask {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  country: Country;
+  due_date: string;
+  assigned_to: string | null;
+  assigned_to_email: string | null;
+  location_name: string | null;
+  is_recurring: boolean;
+  parent_task_id: string | null;
+}
+
+export interface CalendarResponse {
+  date_from: string;
+  date_to: string;
+  data: CalendarTask[];
+  truncated: boolean;
+}
+
 export interface Pagination {
   page: number;
   limit: number;

@@ -135,6 +135,27 @@ class TaskResponse(BaseModel):
     allowed_statuses: list[TaskStatus] = []
 
 
+class CalendarTask(BaseModel):
+    id: uuid.UUID
+    title: str
+    status: TaskStatus
+    priority: TaskPriority
+    country: Country
+    due_date: date
+    assigned_to: uuid.UUID | None
+    assigned_to_email: str | None
+    location_name: str | None
+    is_recurring: bool
+    parent_task_id: uuid.UUID | None
+
+
+class CalendarResponse(BaseModel):
+    date_from: date
+    date_to: date
+    data: list[CalendarTask]
+    truncated: bool = Field(description="True when the period holds more tasks than the response carries")
+
+
 class QualityReview(BaseModel):
     score: int = Field(ge=1, le=5)
     comment: str | None = Field(default=None, max_length=2000)

@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 
 import { api } from "../../api/client";
 import type {
+  CalendarResponse,
   ChecklistItem,
   CommentResponse,
   Country,
@@ -45,11 +46,21 @@ export const taskKeys = {
   photos: (id: string) => [...taskKeys.detail(id), "photos"] as const,
   occurrences: (id: string) => [...taskKeys.detail(id), "occurrences"] as const,
   checklist: (id: string) => [...taskKeys.detail(id), "checklist"] as const,
+  calendars: () => [...taskKeys.all, "calendar"] as const,
+  calendar: (params: CalendarParams) => [...taskKeys.calendars(), params] as const,
 };
+
+export interface CalendarParams {
+  date_from: string;
+  date_to: string;
+  assigned_to?: string;
+  country?: Country;
+}
 
 export async function invalidateTaskData(queryClient: QueryClient): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: taskKeys.lists() }),
+    queryClient.invalidateQueries({ queryKey: taskKeys.calendars() }),
     queryClient.invalidateQueries({ queryKey: statsKeys.all }),
   ]);
 }
@@ -271,5 +282,25 @@ export function useDeleteChecklistItem(taskId: string) {
       await api.delete(`/tasks/${taskId}/checklist/${id}`);
     },
     onSettled: () => refreshChecklist(queryClient, taskId),
+  });
+}
+
+export function useCalendarTasks(params: CalendarParams) {
+  return useQuery({
+    queryKey: taskKeys.calendar(params),
+    queryFn: () => api.get<CalendarResponse>("/calendar/tasks", { ...params }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useRescheduleTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dueDate }: { id: string; dueDate: string }) =>
+      api.patch<TaskResponse>(`/tasks/${id}`, { due_date: dueDate }),
+    onSuccess: (task) => {
+      queryClient.setQueryData(taskKeys.detail(task.id), task);
+      void invalidateTaskData(queryClient);
+    },
   });
 }

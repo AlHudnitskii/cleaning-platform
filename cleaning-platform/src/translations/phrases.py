@@ -232,6 +232,9 @@ SYNC_CONFLICT = Phrase(
 PERIOD_REQUIRED = Phrase("date_from and date_to are required (YYYY-MM-DD)", "Укажите date_from и date_to (ГГГГ-ММ-ДД)")
 PERIOD_REVERSED = Phrase("The start date must not be after the end date", "Дата начала не может быть позже даты конца")
 EXPORT_PERIOD_TOO_LONG = Phrase("Export period must not exceed {days} days", "Период выгрузки — не больше {days} дней")
+CALENDAR_PERIOD_TOO_LONG = Phrase(
+    "A calendar period must not exceed {days} days", "Период календаря — не больше {days} дней"
+)
 REPORT_PERIOD_TOO_LONG = Phrase("Report period must not exceed {days} days", "Период отчёта — не больше {days} дней")
 
 IMPORT_UNREADABLE = Phrase(

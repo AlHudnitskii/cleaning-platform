@@ -1,126 +1,126 @@
 # Cleaning Platform
 
-Платформа управления клининговыми задачами в нескольких странах: администраторы управляют пользователями и локациями, менеджеры ставят и проверяют задачи своей страны, уборщики выполняют назначенные задачи (в том числе офлайн).
+A platform for cleaning tasks across several countries. Administrators manage users and locations, managers assign and review the tasks of their country, and cleaners complete the tasks assigned to them, offline included.
 
-## Архитектура
+## Architecture
 
 ```
 cleaning-frontend/   React 19 + TypeScript + Vite, TanStack Query, react-router
 cleaning-platform/   Python 3.11
   function_app.py    Azure Functions: HTTP API (/api/*)
-  sse_server.py      aiohttp SSE-сервер (/events/stream), события берёт из RabbitMQ
-  src/api/           HTTP-обработчики, схемы запросов и ответов (src/api/schemas, Pydantic), запросы к БД
-  src/domain/        перечисления, текущий пользователь и правила: доступ к задачам, переходы статусов, импорт, локации
-  src/translations/  каталог серверных текстов на английском и русском
-  src/infrastructure/ БД (SQLAlchemy ORM), JWT, Blob, RabbitMQ, outbox, push
+  sse_server.py      aiohttp SSE server (/events/stream), reads events from RabbitMQ
+  src/api/           HTTP handlers, request and response schemas (src/api/schemas, Pydantic), database queries
+  src/domain/        enums, the current user and the rules: task access, status transitions, import, locations
+  src/translations/  catalog of server messages in English and Russian
+  src/infrastructure/ database (SQLAlchemy ORM), JWT, Blob, RabbitMQ, outbox, push
   migrations/        Alembic
-docker-compose.yml   Postgres 16 (ltree), RabbitMQ, Azurite; профиль app — всё приложение в контейнерах
+docker-compose.yml   Postgres 16 (ltree), RabbitMQ, Azurite; the app profile runs the whole app in containers
 ```
 
-Поток событий: обработчик меняет задачу и в **той же транзакции** пишет событие в `outbox_messages` → `relay` публикует его в exchange `task_events` → push-consumer шлёт Web Push, SSE-сервер рассылает событие только тем, кто видит задачу.
+Event flow: a handler changes a task and writes an event to `outbox_messages` in **the same transaction** → `relay` publishes it to the `task_events` exchange → the push consumer sends Web Push, and the SSE server forwards the event to users who can see the task.
 
-### Роли и видимость
+### Roles and visibility
 
-| Роль | Видит задачи | Может |
+| Role | Sees tasks | Can |
 |---|---|---|
-| admin | все | всё, включая пользователей и локации |
-| manager | своей страны | создавать/импортировать/экспортировать задачи своей страны, менять статусы, оценивать качество |
-| cleaner | назначенные ему | `pending → in_progress → on_review`, `in_progress ⇄ on_hold`, комментарии, фото |
+| admin | all | everything, users and locations included |
+| manager | of their country | create, import and export tasks of their country, change statuses, rate quality |
+| cleaner | assigned to them | `pending → in_progress → on_review`, `in_progress ⇄ on_hold`, comments, photos |
 
-Переходы статусов: `pending → in_progress → on_review → completed`; `on_review → in_progress` (возврат на доработку); `on_hold`, `cancelled`, повторное открытие — только менеджер/админ. Сервер возвращает в каждой задаче `allowed_statuses` для текущего пользователя, UI показывает только их.
+Status transitions: `pending → in_progress → on_review → completed`; `on_review → in_progress` sends a task back for rework. A manager or an admin puts a task `on_hold`, cancels it or reopens it. The server returns `allowed_statuses` with each task for the current user, and the UI shows those statuses.
 
-### Сессии
+### Sessions
 
-Access-токен (60 мин) хранится только в памяти браузера, refresh-токен — в httpOnly-cookie (`Path=/api/auth`, `SameSite=Strict`). Деактивация пользователя, смена пароля и выход увеличивают `users.token_version`, и все ранее выданные токены перестают действовать сразу.
+The browser keeps the access token (60 min) in memory and the refresh token in an httpOnly cookie (`Path=/api/auth`, `SameSite=Strict`). Deactivation, a password change and logout increment `users.token_version`, which revokes all tokens issued before at once.
 
-## Локальный запуск
+## Running locally
 
-Нужны Docker, Python 3.11, Node 22 и [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local).
+You need Docker, Python 3.11, Node 22 and [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local).
 
 ```bash
 cd cleaning-platform
 python3.11 -m venv venv && venv/bin/pip install -r requirements-dev.txt
-cp .env.example .env                      # задайте JWT_SECRET и JWT_REFRESH_SECRET (≥ 32 символа)
-cp local.settings.example.json local.settings.json   # те же значения для func start
-python generate_keys.py                   # VAPID-ключи для push, если их ещё нет
+cp .env.example .env                      # set JWT_SECRET and JWT_REFRESH_SECRET (32+ characters)
+cp local.settings.example.json local.settings.json   # the same values for func start
+python generate_keys.py                   # VAPID keys for push, if you have none yet
 
 cd ../cleaning-frontend && npm ci
 
-cd .. && python3 start.py                 # инфраструктура, миграции, API, SSE, consumer, relay, фронтенд
+cd .. && python3 start.py                 # infrastructure, migrations, API, SSE, consumer, relay, frontend
 ```
 
-Безопасность локального окружения:
-- Postgres, RabbitMQ и Azurite слушают только `127.0.0.1`. Postgres требует пароль. Если том `postgres_data` создан до этого изменения, в нём остался режим `trust`: пересоздайте том (`docker compose down -v`, затем `seed.py`) или замените `trust` на `scram-sha-256` в `pg_hba.conf` внутри контейнера.
-- `private_key.pem` (VAPID) не хранится в git и не попадает в образ: создайте его через `generate_keys.py`. В `docker compose --profile app` ключ передаётся как секрет. После смены ключа пользователи включают уведомления заново.
-- Публичной регистрации нет: пользователей создаёт администратор на странице Users. Выход и деактивация удаляют push-подписки пользователя.
+Local environment security:
+- Postgres, RabbitMQ and Azurite listen on `127.0.0.1`, and Postgres requires a password. A `postgres_data` volume created before this change keeps `trust` mode: recreate the volume (`docker compose down -v`, then `seed.py`) or replace `trust` with `scram-sha-256` in `pg_hba.conf` inside the container.
+- `private_key.pem` (VAPID) stays out of git and out of the image; create it with `generate_keys.py`. `docker compose --profile app` passes the key as a secret. After a key change, users turn notifications on again.
+- The app has no public sign-up: an administrator creates users on the Users page. Logout and deactivation delete the user's push subscriptions.
 
-Тестовые данные: `cd cleaning-platform && venv/bin/python seed.py` (очищает БД и создаёт пользователей `admin@cleaning.com / admin123`, `manager.de@cleaning.com / manager123`, `cleaner1@cleaning.com / cleaner123` и др.).
+Test data: `cd cleaning-platform && venv/bin/python seed.py` clears the database and creates users such as `admin@cleaning.com / admin123`, `manager.de@cleaning.com / manager123` and `cleaner1@cleaning.com / cleaner123`.
 
-Всё в контейнерах: `JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose --profile app up --build`.
+Everything in containers: `JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose --profile app up --build`.
 
 | URL | |
 |---|---|
-| http://localhost:3000 | фронтенд (Vite проксирует `/api` и `/events`) |
-| http://localhost:7071/api/docs | Swagger UI (спецификация генерируется из Pydantic-моделей) |
+| http://localhost:3000 | frontend (Vite proxies `/api` and `/events`) |
+| http://localhost:7071/api/docs | Swagger UI (the spec comes from the Pydantic models) |
 | http://localhost:15672 | RabbitMQ (guest/guest) |
 
-### Переменные окружения
+### Environment variables
 
-| Переменная | Обязательна | Назначение |
+| Variable | Required | Purpose |
 |---|---|---|
-| `DATABASE_URL` | да | `postgresql+asyncpg://…` |
-| `RABBITMQ_URL` | да | `amqp://…` |
-| `JWT_SECRET`, `JWT_REFRESH_SECRET` | да, ≥ 32 символа | подписи access/refresh-токенов (`openssl rand -hex 32`) |
-| `AzureWebJobsStorage` | нет | строка подключения Blob (по умолчанию Azurite) |
-| `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL` | нет | Web Push |
-| `SECURE_COOKIES` | нет, `true` | `false` только для локального HTTP |
-| `SSE_HOST`, `SSE_PORT` | нет | адрес SSE-сервера |
-| `BLOB_PUBLIC_URL` | нет | база ссылок на фото вместо адреса хранилища; локально `/blob` — Vite проксирует его в Azurite, и фото открываются с телефона в той же сети |
+| `DATABASE_URL` | yes | `postgresql+asyncpg://…` |
+| `RABBITMQ_URL` | yes | `amqp://…` |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | yes, 32+ characters | signing keys for access and refresh tokens (`openssl rand -hex 32`) |
+| `AzureWebJobsStorage` | no | Blob connection string (Azurite by default) |
+| `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL` | no | Web Push |
+| `SECURE_COOKIES` | no, `true` | `false` for local HTTP |
+| `SSE_HOST`, `SSE_PORT` | no | SSE server address |
+| `BLOB_PUBLIC_URL` | no | base of photo links in place of the storage address; set `/blob` locally, Vite proxies it to Azurite, and a phone on the same network can open photos |
 
-Фронтенд: `VITE_API_BASE_URL` (по умолчанию `/api`), `VITE_SSE_URL` (по умолчанию `/events/stream`).
+Frontend: `VITE_API_BASE_URL` (default `/api`), `VITE_SSE_URL` (default `/events/stream`).
 
-### С телефона
+### From a phone
 
-В одной Wi-Fi сети приложение открывается по адресу Mac: `http://<ip>:3000` (адрес — `ipconfig getifaddr en0`). Так работают задачи, фото и смена языка/темы, но не офлайн-режим и не push: браузеры разрешают service worker только на HTTPS.
+On the same Wi-Fi network, open the Mac's address: `http://<ip>:3000` (get it with `ipconfig getifaddr en0`). Tasks, photos and the language and theme switches work this way. Offline mode and push need HTTPS, because browsers allow service workers on HTTPS only.
 
-Для полного режима — временный HTTPS-туннель, пока запущен `python3 start.py`. Без установки, через SSH:
+For the full app, open a temporary HTTPS tunnel while `python3 start.py` runs. This one needs no install and works over SSH:
 
 ```bash
 ssh -R 80:localhost:3000 nokey@localhost.run
 ```
 
-Он напечатает адрес `https://….lhr.life` — его и открывать на телефоне (работает и с мобильного интернета). Если сеть пропускает Cloudflare, подойдёт и `cloudflared tunnel --url http://localhost:3000` (`brew install cloudflared`, адрес `https://….trycloudflare.com`). Пока туннель запущен, приложение доступно любому, у кого есть ссылка; остановка — Ctrl+C. На iPhone push приходят только после «На экран «Домой»» (iOS 16.4+).
+It prints an `https://….lhr.life` address; open it on the phone, over mobile data too. If your network lets Cloudflare through, `cloudflared tunnel --url http://localhost:3000` also works (`brew install cloudflared`, address `https://….trycloudflare.com`). While the tunnel runs, anyone with the link can open the app; Ctrl+C stops it. On an iPhone, push arrives after you use "Add to Home Screen" (iOS 16.4+).
 
-## Проверки
+## Checks
 
 ```bash
 cd cleaning-platform
 ruff check . && ruff format --check . && mypy src sse_server.py function_app.py seed.py tests
-pytest                                     # юнит-тесты, офлайн
-TEST_DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/empty_db pytest   # + интеграционные (накатывают миграции на пустую БД)
+pytest                                     # unit tests, offline
+TEST_DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/empty_db pytest   # + integration tests (apply migrations to an empty database)
 
 cd ../cleaning-frontend
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-Те же проверки запускает CI (`.github/workflows/ci.yml`).
+CI runs the same checks (`.github/workflows/ci.yml`).
 
 ### E2E
 
-Сценарии в реальном браузере против настоящего бэкенда: менеджер создаёт задачу с чек-листом и обязательным фото, уборщик выполняет её и отправляет на проверку, менеджер принимает и оценивает; плюс доступ по ролям, сохранение языка и проверка всех страниц на WCAG 2.2 AA (axe-core) в светлой и тёмной теме. Нужны запущенный `python3 start.py` и данные из `seed.py`; фронтенд на порту 3100 Playwright поднимает сам, браузер — установленный Google Chrome. Созданная тестом задача удаляется после прогона.
+These scenarios run in a real browser against the real backend. A manager creates a task with a checklist and a required photo, a cleaner completes it and sends it for review, and the manager approves and rates it. Other scenarios cover role-based access, the saved language, and a WCAG 2.2 AA check (axe-core) of each page in the light and dark themes. You need `python3 start.py` running and the data from `seed.py`. Playwright starts its own frontend on port 3100 and uses the installed Google Chrome. The test deletes the task it created after the run.
 
 ```bash
 cd cleaning-frontend
 npm run e2e
 ```
 
-Против другого стенда: `E2E_BASE_URL=http://localhost:3200 E2E_API_URL=http://127.0.0.1:7072/api npm run e2e` — тогда Playwright не поднимает свой фронтенд.
+Against another environment: `E2E_BASE_URL=http://localhost:3200 E2E_API_URL=http://127.0.0.1:7072/api npm run e2e`. Playwright then skips starting its own frontend.
 
-## Миграции
+## Migrations
 
 ```bash
 cd cleaning-platform && venv/bin/alembic upgrade head
 venv/bin/alembic revision --autogenerate -m "describe change"
 ```
 
-Применённые миграции не редактируются — изменения схемы только новой ревизией. Миграция `810c321495ea` пересобирает пути `ltree` из идентификаторов локаций и очищает значения `nan`, оставленные старым импортом; её `downgrade` данные не возвращает.
+Leave applied migrations as they are and change the schema with a new revision. Migration `810c321495ea` rebuilds the `ltree` paths from location IDs and clears the `nan` values an old import left behind; its `downgrade` does not restore the data.

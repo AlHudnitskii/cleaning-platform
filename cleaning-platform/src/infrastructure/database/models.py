@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
-from src.domain.models.enums import ReminderKind, TaskPriority, TaskStatus
+from src.domain.models.enums import PhotoKind, ReminderKind, TaskPriority, TaskStatus
 from src.infrastructure.database.connection import Base
 
 
@@ -118,7 +118,10 @@ class TaskPhoto(Base):
     task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
     url: Mapped[str] = mapped_column(String(500))
     filename: Mapped[str] = mapped_column(String(255))
+    kind: Mapped[str] = mapped_column(String(10), default=PhotoKind.AFTER, server_default=PhotoKind.AFTER.value)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (CheckConstraint(_in_list("kind", [k.value for k in PhotoKind]), name="kind"),)
 
 
 class TaskStatusHistory(Base):

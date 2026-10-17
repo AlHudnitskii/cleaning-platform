@@ -9,7 +9,7 @@ from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
 from src.api.http import not_found
-from src.domain.models.enums import SortOrder, TaskPriority, TaskSort, TaskStatus
+from src.domain.models.enums import PhotoKind, SortOrder, TaskPriority, TaskSort, TaskStatus
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem, TaskPhoto, TaskStatusHistory, User
@@ -95,7 +95,9 @@ async def task_progress(session: AsyncSession, task_ids: list[uuid.UUID]) -> dic
         )
     ).all()
     photo_counts = (
-        select(TaskPhoto.task_id, func.count()).where(TaskPhoto.task_id.in_(task_ids)).group_by(TaskPhoto.task_id)
+        select(TaskPhoto.task_id, func.count())
+        .where(TaskPhoto.task_id.in_(task_ids), TaskPhoto.kind == PhotoKind.AFTER)
+        .group_by(TaskPhoto.task_id)
     )
     photos = {task_id: count for task_id, count in (await session.execute(photo_counts)).all()}
     counts = {task_id: (done, total) for task_id, done, total in checklist}

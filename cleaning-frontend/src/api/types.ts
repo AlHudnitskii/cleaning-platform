@@ -163,11 +163,16 @@ export interface HistoryEntryResponse {
   changed_at: string;
 }
 
+export const PHOTO_KINDS = ["before", "after"] as const;
+
+export type PhotoKind = (typeof PHOTO_KINDS)[number];
+
 export interface PhotoResponse {
   id: string;
   task_id: string;
   url: string;
   filename: string;
+  kind: PhotoKind;
   uploaded_at: string;
 }
 

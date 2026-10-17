@@ -1,4 +1,4 @@
-import type { LocationLevel, TaskPriority, TaskSort, TaskStatus, UserRole } from "../api/types";
+import type { LocationLevel, PhotoKind, TaskPriority, TaskSort, TaskStatus, UserRole } from "../api/types";
 
 function count(n: number, one: string, other: string): string {
   return `${n} ${n === 1 ? one : other}`;
@@ -395,7 +395,6 @@ export const en = {
     chooseScore: "Choose a score to save the review.",
     photos: "Photos",
     loadingPhotos: "Loading photos",
-    noPhotos: "No photos yet. Photos show the result of the work.",
     occurrences: "Next occurrences",
     occurrencesHint: "The scheduler creates each of these tasks a week ahead.",
     loadingSchedule: "Loading schedule",
@@ -431,7 +430,13 @@ export const en = {
     tooLarge: "Photo must be at most 10 MB.",
     uploaded: "Photo uploaded.",
     uploading: "Uploading…",
-    upload: "Upload photo",
+    upload: { before: "Add a before photo", after: "Add a result photo" } as Record<PhotoKind, string>,
+    kind: { before: "Before", after: "After" } as Record<PhotoKind, string>,
+    none: {
+      before: "No photos of the starting state.",
+      after: "No photos of the result yet.",
+    } as Record<PhotoKind, string>,
+    compare: "Before and after photos",
     offline: "Photo upload is unavailable offline.",
   },
   taskCard: {

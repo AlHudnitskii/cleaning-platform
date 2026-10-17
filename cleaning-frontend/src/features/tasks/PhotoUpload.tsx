@@ -1,6 +1,7 @@
 import { useId, useState, type ChangeEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
+import type { PhotoKind } from "../../api/types";
 import { Notice } from "../../components/Feedback";
 import { showToast } from "../../components/toast";
 import { t } from "../../i18n/locale";
@@ -9,7 +10,7 @@ import { useUploadPhoto } from "./api";
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT = "image/jpeg,image/png,image/webp";
 
-export function PhotoUpload({ taskId, online }: { taskId: string; online: boolean }) {
+export function PhotoUpload({ taskId, kind, online }: { taskId: string; kind: PhotoKind; online: boolean }) {
   const inputId = useId();
   const upload = useUploadPhoto();
   const [localError, setLocalError] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export function PhotoUpload({ taskId, online }: { taskId: string; online: boolea
       return;
     }
     setLocalError(null);
-    upload.mutate({ id: taskId, file }, { onSuccess: () => showToast(t().photos.uploaded) });
+    upload.mutate({ id: taskId, file, kind }, { onSuccess: () => showToast(t().photos.uploaded) });
   };
 
   return (
@@ -37,7 +38,7 @@ export function PhotoUpload({ taskId, online }: { taskId: string; online: boolea
         onChange={handleChange}
       />
       <label htmlFor={inputId} className={`btn btn-secondary${!online || upload.isPending ? " is-disabled" : ""}`}>
-        {upload.isPending ? t().photos.uploading : t().photos.upload}
+        {upload.isPending ? t().photos.uploading : t().photos.upload[kind]}
       </label>
       {!online && <span className="muted">{t().photos.offline}</span>}
       {(localError ?? upload.isError) && (

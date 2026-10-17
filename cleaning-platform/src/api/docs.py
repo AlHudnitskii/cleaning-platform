@@ -139,7 +139,7 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     (
         "post",
         "/tasks/{task_id}/photos",
-        "Upload a JPEG/PNG/WebP photo (form field 'photo')",
+        "Upload a JPEG/PNG/WebP photo (form field 'photo'; 'kind' is before or after, after by default)",
         None,
         "PhotoResponse",
         True,

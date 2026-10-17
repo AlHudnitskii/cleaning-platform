@@ -399,7 +399,6 @@ export const ru: Messages = {
     chooseScore: "Выберите оценку, чтобы сохранить.",
     photos: "Фото",
     loadingPhotos: "Загружаем фото",
-    noPhotos: "Фото пока нет. По фото видно результат работы.",
     occurrences: "Ближайшие повторы",
     occurrencesHint: "Планировщик создаёт каждую из этих задач за неделю.",
     loadingSchedule: "Загружаем расписание",
@@ -435,7 +434,13 @@ export const ru: Messages = {
     tooLarge: "Фото должно быть не больше 10 МБ.",
     uploaded: "Фото загружено.",
     uploading: "Загружаем…",
-    upload: "Загрузить фото",
+    upload: { before: "Добавить фото «до»", after: "Добавить фото результата" },
+    kind: { before: "До", after: "После" },
+    none: {
+      before: "Фото исходного состояния нет.",
+      after: "Фото результата пока нет.",
+    },
+    compare: "Фото до и после",
     offline: "Без соединения загрузка фото недоступна.",
   },
   taskCard: {

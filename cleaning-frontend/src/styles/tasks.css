@@ -228,6 +228,25 @@
   gap: 12px;
 }
 
+.photo-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.photo-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .photo-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
 .photo-thumb {
   display: flex;
   flex-direction: column;

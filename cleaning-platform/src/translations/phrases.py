@@ -209,6 +209,7 @@ TEMPLATES_TOO_MANY = Phrase(
 
 NO_PHOTO = Phrase("No photo file provided. Use form-data with key 'photo'", "Файл фото не передан (поле формы «photo»)")
 PHOTO_TOO_LARGE = Phrase("Photo must be at most {megabytes} MB", "Фото должно быть не больше {megabytes} МБ")
+PHOTO_KIND = Phrase("Photo kind must be before or after", "Тип фото: before (до) или after (после)")
 PHOTO_TYPE = Phrase("Only JPEG, PNG and WebP images are supported", "Поддерживаются только JPEG, PNG и WebP")
 
 PARENT_OTHER_COUNTRY = Phrase(

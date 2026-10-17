@@ -69,6 +69,11 @@ class ReviewBlocker(StrEnum):
     CHECKLIST = "checklist"
 
 
+class PhotoKind(StrEnum):
+    BEFORE = "before"
+    AFTER = "after"
+
+
 class ReminderKind(StrEnum):
     DUE_SOON = "due_soon"
     OVERDUE = "overdue"

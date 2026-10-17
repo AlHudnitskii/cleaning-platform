@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.domain.models.enums import Country, ReviewBlocker, TaskPriority, TaskStatus
+from src.domain.models.enums import Country, PhotoKind, ReviewBlocker, TaskPriority, TaskStatus
 from src.domain.services.recurring_tasks import validate_rrule
 from src.translations import phrases
 
@@ -123,7 +123,7 @@ class TaskResponse(BaseModel):
     photo_required: bool = False
     checklist_done: int = 0
     checklist_total: int = 0
-    photo_count: int = 0
+    photo_count: int = Field(default=0, description="Photos of the result; before photos are not counted")
     review_blockers: list[ReviewBlocker] = []
     quality_score: int | None = None
     quality_comment: str | None = None
@@ -176,6 +176,7 @@ class PhotoResponse(BaseModel):
     task_id: uuid.UUID
     url: str
     filename: str
+    kind: PhotoKind
     uploaded_at: datetime
 
     model_config = {"from_attributes": True}

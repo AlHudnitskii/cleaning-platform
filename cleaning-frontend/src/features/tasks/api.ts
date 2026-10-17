@@ -7,6 +7,7 @@ import type {
   Country,
   HistoryEntryResponse,
   OccurrencesResponse,
+  PhotoKind,
   PhotoResponse,
   TaskCreate,
   TaskUpdate,
@@ -164,8 +165,9 @@ export function useAddComment(id: string) {
 export function useUploadPhoto() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: string; file: File }) => {
+    mutationFn: ({ id, file, kind }: { id: string; file: File; kind: PhotoKind }) => {
       const form = new FormData();
+      form.append("kind", kind);
       form.append("photo", file);
       return api.post<PhotoResponse>(`/tasks/${id}/photos`, form);
     },

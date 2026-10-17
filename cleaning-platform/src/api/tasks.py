@@ -38,7 +38,7 @@ from src.api.task_workflow import change_status, ensure_assignable, load_locatio
 from src.domain.models.enums import Country, SortOrder, TaskPriority, TaskSort, TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
-from src.domain.services.recurring_tasks import get_next_occurrences
+from src.domain.services.recurring_tasks import series_anchor, upcoming_occurrences
 from src.infrastructure.blob.storage import PHOTOS_CONTAINER, delete_prefix
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, TaskChecklistItem
@@ -252,7 +252,8 @@ async def get_task_occurrences(req: func.HttpRequest, user: CurrentUser) -> func
     if not task.rrule:
         raise ApiError(400, phrases.NOT_RECURRING())
 
-    occurrences = get_next_occurrences(task.rrule, count=OCCURRENCES_COUNT)
+    anchor = series_anchor(task.scheduled_for, task.created_at)
+    occurrences = upcoming_occurrences(task.rrule, anchor, datetime.now(UTC), OCCURRENCES_COUNT)
     return json_response(
         {
             "task_id": task.id,

@@ -89,6 +89,13 @@ class Task(Base):
         Index("ix_tasks_created_at_id", "created_at", "id"),
         Index("ix_tasks_location_id", "location_id"),
         Index("ix_tasks_due_date", "due_date"),
+        Index(
+            "ix_tasks_parent_task_id_scheduled_for",
+            "parent_task_id",
+            "scheduled_for",
+            unique=True,
+            postgresql_where=text("parent_task_id IS NOT NULL"),
+        ),
     )
 
 

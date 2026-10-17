@@ -116,6 +116,7 @@ class TaskResponse(BaseModel):
     assigned_to_email: str | None = None
     rrule: str | None = None
     is_recurring: bool = False
+    parent_task_id: uuid.UUID | None = None
     scheduled_for: datetime | None = None
     priority: TaskPriority = TaskPriority.NORMAL
     due_date: date | None = None

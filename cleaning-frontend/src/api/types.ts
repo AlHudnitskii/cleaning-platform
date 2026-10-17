@@ -57,6 +57,7 @@ export interface TaskResponse {
   assigned_to_email: string | null;
   rrule: string | null;
   is_recurring: boolean;
+  parent_task_id: string | null;
   scheduled_for: string | null;
   priority: TaskPriority;
   due_date: string | null;

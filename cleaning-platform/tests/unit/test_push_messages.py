@@ -121,3 +121,22 @@ async def test_checklist_changes_do_not_look_like_a_new_assignment(monkeypatch):
     await consumer.handle_task_updated(task_event("task_updated", assigned_to=str(uuid.uuid4()), fields=["checklist"]))
 
     assert sent == []
+
+
+async def test_a_scheduled_occurrence_notifies_its_assignee_and_no_managers(monkeypatch):
+    cleaner, manager = uuid.uuid4(), uuid.uuid4()
+    sent: list[uuid.UUID] = []
+
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+        sent.append(user_id)
+
+    async def fake_managers(country: str) -> list[uuid.UUID]:
+        return [manager]
+
+    monkeypatch.setattr(consumer, "notify_user", fake_notify)
+    monkeypatch.setattr(consumer, "active_managers", fake_managers)
+    event = task_event("task_created", title="Lobby check", country="DE", assigned_to=str(cleaner), scheduled=True)
+
+    await consumer.handle_task_created(event)
+
+    assert sent == [cleaner]

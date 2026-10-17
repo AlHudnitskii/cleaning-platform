@@ -31,6 +31,7 @@ def to_response(
         assigned_to_email=assignee_email,
         rrule=task.rrule,
         is_recurring=task.is_recurring,
+        parent_task_id=task.parent_task_id,
         scheduled_for=task.scheduled_for,
         priority=TaskPriority(task.priority),
         due_date=task.due_date,

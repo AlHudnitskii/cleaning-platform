@@ -364,7 +364,10 @@ export const ru: Messages = {
     loadingPhotos: "Загружаем фото",
     noPhotos: "Фото пока нет. По фото видно результат работы.",
     occurrences: "Ближайшие повторы",
+    occurrencesHint: "Планировщик создаёт каждую из этих задач за неделю.",
     loadingSchedule: "Загружаем расписание",
+    series: "Серия",
+    openSeries: "Открыть первую задачу",
   },
   activity: {
     label: "Активность по задаче",

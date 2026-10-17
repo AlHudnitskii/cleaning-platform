@@ -360,7 +360,10 @@ export const en = {
     loadingPhotos: "Loading photos",
     noPhotos: "No photos yet. Photos show the result of the work.",
     occurrences: "Next occurrences",
+    occurrencesHint: "The scheduler creates each of these tasks a week ahead.",
     loadingSchedule: "Loading schedule",
+    series: "Series",
+    openSeries: "Open the first task",
   },
   activity: {
     label: "Task activity",

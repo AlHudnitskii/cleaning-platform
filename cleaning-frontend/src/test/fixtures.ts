@@ -43,6 +43,7 @@ export function makeTask(overrides: Partial<TaskResponse> = {}): TaskResponse {
     assigned_to_email: CLEANER.email,
     rrule: null,
     is_recurring: false,
+    parent_task_id: null,
     scheduled_for: null,
     priority: "normal",
     due_date: null,

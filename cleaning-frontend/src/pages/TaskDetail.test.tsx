@@ -64,6 +64,17 @@ describe("Task detail", () => {
     expect(await screen.findByText("This page does not exist")).toBeInTheDocument();
   });
 
+  it("links a scheduled task to the first task of its series", async () => {
+    const parentId = "55555555-5555-4555-8555-555555555555";
+    server.use(...detailHandlers(makeTask({ parent_task_id: parentId })));
+    renderApp(`/tasks/${TASK_ID}`, MANAGER);
+
+    expect(await screen.findByRole("link", { name: "Open the first task" })).toHaveAttribute(
+      "href",
+      `/tasks/${parentId}`,
+    );
+  });
+
   it("does not call the API for a malformed task id", async () => {
     renderApp("/tasks/not-a-uuid", MANAGER);
 

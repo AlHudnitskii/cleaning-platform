@@ -200,6 +200,14 @@ function TaskDetailContent({ id }: { id: string }) {
                   <dd>{rruleLabel(data.rrule)}</dd>
                 </div>
               )}
+              {canManage && data.parent_task_id && (
+                <div>
+                  <dt>{t().taskDetail.series}</dt>
+                  <dd>
+                    <Link to={`/tasks/${data.parent_task_id}`}>{t().taskDetail.openSeries}</Link>
+                  </dd>
+                </div>
+              )}
             </dl>
           </section>
           <QualitySection task={data} user={user} />

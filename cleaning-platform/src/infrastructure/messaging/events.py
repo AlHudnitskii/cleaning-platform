@@ -47,16 +47,18 @@ class TaskEvent:
     old_status: TaskStatus | None = None
     new_status: TaskStatus | None = None
     fields: tuple[str, ...] = ()
+    scheduled: bool = False
 
     @classmethod
     def of(
         cls,
         type: TaskEventType,
         task: Task,
-        changed_by: uuid.UUID,
+        changed_by: uuid.UUID | None,
         previous_assigned_to: uuid.UUID | None = None,
         old_status: TaskStatus | None = None,
         fields: Iterable[str] = (),
+        scheduled: bool = False,
     ) -> "TaskEvent":
         return cls(
             type=type,
@@ -69,6 +71,7 @@ class TaskEvent:
             old_status=old_status,
             new_status=TaskStatus(task.status) if old_status else None,
             fields=tuple(sorted(fields)),
+            scheduled=scheduled,
         )
 
     def payload(self) -> dict[str, Any]:
@@ -86,6 +89,8 @@ class TaskEvent:
             data["new_status"] = self.new_status.value
         if self.fields:
             data["fields"] = list(self.fields)
+        if self.scheduled:
+            data["scheduled"] = True
         return data
 
     @classmethod
@@ -109,4 +114,5 @@ class TaskEvent:
             old_status=_status(data.get("old_status")),
             new_status=_status(data.get("new_status")),
             fields=tuple(str(field) for field in fields) if isinstance(fields, list) else (),
+            scheduled=data.get("scheduled") is True,
         )

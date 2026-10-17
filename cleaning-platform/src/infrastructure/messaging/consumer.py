@@ -59,7 +59,8 @@ def assigned_message(event: TaskEvent) -> PushMessage:
 async def handle_task_created(event: TaskEvent) -> None:
     if event.assigned_to:
         await notify_user(event.assigned_to, assigned_message(event))
-    if not event.country:
+    # Managers planned a recurring series already, so its scheduled tasks reach the assignee only.
+    if not event.country or event.scheduled:
         return
     body = phrases.PUSH_CREATED_BODY(title=event.title, country=phrases.country_name(event.country))
     created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, str(event.task_id))

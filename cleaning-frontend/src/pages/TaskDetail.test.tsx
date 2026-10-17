@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
 import { MANAGER, makeTask } from "../test/fixtures";
@@ -73,6 +73,17 @@ describe("Task detail", () => {
       "href",
       `/tasks/${parentId}`,
     );
+  });
+
+  it("shows how long the cleaner worked on the task", async () => {
+    server.use(
+      ...detailHandlers(makeTask({ status: "completed", started_at: "2026-10-01T10:00:00+00:00", work_seconds: 2700 })),
+    );
+    renderApp(`/tasks/${TASK_ID}`, MANAGER);
+
+    const properties = await screen.findByRole("complementary", { name: "Task properties" });
+    expect(within(properties).getByText("45 min")).toBeInTheDocument();
+    expect(within(properties).getByText("Started")).toBeInTheDocument();
   });
 
   it("does not call the API for a malformed task id", async () => {

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
-import { COUNTRIES, TASK_PRIORITIES, TASK_STATUSES, type Country } from "../api/types";
+import { COUNTRIES, TASK_PRIORITIES, TASK_STATUSES, type Country, type WorkTimeStats } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
 import { BarList, LineChart, StatCard, StatusBreakdown } from "../components/Charts";
 import { EmptyState, ErrorState, StatsSkeleton } from "../components/Feedback";
@@ -12,7 +12,7 @@ import { Select } from "../components/Select";
 import { daysAgo, today } from "../dates";
 import { Person } from "../components/People";
 import { useReport } from "../features/stats/api";
-import { countryName, countryNames } from "../labels";
+import { countryName, countryNames, formatDuration } from "../labels";
 import { t } from "../i18n/locale";
 import { readDate, readEnum, useUrlState } from "../urlState";
 
@@ -214,8 +214,95 @@ export function Reports() {
               </div>
             )}
           </section>
+
+          <WorkTimeSection work={report.data.work_time} />
         </div>
       )}
     </>
+  );
+}
+
+function WorkTimeSection({ work }: { work: WorkTimeStats }) {
+  return (
+    <section className="card" aria-labelledby="report-work">
+      <h2 id="report-work" className="section-title">
+        {t().stats.workTime}
+      </h2>
+      <p className="field-hint">{t().stats.workTimeHint}</p>
+      {work.avg_seconds === null ? (
+        <p className="muted">{t().stats.noWorkTime}</p>
+      ) : (
+        <>
+          <div className="stat-grid stat-grid-4">
+            <StatCard
+              label={t().stats.averageWork}
+              value={formatDuration(work.avg_seconds)}
+              tone="accent"
+              sub={t().stats.measuredTasks(work.task_count)}
+            />
+          </div>
+          <div className="two-columns">
+            <WorkTable
+              title={t().stats.byCleaner}
+              nameColumn={t().stats.cleaner}
+              rows={work.by_cleaner.map((row) => ({
+                key: row.email,
+                name: <Person email={row.email} />,
+                tasks: row.task_count,
+                seconds: row.avg_seconds,
+              }))}
+            />
+            <WorkTable
+              title={t().stats.byLocation}
+              nameColumn={t().stats.location}
+              rows={work.by_location.map((row) => ({
+                key: row.id,
+                name: row.name,
+                tasks: row.task_count,
+                seconds: row.avg_seconds,
+              }))}
+            />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+interface WorkRow {
+  key: string;
+  name: ReactNode;
+  tasks: number;
+  seconds: number;
+}
+
+function WorkTable({ title, nameColumn, rows }: { title: string; nameColumn: string; rows: WorkRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="table-scroll">
+      <table className="table">
+        <caption className="subsection-title">{title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{nameColumn}</th>
+            <th scope="col" className="numeric">
+              {t().stats.tasksColumn}
+            </th>
+            <th scope="col" className="numeric">
+              {t().stats.averageColumn}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <td>{row.name}</td>
+              <td className="numeric">{row.tasks}</td>
+              <td className="numeric">{formatDuration(row.seconds)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

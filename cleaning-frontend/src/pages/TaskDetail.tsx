@@ -19,7 +19,7 @@ import { TaskActivity } from "../features/tasks/TaskActivity";
 import { TaskForm } from "../features/tasks/TaskForm";
 import { blockerText } from "../features/tasks/workflow";
 import { t } from "../i18n/locale";
-import { countryName, rruleLabel } from "../labels";
+import { countryName, formatDuration, rruleLabel } from "../labels";
 import { QualitySection } from "../features/tasks/TaskQuality";
 import { PhotosSection } from "../features/tasks/TaskPhotos";
 import { OccurrencesSection } from "../features/tasks/TaskOccurrences";
@@ -194,6 +194,23 @@ function TaskDetailContent({ id }: { id: string }) {
                   <RelativeDate value={data.created_at} />
                 </dd>
               </div>
+              {data.started_at && (
+                <div>
+                  <dt>{t().taskDetail.started}</dt>
+                  <dd>
+                    <RelativeDate value={data.started_at} />
+                  </dd>
+                </div>
+              )}
+              {data.work_seconds !== null && (
+                <div>
+                  <dt>{t().taskDetail.workTime}</dt>
+                  <dd>
+                    {formatDuration(data.work_seconds)}
+                    <span className="field-hint">{t().taskDetail.workTimeHint}</span>
+                  </dd>
+                </div>
+              )}
               {data.rrule && (
                 <div>
                   <dt>{t().taskDetail.repeats}</dt>

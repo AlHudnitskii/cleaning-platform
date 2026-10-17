@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.task import TaskResponse
-from src.api.task_queries import task_progress
+from src.api.task_queries import WorkTime, task_progress, work_times
 from src.domain.models.enums import Country, TaskPriority, TaskStatus
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
@@ -16,6 +16,7 @@ def to_response(
     assignee_email: str | None = None,
     location_name: str | None = None,
     location_path: list[str] | None = None,
+    work: WorkTime | None = None,
 ) -> TaskResponse:
     status = TaskStatus(task.status)
     return TaskResponse(
@@ -45,6 +46,8 @@ def to_response(
         quality_reviewed_by=task.quality_reviewed_by,
         quality_reviewed_at=task.quality_reviewed_at,
         created_at=task.created_at,
+        started_at=work.started_at if work else None,
+        work_seconds=work.work_seconds if work else None,
         allowed_statuses=task_access.allowed_statuses(user, status),
     )
 
@@ -66,4 +69,5 @@ async def detailed_response(session: AsyncSession, user: CurrentUser, task: Task
             location_path = list(ancestors)
 
     progress = (await task_progress(session, [task.id]))[task.id]
-    return to_response(task, user, progress, assignee_email, location_name, location_path)
+    work = (await work_times(session, [task.id]))[task.id]
+    return to_response(task, user, progress, assignee_email, location_name, location_path, work)

@@ -130,6 +130,8 @@ class TaskResponse(BaseModel):
     quality_reviewed_by: uuid.UUID | None = None
     quality_reviewed_at: datetime | None = None
     created_at: datetime
+    started_at: datetime | None = None
+    work_seconds: int | None = None
     allowed_statuses: list[TaskStatus] = []
 
 

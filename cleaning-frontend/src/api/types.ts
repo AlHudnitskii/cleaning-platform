@@ -71,6 +71,8 @@ export interface TaskResponse {
   quality_reviewed_by: string | null;
   quality_reviewed_at: string | null;
   created_at: string;
+  started_at: string | null;
+  work_seconds: number | null;
   allowed_statuses: TaskStatus[];
 }
 
@@ -257,6 +259,26 @@ export interface TopCleaner {
   completion_rate: number;
 }
 
+export interface CleanerWorkTime {
+  email: string;
+  task_count: number;
+  avg_seconds: number;
+}
+
+export interface LocationWorkTime {
+  id: string;
+  name: string;
+  task_count: number;
+  avg_seconds: number;
+}
+
+export interface WorkTimeStats {
+  avg_seconds: number | null;
+  task_count: number;
+  by_cleaner: CleanerWorkTime[];
+  by_location: LocationWorkTime[];
+}
+
 export interface ReportStats {
   period: { date_from: string; date_to: string };
   total_tasks: number;
@@ -267,6 +289,7 @@ export interface ReportStats {
   weekly_stats: WeeklyCount[];
   quality_stats: QualityStats;
   top_cleaners: TopCleaner[];
+  work_time: WorkTimeStats;
 }
 
 export interface ImportPreviewRow {

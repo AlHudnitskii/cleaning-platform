@@ -64,6 +64,8 @@ export function makeTask(overrides: Partial<TaskResponse> = {}): TaskResponse {
     quality_reviewed_by: null,
     quality_reviewed_at: null,
     created_at: "2026-10-01T09:00:00+00:00",
+    started_at: null,
+    work_seconds: null,
     allowed_statuses: ["in_progress", "on_hold", "cancelled"],
     ...overrides,
   };

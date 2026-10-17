@@ -32,6 +32,7 @@ from src.api.task_queries import (
     scope_conditions,
     task_progress,
     task_rows,
+    work_times,
 )
 from src.api.task_responses import detailed_response, to_response
 from src.api.task_workflow import change_status, ensure_assignable, load_location
@@ -200,12 +201,15 @@ async def get_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRespon
                 task_rows().where(*conditions).order_by(*ordering(sort, order)).limit(limit).offset((page - 1) * limit)
             )
         ).all()
-        progress = await task_progress(session, [task.id for task, _, _ in rows])
+        task_ids = [task.id for task, _, _ in rows]
+        progress = await task_progress(session, task_ids)
+        work = await work_times(session, task_ids)
 
     return json_response(
         {
             "data": [
-                to_response(task, user, progress[task.id], email, location_name) for task, email, location_name in rows
+                to_response(task, user, progress[task.id], email, location_name, work=work[task.id])
+                for task, email, location_name in rows
             ],
             "pagination": {
                 "page": page,
@@ -301,8 +305,13 @@ async def get_tasks_by_location(req: func.HttpRequest, user: CurrentUser) -> fun
                 .limit(limit)
             )
         ).all()
-        progress = await task_progress(session, [task.id for task, _, _ in rows])
+        task_ids = [task.id for task, _, _ in rows]
+        progress = await task_progress(session, task_ids)
+        work = await work_times(session, task_ids)
 
     return json_response(
-        [to_response(task, user, progress[task.id], email, location_name) for task, email, location_name in rows]
+        [
+            to_response(task, user, progress[task.id], email, location_name, work=work[task.id])
+            for task, email, location_name in rows
+        ]
     )

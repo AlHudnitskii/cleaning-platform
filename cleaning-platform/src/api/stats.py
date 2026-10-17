@@ -16,6 +16,7 @@ from src.api.stats_queries import (
     top_locations,
     user_count,
     weekly_counts,
+    work_summary,
 )
 from src.api.task_queries import day_end_exclusive, day_start
 from src.domain.models.enums import Country, TaskPriority, TaskStatus, UserRole
@@ -96,6 +97,7 @@ async def get_reports(req: func.HttpRequest, user: CurrentUser) -> func.HttpResp
             "weekly_stats": await weekly_counts(session, [*scope, *created]),
             "quality_stats": await quality_summary(session, [*scope, *reviewed]),
             "top_cleaners": await top_cleaners(session, country, created),
+            "work_time": await work_summary(session, [*scope, *created]),
         }
 
     return json_response(body)

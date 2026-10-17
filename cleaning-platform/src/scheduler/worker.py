@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 
 from src.infrastructure.database.connection import session_scope
 from src.scheduler.recurrence import create_occurrences
+from src.scheduler.reminders import send_reminders
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,8 @@ async def run_once(now: datetime) -> bool:
         if not await session.scalar(select(func.pg_try_advisory_xact_lock(ADVISORY_LOCK_KEY))):
             return False
         created = await create_occurrences(session, now)
-    logger.info("Scheduler run finished", extra={"occurrences_created": created})
+        reminded = await send_reminders(session, now.date())
+    logger.info("Scheduler run finished", extra={"occurrences_created": created, "reminders_sent": reminded})
     return True
 
 

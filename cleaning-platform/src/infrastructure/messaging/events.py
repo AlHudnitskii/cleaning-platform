@@ -13,6 +13,8 @@ class TaskEventType(StrEnum):
     STATUS_CHANGED = "task_status_changed"
     UPDATED = "task_updated"
     DELETED = "task_deleted"
+    DUE_SOON = "task_due_soon"
+    OVERDUE = "task_overdue"
 
 
 def _uuid(value: object) -> uuid.UUID | None:

@@ -1,12 +1,24 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
-from src.domain.models.enums import TaskPriority, TaskStatus
+from src.domain.models.enums import ReminderKind, TaskPriority, TaskStatus
 from src.infrastructure.database.connection import Base
 
 
@@ -134,6 +146,23 @@ class TaskChecklistItem(Base):
     done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (Index("ix_task_checklist_items_task_id_position", "task_id", "position"),)
+
+
+class TaskReminder(Base):
+    """One row per reminder sent, so each due date of a task triggers each kind of reminder once."""
+
+    __tablename__ = "task_reminders"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid())
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(20))
+    due_date: Mapped[date] = mapped_column(Date)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(_in_list("kind", [k.value for k in ReminderKind]), name="kind"),
+        UniqueConstraint("task_id", "kind", "due_date"),
+    )
 
 
 class TaskComment(Base):

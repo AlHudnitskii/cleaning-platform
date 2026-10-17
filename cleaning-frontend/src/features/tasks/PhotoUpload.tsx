@@ -2,6 +2,8 @@ import { useId, useState, type ChangeEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import { Notice } from "../../components/Feedback";
+import { showToast } from "../../components/toast";
+import { t } from "../../i18n/locale";
 import { useUploadPhoto } from "./api";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -17,11 +19,11 @@ export function PhotoUpload({ taskId, online }: { taskId: string; online: boolea
     event.target.value = "";
     if (!file) return;
     if (file.size > MAX_BYTES) {
-      setLocalError("Photo must be at most 10 MB.");
+      setLocalError(t().photos.tooLarge);
       return;
     }
     setLocalError(null);
-    upload.mutate({ id: taskId, file });
+    upload.mutate({ id: taskId, file }, { onSuccess: () => showToast(t().photos.uploaded) });
   };
 
   return (
@@ -35,10 +37,9 @@ export function PhotoUpload({ taskId, online }: { taskId: string; online: boolea
         onChange={handleChange}
       />
       <label htmlFor={inputId} className={`btn btn-secondary${!online || upload.isPending ? " is-disabled" : ""}`}>
-        {upload.isPending ? "Uploading…" : "Upload photo"}
+        {upload.isPending ? t().photos.uploading : t().photos.upload}
       </label>
-      {!online && <span className="muted">Photo upload is unavailable offline.</span>}
-      {upload.isSuccess && <Notice tone="success">Photo uploaded.</Notice>}
+      {!online && <span className="muted">{t().photos.offline}</span>}
       {(localError ?? upload.isError) && (
         <Notice tone="error">{localError ?? errorMessage(upload.error)}</Notice>
       )}

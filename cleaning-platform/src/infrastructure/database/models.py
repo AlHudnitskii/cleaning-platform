@@ -1,7 +1,7 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
@@ -69,9 +69,11 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
     rrule: Mapped[str | None] = mapped_column(String(500))
     is_recurring: Mapped[bool] = mapped_column(default=False, server_default="false")
-    parent_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"))
+    parent_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"))
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     priority: Mapped[str] = mapped_column(String(20), default=TaskPriority.NORMAL, server_default="normal")
+    due_date: Mapped[date | None] = mapped_column(Date)
+    photo_required: Mapped[bool] = mapped_column(default=False, server_default="false")
     quality_score: Mapped[int | None] = mapped_column(Integer)
     quality_comment: Mapped[str | None] = mapped_column(Text)
     quality_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -86,6 +88,7 @@ class Task(Base):
         Index("ix_tasks_status", "status"),
         Index("ix_tasks_created_at_id", "created_at", "id"),
         Index("ix_tasks_location_id", "location_id"),
+        Index("ix_tasks_due_date", "due_date"),
     )
 
 
@@ -112,6 +115,20 @@ class TaskStatusHistory(Base):
     __table_args__ = (Index("ix_task_status_history_task_id_changed_at", "task_id", "changed_at"),)
 
 
+class TaskChecklistItem(Base):
+    __tablename__ = "task_checklist_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(String(255))
+    done: Mapped[bool] = mapped_column(default=False, server_default="false")
+    done_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("ix_task_checklist_items_task_id_position", "task_id", "position"),)
+
+
 class TaskComment(Base):
     __tablename__ = "task_comments"
 
@@ -126,6 +143,16 @@ class TaskComment(Base):
     __table_args__ = (Index("ix_task_comments_task_id_created_at", "task_id", "created_at"),)
 
 
+class LoginFailure(Base):
+    __tablename__ = "login_failures"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255))
+    failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (Index("ix_login_failures_email_failed_at", "email", "failed_at"),)
+
+
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
 
@@ -134,6 +161,7 @@ class PushSubscription(Base):
     endpoint: Mapped[str] = mapped_column(String(500), unique=True)
     p256dh: Mapped[str] = mapped_column(String(500))
     auth: Mapped[str] = mapped_column(String(100))
+    locale: Mapped[str] = mapped_column(String(5), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
 
 

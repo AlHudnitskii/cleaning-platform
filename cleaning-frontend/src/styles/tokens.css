@@ -1,0 +1,94 @@
+:root {
+  --canvas: #f5f6f3;
+  --surface: #fdfdfc;
+  --s2: #fafbf8;
+  --s3: #f2f4f0;
+  --s4: #eaede7;
+  --border: #eceee9;
+  --border2: #dfe3dd;
+  --text: #1a1e1b;
+  --t2: #5c635d;
+  --t3: #5f665f;
+  --t4: #626963;
+  --accent: #1a7d57;
+  --accent-h: #146848;
+  --accent-soft: #eef6f1;
+  --accent-text: #146349;
+  --accent-line: #d8e8df;
+  --danger: #a8423e;
+  --on-danger: #fff;
+  --danger-soft: #fbf1f0;
+  --danger-line: #eedbd9;
+  --warn: #8a6115;
+  --warn-soft: #fbf5e9;
+  --warn-line: #f0e3cb;
+  --info: #3c5e92;
+  --info-soft: #eff3fa;
+  --info-line: #d8e2f1;
+  --org: #6b5fc0;
+  --org-soft: #f2f1fb;
+  --org-line: #e1def6;
+  --shadow: 0 1px 2px rgba(20, 23, 21, 0.035), 0 8px 20px -16px rgba(20, 23, 21, 0.13);
+  --shadow-lg: 0 1px 3px rgba(20, 23, 21, 0.06), 0 20px 52px -16px rgba(20, 23, 21, 0.22);
+  --sel: #e7efe9;
+  --nav-grp: #4e5c53;
+  --nav-rule: rgba(26, 125, 87, 0.13);
+  --nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 0.5px rgba(20, 23, 21, 0.05),
+    0 1px 1.5px rgba(20, 23, 21, 0.05), 0 4px 12px -6px rgba(20, 23, 21, 0.16);
+  --sheet: 0 0 0 1px rgba(20, 23, 21, 0.05), 0 1px 1px rgba(20, 23, 21, 0.04), 0 8px 24px -12px rgba(20, 23, 21, 0.1);
+  --float: 0 0 0 1px rgba(20, 23, 21, 0.06), 0 2px 6px rgba(20, 23, 21, 0.05), 0 24px 60px -12px rgba(20, 23, 21, 0.26);
+  --hover: rgba(0, 0, 0, 0.04);
+  --font: "Manrope Variable", "Manrope", Helvetica, Arial, sans-serif;
+  --radius-control: 9px;
+  --radius-card: 16px;
+  --radius-sheet: 26px;
+  --sidebar-width: 282px;
+  --sidebar-collapsed: 76px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --canvas: #101312;
+  --surface: #171b18;
+  --s2: #1d221e;
+  --s3: #242a26;
+  --s4: #2d342f;
+  --border: #262c28;
+  --border2: #333a35;
+  --text: #e9ece7;
+  --t2: #a7afa8;
+  --t3: #9da59e;
+  --t4: #99a29a;
+  --accent: #0c7f54;
+  --accent-h: #0f9463;
+  --accent-soft: #16281f;
+  --accent-text: #6fd3a6;
+  --accent-line: #24402f;
+  --danger: #d9807a;
+  --on-danger: #1a1210;
+  --danger-soft: #291d1c;
+  --danger-line: #40302e;
+  --warn: #d6ac6b;
+  --warn-soft: #262015;
+  --warn-line: #3b3222;
+  --info: #85a6d9;
+  --info-soft: #1a222e;
+  --info-line: #2a3547;
+  --org: #9b8fe0;
+  --org-soft: #201e33;
+  --org-line: #322e4c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.34), 0 8px 20px -16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 20px 52px -16px rgba(0, 0, 0, 0.7);
+  --sel: #232b25;
+  --nav-grp: #8b9a90;
+  --nav-rule: rgba(255, 255, 255, 0.07);
+  --nav-active-shadow: 0 0 0 1px rgba(255, 255, 255, 0.055), 0 1px 2px rgba(0, 0, 0, 0.35);
+  --sheet: 0 0 0 1px rgba(255, 255, 255, 0.055), 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px -14px rgba(0, 0, 0, 0.55);
+  --float: 0 0 0 1px rgba(255, 255, 255, 0.075), 0 2px 8px rgba(0, 0, 0, 0.4), 0 28px 64px -12px rgba(0, 0, 0, 0.7);
+  --hover: rgba(255, 255, 255, 0.04);
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .bulk-bar .select-inline {
+  background: rgba(0, 0, 0, 0.08);
+}

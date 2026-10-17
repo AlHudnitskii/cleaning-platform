@@ -1,12 +1,13 @@
 import { useId } from "react";
 
+import { t } from "../i18n/locale";
 const SCORES = [1, 2, 3, 4, 5] as const;
 
 export function StarDisplay({ value }: { value: number | null }) {
-  if (value === null) return <span className="muted">No reviews yet</span>;
+  if (value === null) return <span className="muted">{t().rating.noReviews}</span>;
   const rounded = Math.round(value);
   return (
-    <span className="stars" role="img" aria-label={`${value.toFixed(1)} out of 5`}>
+    <span className="stars" role="img" aria-label={t().rating.outOf(value.toFixed(1))}>
       {SCORES.map((score) => (
         <span key={score} className={score <= rounded ? "star star-on" : "star"} aria-hidden="true">
           ★
@@ -36,7 +37,7 @@ export function StarInput({ value, onChange, legend }: { value: number; onChange
           />
           <span aria-hidden="true">★</span>
           <span className="visually-hidden">
-            {score} {score === 1 ? "star" : "stars"}
+            {t().rating.stars(score)}
           </span>
         </label>
       ))}

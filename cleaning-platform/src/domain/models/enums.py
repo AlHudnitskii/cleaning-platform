@@ -57,3 +57,18 @@ class TaskSort(StrEnum):
     CREATED_AT = "created_at"
     PRIORITY = "priority"
     STATUS = "status"
+    TITLE = "title"
+    COUNTRY = "country"
+    LOCATION = "location"
+    ASSIGNEE = "assignee"
+    DUE_DATE = "due_date"
+
+
+class ReviewBlocker(StrEnum):
+    PHOTO = "photo"
+    CHECKLIST = "checklist"
+
+
+class SortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"

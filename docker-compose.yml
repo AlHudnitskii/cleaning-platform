@@ -4,7 +4,7 @@ x-backend-env: &backend-env
   AzureWebJobsStorage: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
   JWT_SECRET: ${JWT_SECRET:-}
   JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
-  VAPID_PRIVATE_KEY: private_key.pem
+  VAPID_PRIVATE_KEY: /run/secrets/vapid_private_key
   VAPID_CLAIMS_EMAIL: admin@cleaning.com
   SECURE_COOKIES: "false"
 
@@ -13,6 +13,7 @@ x-worker: &worker
     context: ./cleaning-platform
     dockerfile: Dockerfile.worker
   environment: *backend-env
+  secrets: [vapid_private_key]
   depends_on:
     migrate:
       condition: service_completed_successfully
@@ -29,9 +30,8 @@ services:
       POSTGRES_DB: cleaning_db
       POSTGRES_USER: cleaning_user
       POSTGRES_PASSWORD: cleaning_pass
-      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -43,8 +43,8 @@ services:
     image: rabbitmq:3-management
     container_name: cleaning_rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -57,9 +57,9 @@ services:
     image: mcr.microsoft.com/azure-storage/azurite
     container_name: cleaning_azurite
     ports:
-      - "10000:10000"
-      - "10001:10001"
-      - "10002:10002"
+      - "127.0.0.1:10000:10000"
+      - "127.0.0.1:10001:10001"
+      - "127.0.0.1:10002:10002"
     volumes:
       - azurite_data:/data
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck --loose
@@ -77,8 +77,9 @@ services:
       context: ./cleaning-platform
       dockerfile: Dockerfile
     environment: *backend-env
+    secrets: [vapid_private_key]
     ports:
-      - "7071:80"
+      - "127.0.0.1:7071:80"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -91,7 +92,7 @@ services:
       <<: *backend-env
       SSE_HOST: 0.0.0.0
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   consumer:
     <<: *worker
@@ -104,3 +105,7 @@ services:
 volumes:
   postgres_data:
   azurite_data:
+
+secrets:
+  vapid_private_key:
+    file: ./cleaning-platform/private_key.pem

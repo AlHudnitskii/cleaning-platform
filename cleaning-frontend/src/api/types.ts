@@ -3,7 +3,17 @@ export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export const USER_ROLES = ["admin", "manager", "cleaner"] as const;
 export const LOCATION_LEVELS = ["country", "city", "building", "floor", "room"] as const;
 export const COUNTRIES = ["DE", "DK", "IT", "AU", "US", "GB", "FR", "ES", "PL", "NL", "SE", "NO", "FI", "CH", "AT"] as const;
-export const TASK_SORTS = ["created_at", "priority", "status"] as const;
+export const TASK_SORTS = [
+  "created_at",
+  "priority",
+  "status",
+  "title",
+  "country",
+  "location",
+  "assignee",
+  "due_date",
+] as const;
+export const SORT_ORDERS = ["asc", "desc"] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
@@ -11,6 +21,7 @@ export type UserRole = (typeof USER_ROLES)[number];
 export type LocationLevel = (typeof LOCATION_LEVELS)[number];
 export type Country = (typeof COUNTRIES)[number];
 export type TaskSort = (typeof TASK_SORTS)[number];
+export type SortOrder = (typeof SORT_ORDERS)[number];
 
 export interface UserResponse {
   id: string;
@@ -48,6 +59,12 @@ export interface TaskResponse {
   is_recurring: boolean;
   scheduled_for: string | null;
   priority: TaskPriority;
+  due_date: string | null;
+  photo_required: boolean;
+  checklist_done: number;
+  checklist_total: number;
+  photo_count: number;
+  review_blockers: ReviewBlocker[];
   quality_score: number | null;
   quality_comment: string | null;
   quality_reviewed_by: string | null;
@@ -76,6 +93,32 @@ export interface TaskCreate {
   assigned_to?: string;
   rrule?: string;
   priority: TaskPriority;
+  due_date?: string;
+  photo_required?: boolean;
+  checklist?: string[];
+}
+
+export type ReviewBlocker = "photo" | "checklist";
+
+export interface ChecklistItem {
+  id: string;
+  task_id: string;
+  position: number;
+  text: string;
+  done: boolean;
+  done_by: string | null;
+  done_at: string | null;
+}
+
+export interface TaskUpdate {
+  title?: string;
+  description?: string | null;
+  location_id?: string | null;
+  assigned_to?: string | null;
+  rrule?: string | null;
+  priority?: TaskPriority;
+  due_date?: string | null;
+  photo_required?: boolean;
 }
 
 export interface CommentResponse {
@@ -137,6 +180,12 @@ export interface UserCreate {
   country?: Country;
 }
 
+export interface UserUpdate {
+  email: string;
+  role: UserRole;
+  country: Country | null;
+}
+
 export interface CountryCount {
   country: Country;
   count: number;
@@ -168,6 +217,7 @@ export interface DashboardStats {
   avg_quality: number | null;
   reviewed_count: number;
   recurring_count: number;
+  overdue_count: number;
   total_users: number;
   total_tasks: number;
 }
@@ -199,10 +249,23 @@ export interface ReportStats {
   top_cleaners: TopCleaner[];
 }
 
+export interface ImportPreviewRow {
+  row: number;
+  title: string;
+  country: Country;
+  priority: TaskPriority;
+  location_name: string | null;
+  assignee_email: string | null;
+  rrule: string | null;
+}
+
 export interface ImportResult {
   imported: number;
+  valid_rows: number;
   total_rows: number;
   errors: string[];
+  preview: ImportPreviewRow[];
+  dry_run: boolean;
 }
 
 export interface SyncStatusChange {

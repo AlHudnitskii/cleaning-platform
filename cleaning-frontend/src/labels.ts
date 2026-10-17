@@ -1,111 +1,64 @@
-import type { Country, LocationLevel, TaskPriority, TaskSort, TaskStatus, UserRole } from "./api/types";
+import type { Country } from "./api/types";
+import { countryNames, dateFormatter, relativeFormatter } from "./i18n/format";
+import { t } from "./i18n/locale";
 
-export const STATUS_LABELS: Record<TaskStatus, string> = {
-  pending: "Pending",
-  in_progress: "In progress",
-  on_review: "On review",
-  completed: "Completed",
-  on_hold: "On hold",
-  cancelled: "Cancelled",
-};
-
-export const STATUS_ACTIONS: Record<TaskStatus, string> = {
-  pending: "Move to pending",
-  in_progress: "Start work",
-  on_review: "Send to review",
-  completed: "Approve",
-  on_hold: "Put on hold",
-  cancelled: "Cancel task",
-};
-
-export const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: "Low",
-  normal: "Normal",
-  high: "High",
-  urgent: "Urgent",
-};
-
-export const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Admin",
-  manager: "Manager",
-  cleaner: "Cleaner",
-};
-
-export const LEVEL_LABELS: Record<LocationLevel, string> = {
-  country: "Country",
-  city: "City",
-  building: "Building",
-  floor: "Floor",
-  room: "Room",
-};
-
-export const SORT_LABELS: Record<TaskSort, string> = {
-  created_at: "Newest first",
-  priority: "Priority",
-  status: "Status",
-};
-
-export const COUNTRY_NAMES: Record<Country, string> = {
-  DE: "Germany",
-  DK: "Denmark",
-  IT: "Italy",
-  AU: "Australia",
-  US: "United States",
-  GB: "United Kingdom",
-  FR: "France",
-  ES: "Spain",
-  PL: "Poland",
-  NL: "Netherlands",
-  SE: "Sweden",
-  NO: "Norway",
-  FI: "Finland",
-  CH: "Switzerland",
-  AT: "Austria",
-};
+export { countryNames };
 
 export const RRULE_PRESETS = [
-  { value: "FREQ=DAILY", label: "Every day" },
-  { value: "FREQ=WEEKLY;BYDAY=MO", label: "Every Monday" },
-  { value: "FREQ=WEEKLY;BYDAY=MO,WE,FR", label: "Mon, Wed, Fri" },
-  { value: "FREQ=WEEKLY;BYDAY=MO,TH", label: "Mon and Thu" },
-  { value: "FREQ=WEEKLY", label: "Every week" },
-  { value: "FREQ=MONTHLY", label: "Every month" },
+  "FREQ=DAILY",
+  "FREQ=WEEKLY;BYDAY=MO",
+  "FREQ=WEEKLY;BYDAY=MO,WE,FR",
+  "FREQ=WEEKLY;BYDAY=MO,TH",
+  "FREQ=WEEKLY",
+  "FREQ=MONTHLY",
 ] as const;
 
+export function rruleOptions(): { value: string; label: string }[] {
+  return RRULE_PRESETS.map((value) => ({ value, label: rruleLabel(value) }));
+}
+
 export function rruleLabel(rrule: string): string {
-  return RRULE_PRESETS.find((preset) => preset.value === rrule)?.label ?? rrule;
+  return t().repeat[rrule] ?? rrule;
 }
 
 export function countryName(country: Country | null): string {
-  return country ? COUNTRY_NAMES[country] : "—";
+  return country ? countryNames()[country] : t().common.none;
 }
 
-const dateTimeFormat = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
-const dateFormat = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
-const occurrenceFormat = new Intl.DateTimeFormat("en-GB", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 export function formatDateTime(value: string): string {
-  return dateTimeFormat.format(new Date(value));
+  return dateFormatter("datetime", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 export function formatDate(value: string): string {
-  return dateFormat.format(new Date(value));
+  return dateFormatter("date", { dateStyle: "medium" }).format(new Date(value));
 }
 
 export function formatOccurrence(value: string): string {
-  return occurrenceFormat.format(new Date(value));
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+  return dateFormatter("occurrence", options).format(new Date(value));
 }
 
-export function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+export function formatRelative(value: string, now: number = Date.now()): string {
+  const relative = relativeFormatter();
+  const elapsed = now - new Date(value).getTime();
+  if (elapsed < 0 || elapsed >= 7 * DAY) return formatDate(value);
+  if (elapsed < MINUTE) return t().time.justNow;
+  if (elapsed < HOUR) return relative.format(-Math.floor(elapsed / MINUTE), "minute");
+  if (elapsed < DAY) return relative.format(-Math.floor(elapsed / HOUR), "hour");
+  const label = relative.format(-Math.floor(elapsed / DAY), "day");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export function daysAgo(days: number): string {
-  return isoDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
+export function emailName(email: string): string {
+  return email.split("@")[0] ?? email;
 }

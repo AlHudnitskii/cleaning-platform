@@ -2,8 +2,9 @@ import { useId, useState, type SubmitEvent, type KeyboardEvent } from "react";
 
 import { errorMessage } from "../../api/errors";
 import { RoleBadge, StatusBadge } from "../../components/Badges";
-import { EmptyState, ErrorState, Loading, Notice } from "../../components/Feedback";
+import { ErrorState, Loading, Notice } from "../../components/Feedback";
 import { formatDateTime } from "../../labels";
+import { t } from "../../i18n/locale";
 import { useAddComment, useComments, useHistory } from "./api";
 
 type Tab = "comments" | "history";
@@ -22,26 +23,28 @@ export function TaskActivity({ taskId, online }: { taskId: string; online: boole
     document.getElementById(`${baseId}-${next}-tab`)?.focus();
   };
 
-  const label = (t: Tab) =>
-    t === "comments" ? `Comments (${comments.data?.length ?? 0})` : `History (${history.data?.length ?? 0})`;
+  const label = (item: Tab) =>
+    item === "comments"
+      ? t().activity.comments(comments.data?.length ?? 0)
+      : t().activity.history(history.data?.length ?? 0);
 
   return (
     <section className="card">
-      <div className="tabs" role="tablist" aria-label="Task activity">
-        {TABS.map((t) => (
+      <div className="tabs" role="tablist" aria-label={t().activity.label}>
+        {TABS.map((item) => (
           <button
-            key={t}
-            id={`${baseId}-${t}-tab`}
+            key={item}
+            id={`${baseId}-${item}-tab`}
             type="button"
             role="tab"
             className="tab"
-            aria-selected={tab === t}
-            aria-controls={`${baseId}-${t}-panel`}
-            tabIndex={tab === t ? 0 : -1}
-            onClick={() => setTab(t)}
+            aria-selected={tab === item}
+            aria-controls={`${baseId}-${item}-panel`}
+            tabIndex={tab === item ? 0 : -1}
+            onClick={() => setTab(item)}
             onKeyDown={handleKeyDown}
           >
-            {label(t)}
+            {label(item)}
           </button>
         ))}
       </div>
@@ -74,11 +77,11 @@ function Comments({
   return (
     <>
       {query.isPending ? (
-        <Loading label="Loading comments" />
+        <Loading label={t().activity.loadingComments} />
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : query.data.length === 0 ? (
-        <EmptyState title="No comments yet" />
+        <p className="activity-empty">{t().activity.noComments}</p>
       ) : (
         <ul className="comment-list">
           {query.data.map((comment) => (
@@ -95,33 +98,35 @@ function Comments({
           ))}
         </ul>
       )}
-      <form className="stack" onSubmit={handleSubmit}>
+      <form className="stack comment-form" onSubmit={handleSubmit}>
         {addComment.isError && <Notice tone="error">{errorMessage(addComment.error)}</Notice>}
         <label className="field-label" htmlFor={textId}>
-          New comment
+          {t().activity.newComment}
         </label>
         <textarea
           id={textId}
           className="input"
-          rows={3}
+          rows={2}
           maxLength={2000}
           value={text}
           disabled={!online}
-          placeholder={online ? undefined : "Comments are unavailable offline"}
+          placeholder={online ? undefined : t().activity.offline}
           onChange={(e) => setText(e.target.value)}
         />
-        <button className="btn btn-primary" type="submit" disabled={!online || !text.trim() || addComment.isPending}>
-          {addComment.isPending ? "Sending…" : "Send"}
-        </button>
+        <div className="form-actions form-actions-end">
+          <button className="btn btn-primary btn-small" type="submit" disabled={!online || !text.trim() || addComment.isPending}>
+            {addComment.isPending ? t().activity.sending : t().activity.send}
+          </button>
+        </div>
       </form>
     </>
   );
 }
 
 function History({ query }: { query: ReturnType<typeof useHistory> }) {
-  if (query.isPending) return <Loading label="Loading history" />;
+  if (query.isPending) return <Loading label={t().activity.loadingHistory} />;
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
-  if (query.data.length === 0) return <EmptyState title="No status changes yet" />;
+  if (query.data.length === 0) return <p className="activity-empty">{t().activity.noHistory}</p>;
   return (
     <ol className="timeline">
       {query.data.map((entry) => (
@@ -130,13 +135,13 @@ function History({ query }: { query: ReturnType<typeof useHistory> }) {
             {entry.old_status && (
               <>
                 <StatusBadge status={entry.old_status} />
-                <span aria-label="changed to">→</span>
+                <span aria-label={t().activity.changedTo}>→</span>
               </>
             )}
             <StatusBadge status={entry.new_status} />
           </div>
           <div className="muted">
-            {entry.changed_by_email ?? "System"} ·{" "}
+            {entry.changed_by_email ?? t().activity.system} ·{" "}
             <time dateTime={entry.changed_at}>{formatDateTime(entry.changed_at)}</time>
           </div>
         </li>

@@ -5,16 +5,22 @@ import azure.functions as func
 from sqlalchemy import select
 
 from src.api.http import ApiError, authenticated, json_response, read_model, route_uuid
-from src.api.task_store import load_visible_task
+from src.api.schemas.task import CommentCreate, CommentResponse, HistoryEntryResponse, PhotoResponse
+from src.api.task_queries import load_visible_task
 from src.domain.models.enums import TaskStatus
-from src.domain.models.task import CommentCreate, CommentResponse, HistoryEntryResponse, PhotoResponse
 from src.domain.models.user import CurrentUser
 from src.domain.services.photos import MAX_PHOTO_BYTES, detect_image_type, display_filename
-from src.infrastructure.blob.storage import PHOTOS_CONTAINER, upload_blob
+from src.infrastructure.blob.storage import PHOTOS_CONTAINER, read_link, upload_blob
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import TaskComment, TaskPhoto, TaskStatusHistory, User
+from src.translations import phrases
 
 bp = func.Blueprint()
+
+
+def photo_response(photo: TaskPhoto) -> PhotoResponse:
+    response = PhotoResponse.model_validate(photo)
+    return response.model_copy(update={"url": read_link(photo.url)})
 
 
 def comment_response(comment: TaskComment, author: User) -> CommentResponse:
@@ -114,7 +120,7 @@ async def get_task_photos(req: func.HttpRequest, user: CurrentUser) -> func.Http
                 .order_by(TaskPhoto.uploaded_at.desc(), TaskPhoto.id.desc())
             )
         ).all()
-    return json_response([PhotoResponse.model_validate(photo) for photo in photos])
+    return json_response([photo_response(photo) for photo in photos])
 
 
 @bp.route(route="tasks/{task_id}/photos", methods=["POST"])
@@ -127,14 +133,14 @@ async def upload_task_photo(req: func.HttpRequest, user: CurrentUser) -> func.Ht
 
     photo = req.files.get("photo")
     if photo is None:
-        raise ApiError(400, "No photo file provided. Use form-data with key 'photo'")
+        raise ApiError(400, phrases.NO_PHOTO())
 
     data = photo.read(MAX_PHOTO_BYTES + 1)
     if len(data) > MAX_PHOTO_BYTES:
-        raise ApiError(413, f"Photo must be at most {MAX_PHOTO_BYTES // (1024 * 1024)} MB")
+        raise ApiError(413, phrases.PHOTO_TOO_LARGE(megabytes=MAX_PHOTO_BYTES // (1024 * 1024)))
     image_type = detect_image_type(data)
     if image_type is None:
-        raise ApiError(415, "Only JPEG, PNG and WebP images are supported")
+        raise ApiError(415, phrases.PHOTO_TYPE())
 
     photo_id = uuid.uuid4()
     url = await upload_blob(
@@ -154,4 +160,4 @@ async def upload_task_photo(req: func.HttpRequest, user: CurrentUser) -> func.Ht
         )
         session.add(record)
 
-    return json_response(PhotoResponse.model_validate(record), 201)
+    return json_response(photo_response(record), 201)

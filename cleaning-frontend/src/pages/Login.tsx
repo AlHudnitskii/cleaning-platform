@@ -5,7 +5,11 @@ import { errorMessage } from "../api/errors";
 import { useAuth } from "../auth/useAuth";
 import { homePath } from "../auth/homePath";
 import { Notice } from "../components/Feedback";
+import { BrandMark } from "../components/BrandMark";
 import { Field } from "../components/Field";
+import { LanguageSwitch } from "../components/LanguageSwitch";
+import { t } from "../i18n/locale";
+import { ThemeSwitch } from "../components/ThemeSwitch";
 
 export function Login() {
   const { state, login } = useAuth();
@@ -33,14 +37,22 @@ export function Login() {
 
   return (
     <main className="login">
+      <div className="login-theme">
+        <LanguageSwitch />
+        <ThemeSwitch />
+      </div>
       <section className="login-card" aria-labelledby="login-title">
+        <div className="login-brand">
+          <BrandMark />
+          <span className="brand-name">{t().app.name}</span>
+        </div>
         <h1 id="login-title" className="login-title">
-          Cleaning Platform
+          {t().auth.title}
         </h1>
-        <p className="login-subtitle">Sign in to continue</p>
+        <p className="login-subtitle">{t().auth.subtitle}</p>
         {error && <Notice tone="error">{error}</Notice>}
         <form onSubmit={handleSubmit} className="stack">
-          <Field label="Email">
+          <Field label={t().auth.email}>
             <input
               className="input"
               type="email"
@@ -50,7 +62,7 @@ export function Login() {
               required
             />
           </Field>
-          <Field label="Password">
+          <Field label={t().auth.password}>
             <input
               className="input"
               type="password"
@@ -61,7 +73,7 @@ export function Login() {
             />
           </Field>
           <button className="btn btn-primary btn-block" type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+            {submitting ? t().auth.submitting : t().auth.submit}
           </button>
         </form>
       </section>

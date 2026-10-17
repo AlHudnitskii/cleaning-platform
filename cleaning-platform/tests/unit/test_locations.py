@@ -18,11 +18,11 @@ def test_build_path_ignores_display_name_characters() -> None:
 
 def test_child_must_share_country() -> None:
     error = child_error(LocationLevel.CITY, "DE", LocationLevel.BUILDING, "NL")
-    assert error == "Child location must be in the same country as its parent"
+    assert str(error) == "Child location must be in the same country as its parent"
 
 
 def test_child_must_be_deeper_than_parent() -> None:
-    assert child_error(LocationLevel.FLOOR, "DE", LocationLevel.BUILDING, "DE") == (
+    assert str(child_error(LocationLevel.FLOOR, "DE", LocationLevel.BUILDING, "DE")) == (
         "A building cannot be placed inside a floor"
     )
     assert child_error(LocationLevel.FLOOR, "DE", LocationLevel.FLOOR, "DE") is not None

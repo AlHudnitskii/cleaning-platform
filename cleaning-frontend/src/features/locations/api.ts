@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { client, getJson } from "../../api/client";
+import { api } from "../../api/client";
 import type { Country, LocationCreate, LocationResponse } from "../../api/types";
+import { taskKeys } from "../tasks/api";
 
 export const locationKeys = {
   all: ["locations"] as const,
@@ -11,7 +12,7 @@ export const locationKeys = {
 export function useLocations(country?: Country) {
   return useQuery({
     queryKey: locationKeys.list(country),
-    queryFn: () => getJson<LocationResponse[]>("/locations", { country }),
+    queryFn: () => api.get<LocationResponse[]>("/locations", { country }),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -19,8 +20,31 @@ export function useLocations(country?: Country) {
 export function useCreateLocation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: LocationCreate) => (await client.post<LocationResponse>("/locations", data)).data,
+    mutationFn: (data: LocationCreate) => api.post<LocationResponse>("/locations", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: locationKeys.all }),
+  });
+}
+
+function refreshLocations(queryClient: QueryClient): Promise<unknown> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: locationKeys.all }),
+    queryClient.invalidateQueries({ queryKey: taskKeys.all }),
+  ]);
+}
+
+export function useRenameLocation(locationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.patch<LocationResponse>(`/locations/${locationId}`, { name }),
+    onSuccess: () => refreshLocations(queryClient),
+  });
+}
+
+export function useDeleteLocation(locationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete(`/locations/${locationId}`),
+    onSuccess: () => refreshLocations(queryClient),
   });
 }
 
@@ -52,4 +76,14 @@ export function buildTree(locations: LocationResponse[]): LocationNode[] {
 
 export function sortedByFullName(locations: LocationResponse[]): LocationResponse[] {
   return [...locations].sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
+
+export function filterTree(nodes: LocationNode[], query: string): LocationNode[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return nodes;
+  return nodes.flatMap((node) => {
+    const children = filterTree(node.children, needle);
+    if (node.name.toLowerCase().includes(needle) || children.length > 0) return [{ ...node, children }];
+    return [];
+  });
 }

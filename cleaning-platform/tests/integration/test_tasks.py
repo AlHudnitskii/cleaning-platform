@@ -75,6 +75,54 @@ async def test_sort_by_priority_puts_urgent_first(account, task_factory):
     assert [t["priority"] for t in payload(response)["data"]] == ["urgent", "high", "normal", "low"]
 
 
+async def test_sort_by_title_ascending_and_descending(account, task_factory):
+    admin = await account("admin", None)
+    for title in ("banana room", "Apple hall", "cherry desk"):
+        await task_factory(title=title)
+
+    ascending = await call(tasks.get_tasks, headers=admin.headers, params={"sort": "title"})
+    descending = await call(tasks.get_tasks, headers=admin.headers, params={"sort": "title", "order": "desc"})
+
+    assert [t["title"] for t in payload(ascending)["data"]] == ["Apple hall", "banana room", "cherry desk"]
+    assert [t["title"] for t in payload(descending)["data"]] == ["cherry desk", "banana room", "Apple hall"]
+
+
+async def test_sort_by_assignee_keeps_unassigned_last(account, task_factory):
+    admin = await account("admin", None)
+    zed = await account("cleaner", "DE", email="zed@cleaning.com")
+    amy = await account("cleaner", "DE", email="amy@cleaning.com")
+    await task_factory(title="Nobody")
+    await task_factory(title="For zed", assigned_to=zed.user.id)
+    await task_factory(title="For amy", assigned_to=amy.user.id)
+
+    for order in ("asc", "desc"):
+        response = await call(tasks.get_tasks, headers=admin.headers, params={"sort": "assignee", "order": order})
+        assert payload(response)["data"][-1]["title"] == "Nobody"
+
+    response = await call(tasks.get_tasks, headers=admin.headers, params={"sort": "assignee"})
+    assert [t["title"] for t in payload(response)["data"]] == ["For amy", "For zed", "Nobody"]
+
+
+async def test_sort_by_created_at_can_be_reversed(account, task_factory):
+    admin = await account("admin", None)
+    old = await task_factory(created_at=utc(2026, 1, 1))
+    new = await task_factory(created_at=utc(2026, 2, 1))
+
+    newest_first = await call(tasks.get_tasks, headers=admin.headers)
+    oldest_first = await call(tasks.get_tasks, headers=admin.headers, params={"order": "asc"})
+
+    assert [t["id"] for t in payload(newest_first)["data"]] == [str(new.id), str(old.id)]
+    assert [t["id"] for t in payload(oldest_first)["data"]] == [str(old.id), str(new.id)]
+
+
+async def test_unknown_sort_order_is_rejected(account):
+    admin = await account("admin", None)
+
+    response = await call(tasks.get_tasks, headers=admin.headers, params={"order": "sideways"})
+
+    assert response.status_code == 400
+
+
 async def test_location_filter_includes_subtree(account, task_factory, location_factory):
     admin = await account("admin", None)
     germany = await location_factory("Germany", "DE", "country")
@@ -86,6 +134,34 @@ async def test_location_filter_includes_subtree(account, task_factory, location_
     response = await call(tasks.get_tasks, headers=admin.headers, params={"location_id": str(germany.id)})
 
     assert [t["id"] for t in payload(response)["data"]] == [str(inside.id)]
+
+
+async def test_search_matches_title_case_insensitively(account, task_factory):
+    admin = await account("admin", None)
+    lobby = await task_factory(title="Clean Lobby")
+    await task_factory(title="Wash windows")
+
+    response = await call(tasks.get_tasks, headers=admin.headers, params={"search": "lobby"})
+
+    assert [t["id"] for t in payload(response)["data"]] == [str(lobby.id)]
+
+
+async def test_search_treats_wildcards_literally(account, task_factory):
+    admin = await account("admin", None)
+    discount = await task_factory(title="Restock 100% soap")
+    await task_factory(title="Restock 100 towels")
+
+    response = await call(tasks.get_tasks, headers=admin.headers, params={"search": "100%"})
+
+    assert [t["id"] for t in payload(response)["data"]] == [str(discount.id)]
+
+
+async def test_search_rejects_overlong_text(account):
+    admin = await account("admin", None)
+
+    response = await call(tasks.get_tasks, headers=admin.headers, params={"search": "x" * 201})
+
+    assert response.status_code == 400
 
 
 async def test_quality_review_requires_completed_task(account, task_factory):
@@ -185,6 +261,58 @@ async def test_import_rejects_assignee_from_other_country(account):
     assert response.status_code == 200
     assert payload(response)["imported"] == 0
     assert payload(response)["errors"] == ["Row 2: assignee must be an active cleaner from the task's country"]
+
+
+async def test_import_dry_run_previews_without_creating_tasks(account, location_factory):
+    manager = await account("manager", "DE")
+    cleaner = await account("cleaner", "DE", email="cleaner.preview@cleaning.com")
+    await location_factory("Room 101", "DE", "room")
+    csv = (
+        b"title,country,priority,location_name,assignee_email\n"
+        b"Clean lobby,DE,high,Room 101,cleaner.preview@cleaning.com\n"
+        b"Mop hall,DE,normal,Room 999,\n"
+        b",DE,low,,\n"
+    )
+    body, headers = multipart("file", "tasks.csv", csv, "text/csv")
+
+    response = await call(
+        import_tasks.import_tasks,
+        "POST",
+        headers={**headers, **manager.headers},
+        body=body,
+        params={"dry_run": "true"},
+    )
+
+    result = payload(response)
+    assert response.status_code == 200
+    assert (result["dry_run"], result["imported"], result["valid_rows"], result["total_rows"]) == (True, 0, 1, 3)
+    assert result["preview"] == [
+        {
+            "row": 2,
+            "title": "Clean lobby",
+            "country": "DE",
+            "priority": "high",
+            "location_name": "Room 101",
+            "assignee_email": cleaner.user.email,
+            "rrule": None,
+        }
+    ]
+    assert len(result["errors"]) == 2
+    async with session_scope() as session:
+        assert (await session.scalars(select(Task))).all() == []
+
+
+async def test_import_reports_valid_rows_and_creates_them(account):
+    manager = await account("manager", "DE")
+    csv = b"title,country\nClean lobby,DE\nMop hall,DE\n"
+    body, headers = multipart("file", "tasks.csv", csv, "text/csv")
+
+    response = await call(import_tasks.import_tasks, "POST", headers={**headers, **manager.headers}, body=body)
+
+    result = payload(response)
+    assert (result["dry_run"], result["imported"], result["valid_rows"]) == (False, 2, 2)
+    async with session_scope() as session:
+        assert len((await session.scalars(select(Task))).all()) == 2
 
 
 async def test_excel_export_neutralizes_formulas(account, task_factory, monkeypatch):

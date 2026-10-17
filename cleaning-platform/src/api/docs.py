@@ -5,8 +5,11 @@ from typing import Any
 import azure.functions as func
 from pydantic import BaseModel
 
-from src.domain.models.location import LocationCreate, LocationResponse
-from src.domain.models.task import (
+from src.api.schemas.location import LocationCreate, LocationResponse, LocationUpdate
+from src.api.schemas.task import (
+    ChecklistItemCreate,
+    ChecklistItemResponse,
+    ChecklistItemUpdate,
     CommentCreate,
     CommentResponse,
     HistoryEntryResponse,
@@ -16,14 +19,17 @@ from src.domain.models.task import (
     TaskCreate,
     TaskResponse,
     TaskStatusUpdate,
+    TaskUpdate,
 )
-from src.domain.models.user import (
+from src.api.schemas.user import (
     AssigneeResponse,
     PasswordChange,
+    PasswordReset,
     TokenResponse,
     UserLogin,
     UserRegister,
     UserResponse,
+    UserUpdate,
 )
 
 bp = func.Blueprint()
@@ -35,42 +41,68 @@ SCHEMAS: list[type[BaseModel]] = [
     HistoryEntryResponse,
     LocationCreate,
     LocationResponse,
+    LocationUpdate,
     PasswordChange,
+    PasswordReset,
     PhotoResponse,
     QualityReview,
     SyncStatusChange,
     TaskCreate,
     TaskResponse,
     TaskStatusUpdate,
+    TaskUpdate,
+    ChecklistItemCreate,
+    ChecklistItemUpdate,
+    ChecklistItemResponse,
     TokenResponse,
     UserLogin,
     UserRegister,
     UserResponse,
+    UserUpdate,
 ]
 
 PATH_PARAMS = {
     "task_id": "Task ID",
     "location_id": "Location ID",
     "user_id": "User ID",
+    "item_id": "Checklist item ID",
 }
 
+CHECKLIST = "/tasks/{task_id}/checklist"
+CHECKLIST_ITEM = "/tasks/{task_id}/checklist/{item_id}"
+
 ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
-    ("post", "/auth/register", "Register a user", "UserRegister", "TokenResponse", False),
-    ("post", "/auth/login", "Sign in; sets the refresh_token cookie", "UserLogin", "TokenResponse", False),
+    (
+        "post",
+        "/auth/login",
+        "Sign in; sets the refresh_token cookie. 429 with Retry-After after 5 failures in 15 minutes",
+        "UserLogin",
+        "TokenResponse",
+        False,
+    ),
     ("post", "/auth/refresh", "Rotate the session using the refresh_token cookie", None, "TokenResponse", False),
     ("post", "/auth/logout", "Revoke all sessions of the cookie owner", None, None, False),
     ("get", "/auth/me", "Current user", None, "UserResponse", True),
+    ("post", "/events/ticket", "Single-use 30-second ticket for the event stream", None, None, True),
     ("get", "/users", "List users (admin)", None, "UserResponse", True),
     ("post", "/users", "Create a user (admin)", "UserRegister", "UserResponse", True),
     ("get", "/users/assignees", "Active cleaners available for assignment", None, "AssigneeResponse", True),
+    ("patch", "/users/{user_id}", "Edit email, role and country (admin)", "UserUpdate", "UserResponse", True),
+    ("post", "/users/{user_id}/password", "Reset password, sign the user out (admin)", "PasswordReset", None, True),
     ("patch", "/users/{user_id}/toggle-active", "Activate or deactivate a user (admin)", None, "UserResponse", True),
     ("patch", "/users/me/password", "Change own password", "PasswordChange", "TokenResponse", True),
     ("get", "/tasks", "List tasks visible to the caller", None, "TaskResponse", True),
     ("post", "/tasks", "Create a task (admin, manager)", "TaskCreate", "TaskResponse", True),
     ("get", "/tasks/{task_id}", "Task details", None, "TaskResponse", True),
+    ("patch", "/tasks/{task_id}", "Edit a task (admin, manager)", "TaskUpdate", "TaskResponse", True),
+    ("delete", "/tasks/{task_id}", "Delete a task with its comments, history and photos", None, None, True),
     ("patch", "/tasks/{task_id}/status", "Change task status", "TaskStatusUpdate", "TaskResponse", True),
     ("post", "/tasks/{task_id}/quality", "Review quality of a completed task", "QualityReview", "TaskResponse", True),
     ("get", "/tasks/{task_id}/occurrences", "Next occurrences of a recurring task", None, None, True),
+    ("get", CHECKLIST, "Checklist of a task", None, "ChecklistItemResponse", True),
+    ("post", CHECKLIST, "Add a checklist item (admin, manager)", "ChecklistItemCreate", "ChecklistItemResponse", True),
+    ("patch", CHECKLIST_ITEM, "Tick or rename a checklist item", "ChecklistItemUpdate", "ChecklistItemResponse", True),
+    ("delete", CHECKLIST_ITEM, "Remove a checklist item (admin, manager)", None, None, True),
     ("get", "/tasks/{task_id}/comments", "Task comments", None, "CommentResponse", True),
     ("post", "/tasks/{task_id}/comments", "Add a comment", "CommentCreate", "CommentResponse", True),
     ("get", "/tasks/{task_id}/history", "Status history", None, "HistoryEntryResponse", True),
@@ -85,6 +117,8 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ),
     ("get", "/locations", "Locations visible to the caller", None, "LocationResponse", True),
     ("post", "/locations", "Create a location (admin)", "LocationCreate", "LocationResponse", True),
+    ("patch", "/locations/{location_id}", "Rename a location (admin)", "LocationUpdate", "LocationResponse", True),
+    ("delete", "/locations/{location_id}", "Delete an unused location (admin)", None, None, True),
     ("get", "/locations/{location_id}/children", "Descendants of a location", None, "LocationResponse", True),
     ("get", "/locations/{location_id}/tasks", "Tasks in a location subtree", None, "TaskResponse", True),
     ("get", "/stats/dashboard", "Dashboard statistics", None, None, True),

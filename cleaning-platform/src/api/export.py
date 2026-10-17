@@ -8,13 +8,14 @@ from azure.core.exceptions import AzureError
 from sqlalchemy import select
 
 from src.api.http import ApiError, authenticated, parse_date, query_choice
-from src.api.task_store import day_end_exclusive, day_start
+from src.api.task_queries import day_end_exclusive, day_start
 from src.domain.models.enums import Country, UserRole
 from src.domain.models.user import CurrentUser
 from src.infrastructure.blob.storage import EXPORTS_CONTAINER, upload_blob
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, User
 from src.infrastructure.export.exporter import export_to_excel, export_to_parquet, tasks_to_dataframe
+from src.translations import phrases
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,12 @@ class ExportFormat(StrEnum):
 async def export_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
     raw_from, raw_to = req.params.get("date_from"), req.params.get("date_to")
     if not raw_from or not raw_to:
-        raise ApiError(400, "date_from and date_to are required (YYYY-MM-DD)")
+        raise ApiError(400, phrases.PERIOD_REQUIRED())
     date_from, date_to = parse_date(raw_from, "date_from"), parse_date(raw_to, "date_to")
     if date_from > date_to:
-        raise ApiError(400, "date_from must not be after date_to")
+        raise ApiError(400, phrases.PERIOD_REVERSED())
     if (date_to - date_from).days > MAX_EXPORT_DAYS:
-        raise ApiError(400, f"Export period must not exceed {MAX_EXPORT_DAYS} days")
+        raise ApiError(400, phrases.EXPORT_PERIOD_TOO_LONG(days=MAX_EXPORT_DAYS))
 
     export_format = query_choice(req, "format", ExportFormat) or ExportFormat.PARQUET
     country = user.country if user.is_manager else query_choice(req, "country", Country)

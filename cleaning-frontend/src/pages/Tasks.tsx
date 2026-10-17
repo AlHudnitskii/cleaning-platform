@@ -1,136 +1,213 @@
 import { useState } from "react";
 
+import { errorMessage } from "../api/errors";
 import {
   COUNTRIES,
+  SORT_ORDERS,
   TASK_PRIORITIES,
   TASK_SORTS,
   TASK_STATUSES,
   type Country,
+  type SortOrder,
   type TaskPriority,
+  type TaskResponse,
   type TaskSort,
   type TaskStatus,
 } from "../api/types";
 import { useCurrentUser } from "../auth/useAuth";
-import { EmptyState, ErrorState, Loading } from "../components/Feedback";
-import { Field, Options } from "../components/Field";
+import { Drawer } from "../components/Drawer";
+import { EmptyState, ErrorState, ListSkeleton } from "../components/Feedback";
+import { FilterControl } from "../components/Field";
+import { Icon } from "../components/Icon";
+import { optionList } from "../components/options";
 import { PageHeader } from "../components/PageHeader";
 import { Pagination } from "../components/Pagination";
-import { sortedByFullName, useLocations } from "../features/locations/api";
-import { useTasks, type TaskListParams } from "../features/tasks/api";
-import { TaskCard } from "../features/tasks/TaskCard";
-import { TaskCreateForm } from "../features/tasks/TaskCreateForm";
-import { COUNTRY_NAMES, PRIORITY_LABELS, SORT_LABELS, STATUS_LABELS, countryName } from "../labels";
-import { readDate, readEnum, readId, readPage, useUrlState } from "../urlState";
+import { Select } from "../components/Select";
+import { showToast } from "../components/toast";
+import { useLocations } from "../features/locations/api";
+import { useBulkStatus, useChangeStatus, useTasks, type TaskListParams } from "../features/tasks/api";
+import { BulkBar } from "../features/tasks/BulkBar";
+import { TaskForm } from "../features/tasks/TaskForm";
+import { ActiveFilters, FilterMenu, SearchBox } from "../features/tasks/TaskFilters";
+import { TaskTable } from "../features/tasks/TaskTable";
+import { countryName } from "../labels";
+import { t } from "../i18n/locale";
+import { useShortcut } from "../shortcuts";
+import { nextSort, type SortDirection, type SortState } from "../sorting";
+import { PAGE_SIZES, readDate, readEnum, readId, readPage, readPageSize, useUrlState } from "../urlState";
 
-const PAGE_SIZE = 12;
+const MAX_SEARCH = 200;
+const NO_SELECTION: ReadonlySet<string> = new Set();
+const DESCENDING_FIRST: readonly TaskSort[] = ["created_at", "priority"];
+
+function naturalDirection(key: TaskSort): SortDirection {
+  return DESCENDING_FIRST.includes(key) ? "desc" : "asc";
+}
 
 export function Tasks() {
   const user = useCurrentUser();
   const isAdmin = user.role === "admin";
   const { params, update, clear } = useUrlState();
-  const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  useShortcut("n", () => setCreating(true));
 
   const filters: TaskListParams = {
     page: readPage(params),
-    limit: PAGE_SIZE,
+    limit: readPageSize(params),
     sort: readEnum<TaskSort>(params, "sort", TASK_SORTS),
+    order: readEnum<SortOrder>(params, "order", SORT_ORDERS),
     status: readEnum<TaskStatus>(params, "status", TASK_STATUSES),
     priority: readEnum<TaskPriority>(params, "priority", TASK_PRIORITIES),
     country: isAdmin ? readEnum<Country>(params, "country", COUNTRIES) : undefined,
     location_id: readId(params, "location_id"),
     date_from: readDate(params, "date_from"),
     date_to: readDate(params, "date_to"),
+    search: params.get("search")?.trim().slice(0, MAX_SEARCH) || undefined,
+    overdue: params.get("overdue") === "true" ? "true" : undefined,
   };
   const tasks = useTasks(filters);
+  const changeStatus = useChangeStatus();
+  const bulkStatus = useBulkStatus();
+  const listKey = JSON.stringify(filters);
+  const [selection, setSelection] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: listKey, ids: NO_SELECTION });
+  const selected = selection.key === listKey ? selection.ids : NO_SELECTION;
+  const selectedTasks = (tasks.data?.data ?? []).filter((task) => selected.has(task.id));
+
+  const select = (ids: string[], checked: boolean) => {
+    const next = new Set(selected);
+    for (const id of ids) {
+      if (checked) next.add(id);
+      else next.delete(id);
+    }
+    setSelection({ key: listKey, ids: next });
+  };
+
+  const clearSelection = () => setSelection({ key: listKey, ids: NO_SELECTION });
+
+  const applyBulk = (status: TaskStatus) => {
+    bulkStatus.mutate(
+      { tasks: selectedTasks, status },
+      {
+        onSuccess: (result) => {
+          const parts = [t().tasks.bulkMoved(result.updated, t().status[status])];
+          if (result.skipped > 0) parts.push(t().tasks.bulkSkipped(result.skipped));
+          if (result.failed > 0) parts.push(t().tasks.bulkFailed(result.failed));
+          showToast(parts.join(" · "), result.failed > 0 ? "error" : "success");
+          clearSelection();
+        },
+        onError: (error) => showToast(errorMessage(error), "error"),
+      },
+    );
+  };
+  const advancingId = changeStatus.isPending ? changeStatus.variables.id : null;
+
+  const advance = (task: TaskResponse, status: TaskStatus) => {
+    changeStatus.mutate(
+      { id: task.id, status },
+      {
+        onSuccess: (updated) => showToast(t().tasks.movedTo(updated.title, t().status[updated.status])),
+        onError: (error) => showToast(errorMessage(error), "error"),
+      },
+    );
+  };
   const locations = useLocations(filters.country);
-  const hasFilters = [...params.keys()].some((key) => key !== "page" && key !== "sort");
+  const locationList = locations.data ?? [];
+  const hasFilters = [...params.keys()].some((key) => !["page", "sort", "order", "limit"].includes(key));
+  const sortKey = filters.sort ?? "created_at";
+  const sort: SortState<TaskSort> = { key: sortKey, direction: filters.order ?? naturalDirection(sortKey) };
+
+  const applySort = (next: SortState<TaskSort>) => {
+    update({
+      sort: next.key === "created_at" ? undefined : next.key,
+      order: next.direction === naturalDirection(next.key) ? undefined : next.direction,
+    });
+  };
 
   return (
     <>
       <PageHeader
-        title="Tasks"
-        description={isAdmin ? "All cleaning tasks across countries." : `Cleaning tasks in ${countryName(user.country)}.`}
+        title={t().tasks.title}
+        description={isAdmin ? t().tasks.allCountries : t().tasks.inCountry(countryName(user.country))}
         actions={
-          <button type="button" className="btn btn-primary" aria-expanded={showForm} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? "Close form" : "Create task"}
+          <button type="button" className="btn btn-primary" aria-keyshortcuts="n" onClick={() => setCreating(true)}>
+            <Icon name="plus" size={15} />
+            {t().tasks.create}
           </button>
         }
       />
 
-      {showForm && <TaskCreateForm user={user} onCreated={() => setShowForm(false)} />}
-
-      <section className="filters" aria-label="Filters">
-        <Field label="Status">
-          <select className="input" value={filters.status ?? ""} onChange={(e) => update({ status: e.target.value })}>
-            <Options values={TASK_STATUSES} labels={STATUS_LABELS} empty="All statuses" />
-          </select>
-        </Field>
-        <Field label="Priority">
-          <select className="input" value={filters.priority ?? ""} onChange={(e) => update({ priority: e.target.value })}>
-            <Options values={TASK_PRIORITIES} labels={PRIORITY_LABELS} empty="All priorities" />
-          </select>
-        </Field>
-        {isAdmin && (
-          <Field label="Country">
-            <select
-              className="input"
-              value={filters.country ?? ""}
-              onChange={(e) => update({ country: e.target.value, location_id: undefined })}
-            >
-              <Options values={COUNTRIES} labels={COUNTRY_NAMES} empty="All countries" />
-            </select>
-          </Field>
-        )}
-        <Field label="Location">
-          <select className="input" value={filters.location_id ?? ""} onChange={(e) => update({ location_id: e.target.value })}>
-            <option value="">All locations</option>
-            {sortedByFullName(locations.data ?? []).map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.full_name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Created from">
-          <input className="input" type="date" value={filters.date_from ?? ""} onChange={(e) => update({ date_from: e.target.value })} />
-        </Field>
-        <Field label="Created to">
-          <input className="input" type="date" value={filters.date_to ?? ""} onChange={(e) => update({ date_to: e.target.value })} />
-        </Field>
-        <Field label="Sort by">
-          <select className="input" value={filters.sort ?? "created_at"} onChange={(e) => update({ sort: e.target.value })}>
-            <Options values={TASK_SORTS} labels={SORT_LABELS} />
-          </select>
-        </Field>
-        <div className="filters-summary">
-          {tasks.data && <span className="muted">Total: {tasks.data.pagination.total}</span>}
-          {hasFilters && (
-            <button type="button" className="btn btn-ghost" onClick={clear}>
-              Clear filters
-            </button>
-          )}
-        </div>
-      </section>
-
-      {tasks.isPending ? (
-        <Loading label="Loading tasks" />
-      ) : tasks.isError ? (
-        <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
-      ) : tasks.data.data.length === 0 ? (
-        <EmptyState
-          title={hasFilters ? "No tasks match these filters" : "No tasks yet"}
-          hint={hasFilters ? "Try clearing some filters." : "Create the first task with the button above."}
-        />
-      ) : (
-        <>
-          <div className="card-grid" aria-busy={tasks.isFetching}>
-            {tasks.data.data.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
-          <Pagination info={tasks.data.pagination} onChange={(page) => update({ page }, false)} />
-        </>
+      {creating && (
+        <Drawer title={t().tasks.newTask} description={t().tasks.newTaskHint} onClose={() => setCreating(false)}>
+          <TaskForm
+            user={user}
+            onCancel={() => setCreating(false)}
+            onSaved={(task) => {
+              setCreating(false);
+              showToast(t().tasks.created(task.title));
+            }}
+          />
+        </Drawer>
       )}
+
+      <section className="list-card" aria-label={t().tasks.list}>
+        <div className="toolbar">
+          <SearchBox value={filters.search ?? ""} onSearch={(search) => update({ search })} />
+          <FilterMenu filters={filters} locations={locationList} showCountry={isAdmin} onChange={update} />
+          <span className="toolbar-spacer" />
+          <div className="toolbar-compact-sort">
+            <FilterControl label={t().tasks.sort}>
+              <Select
+                variant="inline"
+                value={sortKey}
+                options={optionList(TASK_SORTS, t().sort)}
+                onChange={(key) => applySort({ key, direction: naturalDirection(key) })}
+              />
+            </FilterControl>
+          </div>
+        </div>
+        <ActiveFilters filters={filters} locations={locationList} onChange={update} onClear={clear} />
+
+        {tasks.isPending ? (
+          <ListSkeleton label={t().tasks.loading} columns={isAdmin ? 8 : 7} />
+        ) : tasks.isError ? (
+          <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
+        ) : tasks.data.data.length === 0 ? (
+          <EmptyState
+            title={hasFilters ? t().tasks.noMatch : t().tasks.none}
+            hint={hasFilters ? t().tasks.noMatchHint : t().tasks.noneHint}
+          />
+        ) : (
+          <>
+            <TaskTable
+              tasks={tasks.data.data}
+              showCountry={isAdmin}
+              busy={tasks.isFetching}
+              sort={sort}
+              onSort={(column) => applySort(nextSort(sort, column, naturalDirection))}
+              onAdvance={advance}
+              advancingId={advancingId}
+              selected={selected}
+              onSelect={select}
+            />
+            {selectedTasks.length > 0 && (
+              <BulkBar
+                tasks={selectedTasks}
+                busy={bulkStatus.isPending}
+                onChangeStatus={applyBulk}
+                onClear={clearSelection}
+              />
+            )}
+            <Pagination
+              info={tasks.data.pagination}
+              shown={tasks.data.data.length}
+              noun={t().nouns.tasks(tasks.data.pagination.total)}
+              onPageChange={(page) => update({ page }, false)}
+              pageSizes={PAGE_SIZES}
+              onPageSizeChange={(limit) => update({ limit })}
+            />
+          </>
+        )}
+      </section>
     </>
   );
 }

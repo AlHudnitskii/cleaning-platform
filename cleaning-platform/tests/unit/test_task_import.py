@@ -57,7 +57,7 @@ def test_manager_country_overrides_file_value() -> None:
     ids=["short title", "long title", "unknown country", "unknown priority", "invalid rrule", "invalid user id"],
 )
 def test_invalid_rows_report_row_number(overrides: dict[str, object], message: str) -> None:
-    assert parse_row(valid_row(**overrides), 7, None) == message
+    assert str(parse_row(valid_row(**overrides), 7, None)) == message
 
 
 def test_valid_rrule_and_assignee_are_kept() -> None:

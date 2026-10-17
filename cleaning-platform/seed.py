@@ -1,7 +1,7 @@
 import asyncio
 import random
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from src.infrastructure.database.models import (
     OutboxMessage,
     PushSubscription,
     Task,
+    TaskChecklistItem,
     TaskComment,
     TaskPhoto,
     TaskStatusHistory,
@@ -85,14 +86,36 @@ RECURRING_TASKS = [
 
 QUALITY_COMMENTS = ["Good job!", "Well done", "Acceptable", "Excellent work"]
 
+CHECKLISTS = {
+    "Clean restrooms": ["Disinfect toilets and sinks", "Refill soap and paper", "Mop the floor", "Empty bins"],
+    "Sanitize kitchen": ["Wipe counters", "Clean the microwave", "Empty the dishwasher", "Take out trash"],
+    "Deep clean conference": ["Wipe the table and chairs", "Clean the whiteboard", "Vacuum the carpet"],
+    "Clean lobby": ["Dust the reception desk", "Clean glass doors", "Mop the entrance"],
+}
+
 
 def random_moment(rng: random.Random, days_min: int, days_max: int) -> datetime:
     delta = timedelta(days=rng.randint(days_min, days_max), hours=rng.randint(0, 23), minutes=rng.randint(0, 59))
     return datetime.now(UTC) - delta
 
 
+def random_due_date(rng: random.Random) -> date | None:
+    offset = rng.choice([None, None, -3, -1, 0, 1, 2, 5, 10])
+    return None if offset is None else datetime.now(UTC).date() + timedelta(days=offset)
+
+
 async def cleanup(session: AsyncSession) -> None:
-    for model in (OutboxMessage, TaskComment, TaskStatusHistory, TaskPhoto, PushSubscription, Task, Location, User):
+    for model in (
+        OutboxMessage,
+        TaskChecklistItem,
+        TaskComment,
+        TaskStatusHistory,
+        TaskPhoto,
+        PushSubscription,
+        Task,
+        Location,
+        User,
+    ):
         await session.execute(delete(model))
 
 
@@ -152,8 +175,14 @@ def create_tasks(session: AsyncSession, users: dict[str, User], locations: dict[
                 assigned_to=assignee.id if assignee else None,
                 priority=priority,
                 created_at=created_at,
+                due_date=random_due_date(rng),
             )
             session.add(task)
+            task.photo_required = title in CHECKLISTS
+            finished = path[-1] in (S.ON_REVIEW, S.COMPLETED)
+            for position, text in enumerate(CHECKLISTS.get(title, [])):
+                done = finished or (path[-1] == S.IN_PROGRESS and rng.random() < 0.5)
+                session.add(TaskChecklistItem(task_id=task.id, position=position, text=text, done=done))
 
             previous = None
             for step, status in enumerate(path):

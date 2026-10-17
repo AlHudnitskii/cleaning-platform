@@ -1,14 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { refreshSession } from "../../api/client";
-import { getAccessToken } from "../../auth/session";
+import { api } from "../../api/client";
 import { config } from "../../config";
+import { statsKeys } from "../stats/api";
 import { taskKeys } from "../tasks/api";
 
 const INITIAL_DELAY_MS = 2_000;
 const MAX_DELAY_MS = 60_000;
-const TASK_EVENTS = new Set(["task_created", "task_status_changed"]);
+const TASK_EVENTS = new Set(["task_created", "task_status_changed", "task_updated", "task_deleted"]);
 
 interface TaskEvent {
   type: string;
@@ -39,8 +39,8 @@ export function useTaskEvents(enabled: boolean): void {
     let delay = INITIAL_DELAY_MS;
     let stopped = false;
 
-    const connect = (token: string) => {
-      source = new EventSource(`${config.sseUrl}?token=${encodeURIComponent(token)}`);
+    const connect = (ticket: string) => {
+      source = new EventSource(`${config.sseUrl}?ticket=${encodeURIComponent(ticket)}`);
       source.onopen = () => {
         delay = INITIAL_DELAY_MS;
       };
@@ -48,6 +48,7 @@ export function useTaskEvents(enabled: boolean): void {
         const event = parseEvent(message.data);
         if (!event || !TASK_EVENTS.has(event.type)) return;
         void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+        void queryClient.invalidateQueries({ queryKey: statsKeys.all });
         const taskId = event.data?.task_id;
         if (taskId) void queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
       };
@@ -60,9 +61,10 @@ export function useTaskEvents(enabled: boolean): void {
     };
 
     const reconnect = () => {
-      refreshSession()
-        .then((session) => {
-          if (!stopped) connect(session.access_token);
+      api
+        .post<{ ticket: string }>("/events/ticket")
+        .then(({ ticket }) => {
+          if (!stopped) connect(ticket);
         })
         .catch(() => {
           if (!stopped) timer = setTimeout(reconnect, delay);
@@ -70,9 +72,7 @@ export function useTaskEvents(enabled: boolean): void {
         });
     };
 
-    const token = getAccessToken();
-    if (token) connect(token);
-    else reconnect();
+    reconnect();
 
     return () => {
       stopped = true;

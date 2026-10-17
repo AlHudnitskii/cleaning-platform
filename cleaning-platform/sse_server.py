@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 import uuid
 from collections import defaultdict
 from contextlib import suppress
@@ -13,7 +14,8 @@ from aiohttp import web
 
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
-from src.infrastructure.auth.middleware import AuthError, authenticate_token
+from src.infrastructure.auth.middleware import AuthError, authenticate_ticket
+from src.infrastructure.messaging.events import TaskEvent
 from src.infrastructure.messaging.rabbitmq import connect, declare_task_events, decode_event
 from src.settings import get_settings
 
@@ -21,6 +23,19 @@ logger = logging.getLogger("sse")
 
 PING_SECONDS = 30
 CLIENT_QUEUE_SIZE = 100
+TICKET_MEMORY_SECONDS = 120.0
+
+used_tickets: dict[str, float] = {}
+
+
+def claim_ticket(token_id: str, now: float) -> bool:
+    for known, forget_at in list(used_tickets.items()):
+        if forget_at <= now:
+            del used_tickets[known]
+    if not token_id or token_id in used_tickets:
+        return False
+    used_tickets[token_id] = now + TICKET_MEMORY_SECONDS
+    return True
 
 
 @dataclass(eq=False)
@@ -36,17 +51,18 @@ def sse_message(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
 
 
-def can_receive(user: CurrentUser, event: dict[str, Any]) -> bool:
-    if str(user.id) == event.get("changed_by"):
+def can_receive(user: CurrentUser, event: TaskEvent) -> bool:
+    if user.id == event.changed_by:
         return False
-    assigned = event.get("assigned_to")
-    assigned_to = uuid.UUID(assigned) if assigned else None
-    return task_access.can_view(user, str(event.get("country")), assigned_to)
+    return any(
+        task_access.can_view(user, event.country, assignee)
+        for assignee in (event.assigned_to, event.previous_assigned_to)
+    )
 
 
-def dispatch(event: dict[str, Any]) -> None:
-    event_type = event.pop("type", None)
-    message = sse_message({"type": event_type, "data": event, "timestamp": datetime.now(UTC).isoformat()})
+def dispatch(event: TaskEvent) -> None:
+    data = {"type": event.type.value, "data": event.payload(), "timestamp": datetime.now(UTC).isoformat()}
+    message = sse_message(data)
     for user_clients in clients.values():
         for client in user_clients:
             if can_receive(client.user, event):
@@ -55,13 +71,16 @@ def dispatch(event: dict[str, Any]) -> None:
 
 
 async def stream_handler(request: web.Request) -> web.StreamResponse:
-    token = request.query.get("token")
-    if not token:
+    ticket = request.query.get("ticket")
+    if not ticket:
         raise web.HTTPUnauthorized(text="Unauthorized")
     try:
-        user = await authenticate_token(token)
+        user, claims = await authenticate_ticket(ticket)
     except AuthError as e:
-        raise web.HTTPUnauthorized(text=e.message) from e
+        raise web.HTTPUnauthorized(text=str(e.message)) from e
+    if not claim_ticket(claims.token_id, time.monotonic()):
+        logger.warning("Stream ticket reused", extra={"user_id": str(user.id)})
+        raise web.HTTPUnauthorized(text="Unauthorized")
 
     response = web.StreamResponse(
         headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
@@ -91,7 +110,9 @@ async def stream_handler(request: web.Request) -> web.StreamResponse:
 
 async def on_event(message: AbstractIncomingMessage) -> None:
     async with message.process():
-        dispatch(decode_event(message.body))
+        event = TaskEvent.from_message(decode_event(message.body))
+        if event is not None:
+            dispatch(event)
 
 
 async def consume_events(app: web.Application) -> Any:

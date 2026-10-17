@@ -1,25 +1,27 @@
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { AuthProvider } from "./auth/AuthContext";
 import { homePath } from "./auth/homePath";
 import { RequireRole } from "./auth/RequireRole";
 import { useAuth } from "./auth/useAuth";
+import { AppShell } from "./components/AppShell";
 import { Loading, NotFoundState } from "./components/Feedback";
-import { Navbar } from "./components/Navbar";
 import { useTaskEvents } from "./features/realtime/useTaskEvents";
-import { Dashboard } from "./pages/Dashboard";
-import { Export } from "./pages/Export";
-import { Import } from "./pages/Import";
-import { Locations } from "./pages/Locations";
+import { t, useLocale } from "./i18n/locale";
 import { Login } from "./pages/Login";
-import { MyTasks } from "./pages/MyTasks";
-import { Profile } from "./pages/Profile";
-import { Reports } from "./pages/Reports";
-import { TaskDetail } from "./pages/TaskDetail";
-import { Tasks } from "./pages/Tasks";
-import { Users } from "./pages/Users";
+
+const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
+const Export = lazy(() => import("./pages/Export").then((module) => ({ default: module.Export })));
+const Import = lazy(() => import("./pages/Import").then((module) => ({ default: module.Import })));
+const Locations = lazy(() => import("./pages/Locations").then((module) => ({ default: module.Locations })));
+const MyTasks = lazy(() => import("./pages/MyTasks").then((module) => ({ default: module.MyTasks })));
+const Profile = lazy(() => import("./pages/Profile").then((module) => ({ default: module.Profile })));
+const Reports = lazy(() => import("./pages/Reports").then((module) => ({ default: module.Reports })));
+const TaskDetail = lazy(() => import("./pages/TaskDetail").then((module) => ({ default: module.TaskDetail })));
+const Tasks = lazy(() => import("./pages/Tasks").then((module) => ({ default: module.Tasks })));
+const Users = lazy(() => import("./pages/Users").then((module) => ({ default: module.Users })));
 
 const MANAGERS = ["admin", "manager"] as const;
 
@@ -27,23 +29,22 @@ function AppLayout() {
   const { state } = useAuth();
   useTaskEvents(state.status === "authenticated" && !state.offline);
   return (
-    <>
-      <Navbar />
-      <main className="page">
+    <AppShell>
+      <Suspense fallback={<Loading label={t().app.loadingPage} />}>
         <Outlet />
-      </main>
-    </>
+      </Suspense>
+    </AppShell>
   );
 }
 
 function HomeRedirect() {
   const { state } = useAuth();
-  if (state.status === "loading") return <Loading label="Restoring session" />;
+  if (state.status === "loading") return <Loading label={t().app.restoringSession} />;
   if (state.status === "anonymous") return <Navigate to="/login" replace />;
   return <Navigate to={homePath(state.user.role)} replace />;
 }
 
-export function AppRoutes() {
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -75,12 +76,17 @@ function guard(roles: readonly ("admin" | "manager" | "cleaner")[], element: Rea
   return <RequireRole roles={roles}>{element}</RequireRole>;
 }
 
+export function LocalizedRoutes() {
+  useLocale();
+  return <AppRoutes />;
+}
+
 export function App({ queryClient }: { queryClient: QueryClient }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <LocalizedRoutes />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

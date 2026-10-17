@@ -3,7 +3,8 @@ import { http, HttpResponse } from "msw";
 import { getAccessToken, onSessionExpired, setAccessToken } from "../auth/session";
 import { makeSession, MANAGER } from "../test/fixtures";
 import { server } from "../test/server";
-import { getJson } from "./client";
+import { api } from "./client";
+import { setLocale } from "../i18n/locale";
 import { ApiError, errorMessage, toApiError } from "./errors";
 
 async function failure(request: Promise<unknown>): Promise<ApiError> {
@@ -31,7 +32,7 @@ describe("API client", () => {
       }),
     );
 
-    await expect(Promise.all([getJson("/tasks"), getJson("/tasks")])).resolves.toEqual([{ ok: true }, { ok: true }]);
+    await expect(Promise.all([api.get("/tasks"), api.get("/tasks")])).resolves.toEqual([{ ok: true }, { ok: true }]);
 
     expect(refreshes).toBe(1);
     expect(getAccessToken()).toBe("fresh");
@@ -47,7 +48,7 @@ describe("API client", () => {
       http.post("*/api/auth/refresh", () => HttpResponse.json({ error: "Session is no longer valid" }, { status: 401 })),
     );
 
-    await expect(getJson("/tasks")).rejects.toMatchObject({ kind: "unauthorized" });
+    await expect(api.get("/tasks")).rejects.toMatchObject({ kind: "unauthorized" });
 
     expect(expired).toHaveBeenCalledTimes(1);
     expect(getAccessToken()).toBeNull();
@@ -63,7 +64,7 @@ describe("API client", () => {
       http.post("*/api/auth/refresh", () => HttpResponse.error()),
     );
 
-    await expect(getJson("/tasks")).rejects.toBeInstanceOf(ApiError);
+    await expect(api.get("/tasks")).rejects.toBeInstanceOf(ApiError);
 
     expect(expired).not.toHaveBeenCalled();
     unsubscribe();
@@ -78,7 +79,7 @@ describe("API client", () => {
       }),
     );
 
-    await getJson("/tasks", { page: 1, status: undefined, country: "" });
+    await api.get("/tasks", { page: 1, status: undefined, country: "" });
 
     expect(query).toBe("?page=1");
   });
@@ -96,7 +97,7 @@ describe("toApiError", () => {
   ] as const)("maps HTTP %i to %s", async (status, kind) => {
     server.use(http.get("*/api/x", () => HttpResponse.json({ error: "message" }, { status })));
 
-    const error = await failure(getJson("/x"));
+    const error = await failure(api.get("/x"));
 
     expect(error).toMatchObject({ kind, status });
   });
@@ -104,7 +105,7 @@ describe("toApiError", () => {
   it("hides server internals behind a generic message", async () => {
     server.use(http.get("*/api/x", () => new HttpResponse("<html>Traceback…</html>", { status: 500 })));
 
-    const error = await failure(getJson("/x"));
+    const error = await failure(api.get("/x"));
 
     expect(error.message).toBe("The server failed to process the request. Try again later.");
   });
@@ -119,15 +120,63 @@ describe("toApiError", () => {
       ),
     );
 
-    const message = errorMessage(await failure(getJson("/x")));
+    const message = errorMessage(await failure(api.get("/x")));
 
-    expect(message).toBe("title: Title must be at least 3 characters");
+    expect(message).toBe("Title must be at least 3 characters");
+  });
+
+  it("treats a dropped connection as a network error", async () => {
+    server.use(http.get("*/api/x", () => HttpResponse.error()));
+
+    const error = await failure(api.get("/x"));
+
+    expect(error).toMatchObject({ kind: "network", status: null, message: "No connection to the server." });
+  });
+
+  it("sends JSON bodies with the access token and reads the JSON reply", async () => {
+    setAccessToken("token");
+    let received: { auth: string | null; type: string | null; body: unknown } | null = null;
+    server.use(
+      http.post("*/api/x", async ({ request }) => {
+        received = {
+          auth: request.headers.get("Authorization"),
+          type: request.headers.get("Content-Type"),
+          body: await request.json(),
+        };
+        return HttpResponse.json({ id: "1" }, { status: 201 });
+      }),
+    );
+
+    await expect(api.post("/x", { title: "Clean" })).resolves.toEqual({ id: "1" });
+
+    expect(received).toEqual({ auth: "Bearer token", type: "application/json", body: { title: "Clean" } });
+  });
+
+  it("asks the server to answer in the interface language", async () => {
+    let language: string | null = null;
+    server.use(
+      http.get("*/api/x", ({ request }) => {
+        language = request.headers.get("Accept-Language");
+        return HttpResponse.json({});
+      }),
+    );
+
+    setLocale("ru");
+    await api.get("/x");
+
+    expect(language).toBe("ru");
+  });
+
+  it("resolves empty replies such as 204 without failing", async () => {
+    server.use(http.delete("*/api/x", () => new HttpResponse(null, { status: 204 })));
+
+    await expect(api.delete("/x")).resolves.toBeNull();
   });
 
   it("treats the service worker offline response as a network error", async () => {
     server.use(http.get("*/api/x", () => HttpResponse.json({ error: "offline", offline: true }, { status: 503 })));
 
-    const error = await failure(getJson("/x"));
+    const error = await failure(api.get("/x"));
 
     expect(error.isNetwork).toBe(true);
   });

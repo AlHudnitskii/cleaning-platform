@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { client, getJson } from "../../api/client";
-import type { AssigneeResponse, Country, TokenResponse, UserCreate, UserResponse, UserRole } from "../../api/types";
+import { api } from "../../api/client";
+import type {
+  AssigneeResponse,
+  Country,
+  TokenResponse,
+  UserCreate,
+  UserResponse,
+  UserRole,
+  UserUpdate,
+} from "../../api/types";
 
 export interface UserFilters {
   role?: UserRole;
@@ -15,13 +23,13 @@ export const userKeys = {
 };
 
 export function useUsers(filters: UserFilters) {
-  return useQuery({ queryKey: userKeys.list(filters), queryFn: () => getJson<UserResponse[]>("/users", { ...filters }) });
+  return useQuery({ queryKey: userKeys.list(filters), queryFn: () => api.get<UserResponse[]>("/users", { ...filters }) });
 }
 
 export function useAssignees(country: Country | undefined, enabled = true) {
   return useQuery({
     queryKey: userKeys.assignees(country),
-    queryFn: () => getJson<AssigneeResponse[]>("/users/assignees", { country }),
+    queryFn: () => api.get<AssigneeResponse[]>("/users/assignees", { country }),
     enabled,
     staleTime: 60 * 1000,
   });
@@ -30,22 +38,36 @@ export function useAssignees(country: Country | undefined, enabled = true) {
 export function useCreateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: UserCreate) => (await client.post<UserResponse>("/users", data)).data,
+    mutationFn: (data: UserCreate) => api.post<UserResponse>("/users", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useUpdateUser(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UserUpdate) => api.patch<UserResponse>(`/users/${userId}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useResetPassword(userId: string) {
+  return useMutation({
+    mutationFn: (newPassword: string) => api.post(`/users/${userId}/password`, { new_password: newPassword }),
   });
 }
 
 export function useToggleActive() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (userId: string) => (await client.patch<UserResponse>(`/users/${userId}/toggle-active`)).data,
+    mutationFn: (userId: string) => api.patch<UserResponse>(`/users/${userId}/toggle-active`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
   });
 }
 
 export function useChangePassword() {
   return useMutation({
-    mutationFn: async (data: { old_password: string; new_password: string }) =>
-      (await client.patch<TokenResponse>("/users/me/password", data)).data,
+    mutationFn: (data: { old_password: string; new_password: string }) =>
+      api.patch<TokenResponse>("/users/me/password", data),
   });
 }

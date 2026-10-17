@@ -5,7 +5,7 @@ import azure.functions as func
 import pandas as pd
 from sqlalchemy import or_, select
 
-from src.api.http import ApiError, authenticated, json_response
+from src.api.http import ApiError, authenticated, json_response, request_locale
 from src.domain.models.enums import TaskStatus, UserRole
 from src.domain.models.user import CurrentUser
 from src.domain.services import task_access
@@ -18,10 +18,12 @@ from src.domain.services.task_import import (
 )
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import Location, Task, User
+from src.translations import Text, phrases
 
 bp = func.Blueprint()
 
 FIRST_DATA_ROW = 2
+PREVIEW_ROWS = 50
 TEMPLATE_ROWS = [
     {
         "title": "Clean Room 101",
@@ -52,49 +54,72 @@ def read_table(filename: str, data: bytes) -> pd.DataFrame:
         if name.endswith(".xlsx"):
             return pd.read_excel(io.BytesIO(data), dtype=str, keep_default_na=False, nrows=MAX_IMPORT_ROWS + 1)
     except (ValueError, UnicodeDecodeError, pd.errors.ParserError) as e:
-        raise ApiError(400, "Failed to parse file. Check that it is a valid CSV or Excel file") from e
-    raise ApiError(400, "Unsupported file format. Use CSV or Excel (.xlsx)")
+        raise ApiError(400, phrases.IMPORT_UNREADABLE()) from e
+    raise ApiError(400, phrases.IMPORT_FORMAT())
 
 
-def row_error(row: ImportRow, message: str) -> str:
-    return f"Row {row.row_number}: {message}"
+def row_error(row: ImportRow, message: Text) -> Text:
+    return phrases.IMPORT_ROW(row=row.row_number, message=message)
+
+
+def assignee_allowed(row: ImportRow, assignee: User | None) -> bool:
+    if not row.assignee_email and not row.assignee_id:
+        return True
+    return assignee is not None and task_access.can_assign(
+        row.country, assignee.role, assignee.country, assignee.is_active
+    )
+
+
+def preview_row(row: ImportRow, location: Location | None, assignee: User | None) -> dict[str, object]:
+    return {
+        "row": row.row_number,
+        "title": row.title,
+        "country": row.country.value,
+        "priority": row.priority.value,
+        "location_name": location.name if location else None,
+        "assignee_email": assignee.email if assignee else None,
+        "rrule": row.rrule,
+    }
 
 
 @bp.route(route="import/tasks", methods=["POST"])
 @authenticated(UserRole.ADMIN, UserRole.MANAGER)
 async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    locale = request_locale(req)
+    dry_run = req.params.get("dry_run") == "true"
     upload = req.files.get("file")
     if upload is None:
-        raise ApiError(400, "No file provided. Use form-data with key 'file'")
+        raise ApiError(400, phrases.IMPORT_NO_FILE())
 
     data = upload.read(MAX_IMPORT_BYTES + 1)
     if len(data) > MAX_IMPORT_BYTES:
-        raise ApiError(413, f"File must be at most {MAX_IMPORT_BYTES // (1024 * 1024)} MB")
+        raise ApiError(413, phrases.IMPORT_TOO_LARGE(megabytes=MAX_IMPORT_BYTES // (1024 * 1024)))
 
     df = read_table(upload.filename or "", data)
     df.columns = [str(c).strip().lower() for c in df.columns]
     missing = REQUIRED_COLUMNS - set(df.columns)
     if missing:
-        raise ApiError(400, f"Missing required columns: {', '.join(sorted(missing))}")
+        raise ApiError(400, phrases.IMPORT_MISSING_COLUMNS(columns=", ".join(sorted(missing))))
     if len(df) > MAX_IMPORT_ROWS:
-        raise ApiError(400, f"File must contain at most {MAX_IMPORT_ROWS} rows")
+        raise ApiError(400, phrases.IMPORT_TOO_MANY_ROWS(limit=MAX_IMPORT_ROWS))
 
     forced_country = user.country if user.is_manager else None
-    errors: list[str] = []
+    errors: list[Text] = []
     rows: list[ImportRow] = []
     for offset, record in enumerate(df.to_dict(orient="records")):
         parsed = parse_row(record, offset + FIRST_DATA_ROW, forced_country)
-        if isinstance(parsed, str):
+        if isinstance(parsed, Text):
             errors.append(parsed)
         else:
             rows.append(parsed)
 
-    imported = 0
+    ready: list[Task] = []
+    preview: list[dict[str, object]] = []
     async with session_scope() as session, session.begin():
         countries = {row.country.value for row in rows}
         locations: dict[tuple[str, str], list[Location]] = {}
-        for location in await session.scalars(select(Location).where(Location.country.in_(countries))):
-            locations.setdefault((location.country, location.name.lower()), []).append(location)
+        for known in await session.scalars(select(Location).where(Location.country.in_(countries))):
+            locations.setdefault((known.country, known.name.lower()), []).append(known)
 
         emails = {row.assignee_email for row in rows if row.assignee_email}
         ids = {row.assignee_id for row in rows if row.assignee_id}
@@ -104,46 +129,61 @@ async def import_tasks(req: func.HttpRequest, user: CurrentUser) -> func.HttpRes
 
         now = datetime.now(UTC)
         for row in rows:
-            location_id = None
+            location: Location | None = None
             if row.location_name:
                 matches = locations.get((row.country.value, row.location_name.lower()), [])
                 if not matches:
-                    errors.append(row_error(row, f"location '{row.location_name}' not found in {row.country}"))
+                    errors.append(
+                        row_error(
+                            row,
+                            phrases.ROW_LOCATION_MISSING(
+                                name=row.location_name, country=phrases.country_name(row.country)
+                            ),
+                        )
+                    )
                     continue
                 if len(matches) > 1:
-                    errors.append(row_error(row, f"location name '{row.location_name}' is ambiguous"))
+                    errors.append(row_error(row, phrases.ROW_LOCATION_AMBIGUOUS(name=row.location_name)))
                     continue
-                location_id = matches[0].id
+                location = matches[0]
 
-            assignee_id = None
             assignee = by_id.get(row.assignee_id) if row.assignee_id else None
             if row.assignee_email:
                 assignee = by_email.get(row.assignee_email)
-            if row.assignee_email or row.assignee_id:
-                if assignee is None or not task_access.can_assign(
-                    row.country, assignee.role, assignee.country, assignee.is_active
-                ):
-                    errors.append(row_error(row, "assignee must be an active cleaner from the task's country"))
-                    continue
-                assignee_id = assignee.id
+            if not assignee_allowed(row, assignee):
+                errors.append(row_error(row, phrases.ROW_ASSIGNEE_NOT_ALLOWED()))
+                continue
 
-            session.add(
+            ready.append(
                 Task(
                     title=row.title,
                     description=row.description,
                     status=TaskStatus.PENDING,
                     country=row.country,
-                    location_id=location_id,
-                    assigned_to=assignee_id,
+                    location_id=location.id if location else None,
+                    assigned_to=assignee.id if assignee else None,
                     priority=row.priority,
                     rrule=row.rrule,
                     is_recurring=bool(row.rrule),
                     created_at=now,
                 )
             )
-            imported += 1
+            if len(preview) < PREVIEW_ROWS:
+                preview.append(preview_row(row, location, assignee))
 
-    return json_response({"imported": imported, "total_rows": len(df), "errors": errors})
+        if not dry_run:
+            session.add_all(ready)
+
+    return json_response(
+        {
+            "imported": 0 if dry_run else len(ready),
+            "valid_rows": len(ready),
+            "total_rows": len(df),
+            "errors": [error.render(locale) for error in errors],
+            "preview": preview,
+            "dry_run": dry_run,
+        }
+    )
 
 
 @bp.route(route="import/template", methods=["GET"])

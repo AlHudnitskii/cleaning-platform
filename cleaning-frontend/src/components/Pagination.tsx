@@ -1,54 +1,70 @@
 import type { Pagination as PaginationInfo } from "../api/types";
+import { t } from "../i18n/locale";
 
-const WINDOW = 2;
+export function Pagination({
+  info,
+  shown,
+  noun,
+  onPageChange,
+  pageSizes,
+  onPageSizeChange,
+}: {
+  info: PaginationInfo;
+  shown: number;
+  noun: string;
+  onPageChange: (page: number) => void;
+  pageSizes?: readonly number[];
+  onPageSizeChange?: (size: number) => void;
+}) {
+  const canGoBack = info.page > 1;
+  const canGoForward = info.page < info.pages;
 
-function visiblePages(current: number, total: number): (number | "gap")[] {
-  const pages: (number | "gap")[] = [];
-  for (let page = 1; page <= total; page++) {
-    if (page === 1 || page === total || Math.abs(page - current) <= WINDOW) pages.push(page);
-    else if (pages[pages.length - 1] !== "gap") pages.push("gap");
-  }
-  return pages;
-}
-
-export function Pagination({ info, onChange }: { info: PaginationInfo; onChange: (page: number) => void }) {
-  if (info.pages <= 1) return null;
   return (
-    <nav className="pagination" aria-label="Pagination">
-      <button
-        type="button"
-        className="btn btn-secondary"
-        disabled={info.page <= 1}
-        onClick={() => onChange(info.page - 1)}
-      >
-        Previous
-      </button>
-      {visiblePages(info.page, info.pages).map((page, index) =>
-        page === "gap" ? (
-          <span key={`gap-${index}`} className="pagination-gap" aria-hidden="true">
-            …
-          </span>
-        ) : (
-          <button
-            key={page}
-            type="button"
-            className={page === info.page ? "btn btn-primary" : "btn btn-secondary"}
-            aria-current={page === info.page ? "page" : undefined}
-            aria-label={`Page ${page}`}
-            onClick={() => onChange(page)}
-          >
-            {page}
-          </button>
-        ),
+    <div className="list-footer">
+      <span className="list-footer-count">
+        {t().pagination.shown(shown, info.total, noun)}
+      </span>
+      <span className="list-footer-spacer" />
+      {pageSizes && onPageSizeChange && (
+        <div className="pager-group" role="group" aria-label={t().pagination.rowsPerPage}>
+          <span className="pager-caption">{t().pagination.rows}</span>
+          {pageSizes.map((size) => (
+            <button
+              key={size}
+              type="button"
+              className="pager-size"
+              aria-pressed={info.limit === size}
+              onClick={() => onPageSizeChange(size)}
+            >
+              {size}
+            </button>
+          ))}
+        </div>
       )}
-      <button
-        type="button"
-        className="btn btn-secondary"
-        disabled={info.page >= info.pages}
-        onClick={() => onChange(info.page + 1)}
-      >
-        Next
-      </button>
-    </nav>
+      <nav className="pager-group pager-nav" aria-label={t().pagination.label}>
+        <button
+          type="button"
+          className="pager-step"
+          aria-label={t().pagination.previous}
+          disabled={!canGoBack}
+          onClick={() => onPageChange(info.page - 1)}
+        >
+          ‹
+        </button>
+        <span className="pager-position" aria-live="polite">
+          <span className="visually-hidden">{t().pagination.page}</span>
+          {info.page} / {info.pages}
+        </span>
+        <button
+          type="button"
+          className="pager-step"
+          aria-label={t().pagination.next}
+          disabled={!canGoForward}
+          onClick={() => onPageChange(info.page + 1)}
+        >
+          ›
+        </button>
+      </nav>
+    </div>
   );
 }

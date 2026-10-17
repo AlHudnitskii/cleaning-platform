@@ -1,124 +1,138 @@
-import { useId, useState, type SubmitEvent } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { errorMessage } from "../api/errors";
 import { useCurrentUser } from "../auth/useAuth";
-import { Notice } from "../components/Feedback";
+import { ListSkeleton, Notice } from "../components/Feedback";
+import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
-import { useDownloadTemplate, useImportTasks } from "../features/transfer/api";
-
-const MAX_BYTES = 5 * 1024 * 1024;
-
-const COLUMNS = [
-  { name: "title", required: true, description: "Task title, 3–255 characters" },
-  { name: "country", required: true, description: "Two-letter code: DE, NL, US…" },
-  { name: "description", required: false, description: "Free text" },
-  { name: "priority", required: false, description: "low / normal / high / urgent (default normal)" },
-  { name: "assignee_email", required: false, description: "Email of an active cleaner from the same country" },
-  { name: "location_name", required: false, description: "Exact location name in the same country" },
-  { name: "rrule", required: false, description: "Recurrence rule, e.g. FREQ=DAILY" },
-];
+import { showToast } from "../components/toast";
+import { useDownloadTemplate, useImportPreview, useImportTasks } from "../features/transfer/api";
+import { t } from "../i18n/locale";
+import { ImportFilePicker } from "../features/transfer/ImportFile";
+import { fileProblem, formatSize } from "../features/transfer/importFiles";
+import { ImportReview } from "../features/transfer/ImportReview";
+import { ImportFormatReference } from "../features/transfer/ImportFormat";
 
 export function Import() {
   const user = useCurrentUser();
-  const inputId = useId();
-  const [file, setFile] = useState<File | null>(null);
-  const [tooLarge, setTooLarge] = useState(false);
+  const preview = useImportPreview();
   const importTasks = useImportTasks();
   const template = useDownloadTemplate();
+  const [file, setFile] = useState<File | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
 
-  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (file) importTasks.mutate(file);
+  const step = importTasks.isSuccess ? 2 : file ? 1 : 0;
+
+  const choose = (selected: File | null) => {
+    importTasks.reset();
+    preview.reset();
+    if (!selected) return;
+    const issue = fileProblem(selected);
+    setProblem(issue);
+    setFile(issue ? null : selected);
+    if (!issue) preview.mutate(selected);
   };
 
-  const result = importTasks.data;
+  const restart = () => {
+    setFile(null);
+    setProblem(null);
+    preview.reset();
+    importTasks.reset();
+  };
+
+  const runImport = () => {
+    if (!file) return;
+    importTasks.mutate(file, {
+      onSuccess: (result) => showToast(t().importing.imported(result.imported)),
+    });
+  };
 
   return (
     <>
       <PageHeader
-        title="Import tasks"
-        description="Upload a CSV or Excel (.xlsx) file to create many tasks at once."
+        title={t().importing.title}
+        description={t().importing.description}
         actions={
           <button type="button" className="btn btn-secondary" disabled={template.isPending} onClick={() => template.mutate()}>
-            {template.isPending ? "Preparing…" : "Download template"}
+            <Icon name="import" size={15} />
+            {template.isPending ? t().importing.preparing : t().importing.template}
           </button>
         }
       />
-      <div className="two-columns">
-        <section className="card" aria-labelledby="upload-title">
-          <h2 id="upload-title" className="section-title">
-            Upload file
-          </h2>
-          {template.isError && <Notice tone="error">{errorMessage(template.error)}</Notice>}
-          {importTasks.isError && <Notice tone="error">{errorMessage(importTasks.error)}</Notice>}
-          {tooLarge && <Notice tone="error">The file must be at most 5 MB.</Notice>}
-          {result && (
-            <Notice tone={result.errors.length === 0 ? "success" : result.imported > 0 ? "warning" : "error"}>
-              <p>
-                Imported {result.imported} of {result.total_rows} rows.
-              </p>
-              {result.errors.length > 0 && (
-                <ul className="error-list">
-                  {result.errors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              )}
-            </Notice>
-          )}
-          <form className="stack" onSubmit={handleSubmit}>
-            <label htmlFor={inputId} className="dropzone">
-              <span className="dropzone-title">{file ? file.name : "Choose a file"}</span>
-              <span className="muted">{file ? `${(file.size / 1024).toFixed(1)} KB` : ".xlsx or .csv, up to 5 MB"}</span>
-            </label>
-            <input
-              id={inputId}
-              className="visually-hidden"
-              type="file"
-              accept=".xlsx,.csv"
-              onChange={(e) => {
-                const selected = e.target.files?.[0] ?? null;
-                const oversized = selected !== null && selected.size > MAX_BYTES;
-                setTooLarge(oversized);
-                setFile(oversized ? null : selected);
-                importTasks.reset();
-              }}
-            />
-            <button className="btn btn-primary" type="submit" disabled={!file || importTasks.isPending}>
-              {importTasks.isPending ? "Importing…" : "Import"}
-            </button>
-          </form>
-        </section>
+      {template.isError && <Notice tone="error">{errorMessage(template.error)}</Notice>}
 
-        <section className="card" aria-labelledby="format-title">
-          <h2 id="format-title" className="section-title">
-            File format
-          </h2>
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">Column</th>
-                <th scope="col">Required</th>
-                <th scope="col">Meaning</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COLUMNS.map((column) => (
-                <tr key={column.name}>
-                  <td>
-                    <code>{column.name}</code>
-                  </td>
-                  <td>{column.required ? "Yes" : "No"}</td>
-                  <td>{column.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {user.role === "manager" && (
-            <p className="muted">As a manager, every imported task is created in your country.</p>
-          )}
+      <ol className="stepper" aria-label={t().importing.progress}>
+        {t().importing.steps.map((label, index) => (
+          <li
+            key={label}
+            className={index < step ? "is-done" : index === step ? "is-current" : undefined}
+            aria-current={index === step ? "step" : undefined}
+          >
+            <span className="stepper-mark" aria-hidden="true">
+              {index < step ? <Icon name="check" size={13} /> : index + 1}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ol>
+
+      {step === 0 && (
+        <div className="two-columns">
+          <ImportFilePicker problem={problem} onChoose={choose} />
+          <ImportFormatReference managerCountry={user.role === "manager"} />
+        </div>
+      )}
+
+      {step === 1 && file && (
+        <section className="card" aria-labelledby="review-title">
+          <div className="section-header">
+            <div>
+              <h2 id="review-title" className="section-title">
+                {file.name}
+              </h2>
+              <p className="muted">{formatSize(file.size)}</p>
+            </div>
+            <button type="button" className="btn btn-ghost btn-small" onClick={restart}>
+              {t().importing.chooseAnother}
+            </button>
+          </div>
+          {preview.isPending ? (
+            <ListSkeleton label={t().importing.checking} rows={4} columns={5} />
+          ) : preview.isError ? (
+            <Notice tone="error">{errorMessage(preview.error)}</Notice>
+          ) : preview.data ? (
+            <ImportReview
+              result={preview.data}
+              importing={importTasks.isPending}
+              importError={importTasks.isError ? errorMessage(importTasks.error) : null}
+              onImport={runImport}
+            />
+          ) : null}
         </section>
-      </div>
+      )}
+
+      {step === 2 && importTasks.data && (
+        <section className="card import-done" aria-labelledby="done-title">
+          <span className="import-done-mark" aria-hidden="true">
+            <Icon name="check" size={22} />
+          </span>
+          <h2 id="done-title" className="section-title">
+            {t().importing.importedTitle(importTasks.data.imported)}
+          </h2>
+          {importTasks.data.errors.length > 0 && (
+            <p className="muted">{t().importing.skippedAfter(importTasks.data.errors.length)}</p>
+          )}
+          <div className="button-row">
+            <Link className="btn btn-primary" to="/tasks">
+              {t().importing.viewTasks}
+            </Link>
+            <button type="button" className="btn btn-secondary" onClick={restart}>
+              {t().importing.importAnother}
+            </button>
+          </div>
+        </section>
+      )}
     </>
   );
 }

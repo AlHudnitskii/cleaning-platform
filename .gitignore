@@ -3,6 +3,7 @@
 !.env.example
 local.settings.json
 secrets.json
+*.pem
 
 __pycache__/
 *.py[cod]
@@ -33,3 +34,6 @@ npm-debug.log*
 *.swp
 .DS_Store
 Thumbs.db
+
+LCS Admin Console*.html
+LCS Admin Console*_files/

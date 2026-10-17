@@ -1,5 +1,5 @@
-const CACHE_NAME = "cleaning-platform-v3";
-const APP_SHELL = ["/", "/index.html", "/manifest.json", "/logo192.png", "/favicon.ico"];
+const CACHE_NAME = "cleaning-platform-v6";
+const APP_SHELL = ["/", "/index.html", "/manifest.json", "/favicon.svg", "/favicon-32.png", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -79,13 +79,29 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || "Cleaning Platform", {
       body: data.body || "New notification",
-      icon: "/logo192.png",
-      badge: "/logo192.png",
+      icon: "/icon-192.png",
+      badge: "/favicon-32.png",
+      data: { url: notificationUrl(data.task_id) },
     }),
   );
 });
 
+const TASK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function notificationUrl(taskId) {
+  return typeof taskId === "string" && TASK_ID.test(taskId) ? `/tasks/${taskId}` : "/";
+}
+
+async function openApp(url) {
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+  if (!existing) return self.clients.openWindow(url);
+  await existing.focus();
+  return existing.navigate(url).catch(() => self.clients.openWindow(url));
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow("/"));
+  const url = event.notification.data?.url ?? "/";
+  event.waitUntil(openApp(url));
 });

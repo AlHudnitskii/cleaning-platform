@@ -1,5 +1,5 @@
 import type { LocationResponse } from "../../api/types";
-import { buildTree } from "./api";
+import { buildTree, filterTree } from "./api";
 
 function location(id: string, name: string, parentId: string | null): LocationResponse {
   return {
@@ -30,5 +30,30 @@ describe("buildTree", () => {
     const tree = buildTree([location("floor", "Floor 1", "hidden-building")]);
 
     expect(tree.map((n) => n.name)).toEqual(["Floor 1"]);
+  });
+});
+
+describe("filterTree", () => {
+  const tree = buildTree([
+    location("germany", "Germany", null),
+    location("berlin", "Berlin", "germany"),
+    location("hq", "Berlin HQ", "berlin"),
+    location("munich", "Munich", "germany"),
+  ]);
+
+  it("keeps matches together with their ancestors, case-insensitively", () => {
+    const result = filterTree(tree, "hq");
+
+    expect(result.map((n) => n.name)).toEqual(["Germany"]);
+    expect(result[0]?.children.map((n) => n.name)).toEqual(["Berlin"]);
+    expect(result[0]?.children[0]?.children.map((n) => n.name)).toEqual(["Berlin HQ"]);
+  });
+
+  it("returns nothing when no location matches", () => {
+    expect(filterTree(tree, "paris")).toEqual([]);
+  });
+
+  it("returns the tree unchanged for an empty query", () => {
+    expect(filterTree(tree, "  ")).toBe(tree);
   });
 });

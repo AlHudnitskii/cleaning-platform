@@ -5,6 +5,11 @@ from typing import Any
 import azure.functions as func
 from pydantic import BaseModel
 
+from src.api.schemas.checklist_template import (
+    ChecklistTemplateCreate,
+    ChecklistTemplateResponse,
+    ChecklistTemplateUpdate,
+)
 from src.api.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from src.api.schemas.task import (
     ChecklistItemCreate,
@@ -36,6 +41,9 @@ bp = func.Blueprint()
 
 SCHEMAS: list[type[BaseModel]] = [
     AssigneeResponse,
+    ChecklistTemplateCreate,
+    ChecklistTemplateResponse,
+    ChecklistTemplateUpdate,
     CommentCreate,
     CommentResponse,
     HistoryEntryResponse,
@@ -66,10 +74,13 @@ PATH_PARAMS = {
     "location_id": "Location ID",
     "user_id": "User ID",
     "item_id": "Checklist item ID",
+    "template_id": "Checklist template ID",
 }
 
 CHECKLIST = "/tasks/{task_id}/checklist"
 CHECKLIST_ITEM = "/tasks/{task_id}/checklist/{item_id}"
+TEMPLATES = "/checklist-templates"
+TEMPLATE = "/checklist-templates/{template_id}"
 
 ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     (
@@ -103,6 +114,24 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ("post", CHECKLIST, "Add a checklist item (admin, manager)", "ChecklistItemCreate", "ChecklistItemResponse", True),
     ("patch", CHECKLIST_ITEM, "Tick or rename a checklist item", "ChecklistItemUpdate", "ChecklistItemResponse", True),
     ("delete", CHECKLIST_ITEM, "Remove a checklist item (admin, manager)", None, None, True),
+    (
+        "get",
+        TEMPLATES,
+        "Checklist templates of the caller's country (admin: ?country)",
+        None,
+        "ChecklistTemplateResponse",
+        True,
+    ),
+    ("post", TEMPLATES, "Create a checklist template", "ChecklistTemplateCreate", "ChecklistTemplateResponse", True),
+    (
+        "patch",
+        TEMPLATE,
+        "Rename a template or replace its steps",
+        "ChecklistTemplateUpdate",
+        "ChecklistTemplateResponse",
+        True,
+    ),
+    ("delete", TEMPLATE, "Delete a checklist template", None, None, True),
     ("get", "/tasks/{task_id}/comments", "Task comments", None, "CommentResponse", True),
     ("post", "/tasks/{task_id}/comments", "Add a comment", "CommentCreate", "CommentResponse", True),
     ("get", "/tasks/{task_id}/history", "Status history", None, "HistoryEntryResponse", True),

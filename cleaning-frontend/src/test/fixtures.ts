@@ -1,4 +1,11 @@
-import type { LocationResponse, TaskPage, TaskResponse, TokenResponse, UserResponse } from "../api/types";
+import type {
+  ChecklistTemplate,
+  LocationResponse,
+  TaskPage,
+  TaskResponse,
+  TokenResponse,
+  UserResponse,
+} from "../api/types";
 
 export function makeUser(overrides: Partial<UserResponse> = {}): UserResponse {
   return {
@@ -79,6 +86,17 @@ export function makeLocation(overrides: Partial<LocationResponse> = {}): Locatio
     path: "77777777",
     full_name: "Germany",
     created_at: "2026-01-01T00:00:00+00:00",
+    ...overrides,
+  };
+}
+
+export function makeTemplate(overrides: Partial<ChecklistTemplate> = {}): ChecklistTemplate {
+  return {
+    id: "77777777-7777-4777-8777-777777777777",
+    name: "Bathroom",
+    country: "DE",
+    items: ["Clean the sink", "Mop the floor"],
+    created_at: "2026-10-01T09:00:00+00:00",
     ...overrides,
   };
 }

@@ -506,39 +506,6 @@
   flex: 1 1 auto;
 }
 
-.checklist-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.checklist-editor-items {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-left: 22px;
-  color: var(--text);
-}
-
-.checklist-editor-items li {
-  padding-left: 4px;
-}
-
-.checklist-editor-items li > span {
-  display: inline-block;
-  min-width: 0;
-  max-width: calc(100% - 40px);
-  vertical-align: middle;
-  overflow-wrap: anywhere;
-}
-
-.checklist-editor-items .icon-button {
-  width: 28px;
-  height: 28px;
-  flex-basis: 28px;
-  vertical-align: middle;
-}
-
 .task-card-hint {
   font-size: 13.5px;
   color: var(--info);

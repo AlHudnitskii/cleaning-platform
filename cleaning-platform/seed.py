@@ -11,6 +11,7 @@ from src.domain.services.locations import build_path
 from src.infrastructure.auth.jwt_handler import hash_password
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import (
+    ChecklistTemplate,
     Location,
     OutboxMessage,
     PushSubscription,
@@ -18,9 +19,16 @@ from src.infrastructure.database.models import (
     TaskChecklistItem,
     TaskComment,
     TaskPhoto,
+    TaskReminder,
     TaskStatusHistory,
     User,
 )
+
+TEMPLATES = [
+    ("Bathroom", "DE", ["Clean the sink and mirror", "Scrub the toilet", "Refill soap and paper", "Mop the floor"]),
+    ("Office", "DE", ["Wipe desks", "Empty bins", "Vacuum the carpet"]),
+    ("Kitchen", "NL", ["Wipe counters", "Clean the microwave", "Empty the dishwasher", "Mop the floor"]),
+]
 
 USERS = [
     ("admin@cleaning.com", "admin123", "admin", None),
@@ -107,6 +115,8 @@ def random_due_date(rng: random.Random) -> date | None:
 async def cleanup(session: AsyncSession) -> None:
     for model in (
         OutboxMessage,
+        ChecklistTemplate,
+        TaskReminder,
         TaskChecklistItem,
         TaskComment,
         TaskStatusHistory,
@@ -220,8 +230,14 @@ async def main() -> None:
         locations = create_locations(session)
         await session.flush()
         task_count = create_tasks(session, users, locations)
+        session.add_all(
+            ChecklistTemplate(name=name, country=country, items=items) for name, country, items in TEMPLATES
+        )
 
-    print(f"Seeded {len(USERS)} users, {len(LOCATIONS)} locations, {task_count + len(RECURRING_TASKS)} tasks")
+    print(
+        f"Seeded {len(USERS)} users, {len(LOCATIONS)} locations, {task_count + len(RECURRING_TASKS)} tasks, "
+        f"{len(TEMPLATES)} checklist templates"
+    )
     for email, password, role, country in USERS:
         print(f"  {role:8} {email:28} {password}  {country or ''}")
 

@@ -645,3 +645,45 @@ textarea.input {
 .check-field .field-hint {
   padding-left: 28px;
 }
+
+.steps-add {
+  display: flex;
+  gap: 8px;
+}
+
+.steps-add .input {
+  flex: 1 1 auto;
+}
+
+.steps-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.steps-editor-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 22px;
+  color: var(--text);
+}
+
+.steps-editor-items li {
+  padding-left: 4px;
+}
+
+.steps-editor-items li > span {
+  display: inline-block;
+  min-width: 0;
+  max-width: calc(100% - 40px);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.steps-editor-items .icon-button {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  vertical-align: middle;
+}

@@ -51,6 +51,7 @@ USER = Phrase("User", "Пользователь")
 LOCATION = Phrase("Location", "Локация")
 PARENT_LOCATION = Phrase("Parent location", "Родительская локация")
 CHECKLIST_ITEM = Phrase("Checklist item", "Пункт чек-листа")
+CHECKLIST_TEMPLATE = Phrase("Checklist template", "Шаблон чек-листа")
 
 FIELD = {
     "title": Phrase("Title", "Название"),
@@ -76,6 +77,7 @@ FIELD = {
     "checklist": Phrase("Checklist", "Чек-лист"),
     "photo_required": Phrase("Photo requirement", "Требование фото"),
     "done": Phrase("Done", "Выполнено"),
+    "items": Phrase("Steps", "Пункты"),
     "endpoint": Phrase("Push endpoint", "Адрес push-подписки"),
 }
 
@@ -192,6 +194,18 @@ CHECKLIST_TOO_LONG = Phrase(
     "A checklist can have at most {limit} items", "В чек-листе может быть не больше {limit} пунктов"
 )
 CANNOT_TICK = Phrase("You cannot tick items of this task", "Отмечать пункты этой задачи вы не можете")
+
+TEMPLATE_EMPTY = Phrase("A template needs at least one step", "В шаблоне должен быть хотя бы один пункт")
+TEMPLATE_NAME_TAKEN = Phrase(
+    "A template with this name already exists in this country", "Шаблон с таким названием в этой стране уже есть"
+)
+TEMPLATE_COUNTRY_REQUIRED = Phrase("Choose the country of the template", "Укажите страну шаблона")
+TEMPLATE_IN_OWN_COUNTRY = Phrase(
+    "You can only create templates in your country", "Создавать шаблоны можно только в своей стране"
+)
+TEMPLATES_TOO_MANY = Phrase(
+    "A country can have at most {limit} templates", "В одной стране может быть не больше {limit} шаблонов"
+)
 
 NO_PHOTO = Phrase("No photo file provided. Use form-data with key 'photo'", "Файл фото не передан (поле формы «photo»)")
 PHOTO_TOO_LARGE = Phrase("Photo must be at most {megabytes} MB", "Фото должно быть не больше {megabytes} МБ")

@@ -22,6 +22,7 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 TABLES = [
     "outbox_messages",
+    "checklist_templates",
     "task_comments",
     "task_status_history",
     "task_photos",

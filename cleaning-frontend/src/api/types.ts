@@ -111,6 +111,25 @@ export interface ChecklistItem {
   done_at: string | null;
 }
 
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  country: Country;
+  items: string[];
+  created_at: string;
+}
+
+export interface ChecklistTemplateCreate {
+  name: string;
+  country?: Country;
+  items: string[];
+}
+
+export interface ChecklistTemplateUpdate {
+  name?: string;
+  items?: string[];
+}
+
 export interface TaskUpdate {
   title?: string;
   description?: string | null;

@@ -13,13 +13,15 @@ import {
 import { DatePicker } from "../../components/DatePicker";
 import { Notice } from "../../components/Feedback";
 import { Field } from "../../components/Field";
-import { Icon } from "../../components/Icon";
 import { optionList, withEmpty } from "../../components/options";
 import { Select } from "../../components/Select";
+import { MAX_STEPS, StepsEditor } from "../../components/StepsEditor";
+import { showToast } from "../../components/toast";
 import { today } from "../../dates";
 import { countryNames, rruleOptions } from "../../labels";
 import { t } from "../../i18n/locale";
 import { sortedByFullName, useLocations } from "../locations/api";
+import { useChecklistTemplates } from "../checklists/api";
 import { useAssignees } from "../users/api";
 import { useCreateTask, useUpdateTask } from "./api";
 
@@ -97,6 +99,7 @@ export function TaskForm({
   const saving = task ? updateTask : createTask;
   const locations = useLocations(form.country);
   const assignees = useAssignees(form.country);
+  const templates = useChecklistTemplates(form.country, !task);
   const canChooseCountry = !task && user.role === "admin";
   const changes = task ? changesFrom(initial, form) : null;
   const unchanged = changes !== null && Object.keys(changes).length === 0;
@@ -210,7 +213,32 @@ export function TaskForm({
           />
         </Field>
         {!task && (
-          <ChecklistEditor items={form.checklist} onChange={(checklist) => set("checklist", checklist)} />
+          <>
+            <Field
+              label={t().templates.apply}
+              hint={listHint(templates, t().templates.noTemplates)}
+            >
+              <Select
+                value=""
+                disabled={!templates.data?.length}
+                options={withEmpty(
+                  t().templates.choose,
+                  (templates.data ?? []).map((template) => ({ value: template.id, label: template.name })),
+                )}
+                onChange={(templateId) => {
+                  const template = templates.data?.find((candidate) => candidate.id === templateId);
+                  if (!template) return;
+                  set("checklist", withSteps(form.checklist, template.items));
+                  showToast(t().templates.applied(template.name));
+                }}
+              />
+            </Field>
+            <StepsEditor
+              legend={t().taskForm.checklist}
+              items={form.checklist}
+              onChange={(checklist) => set("checklist", checklist)}
+            />
+          </>
         )}
         <div className="check-field">
           <label className="check-field-label">
@@ -249,59 +277,13 @@ export function TaskForm({
   );
 }
 
-const MAX_ITEMS = 50;
-
-function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (items: string[]) => void }) {
-  const [draft, setDraft] = useState("");
-
-  const addDraft = () => {
-    const value = draft.trim();
-    if (!value || items.length >= MAX_ITEMS) return;
-    onChange([...items, value]);
-    setDraft("");
-  };
-
-  return (
-    <fieldset className="checklist-editor">
-      <legend className="field-label">{t().taskForm.checklist}</legend>
-      {items.length > 0 && (
-        <ol className="checklist-editor-items">
-          {items.map((item, index) => (
-            <li key={`${item}-${index}`}>
-              <span>{item}</span>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t().taskForm.removeStep(item)}
-                onClick={() => onChange(items.filter((_, position) => position !== index))}
-              >
-                <Icon name="close" size={13} />
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
-      <div className="checklist-add">
-        <input
-          className="input"
-          value={draft}
-          maxLength={255}
-          placeholder={t().taskForm.stepPlaceholder}
-          aria-label={t().taskForm.newStep}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addDraft();
-            }
-          }}
-        />
-        <button type="button" className="btn btn-secondary" disabled={!draft.trim()} onClick={addDraft}>
-          {t().common.add}
-        </button>
-      </div>
-    </fieldset>
-  );
+function withSteps(current: string[], added: string[]): string[] {
+  const merged = [...current];
+  for (const step of added) {
+    if (merged.length >= MAX_STEPS) break;
+    if (!merged.includes(step)) merged.push(step);
+  }
+  return merged;
 }
 
 interface ListQuery {

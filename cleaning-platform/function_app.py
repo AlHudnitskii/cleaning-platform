@@ -3,6 +3,7 @@ import logging
 import azure.functions as func
 
 from src.api.auth import bp as auth_bp
+from src.api.checklist_templates import bp as checklist_templates_bp
 from src.api.checklists import bp as checklists_bp
 from src.api.docs import bp as docs_bp
 from src.api.events import bp as events_bp
@@ -29,6 +30,7 @@ for blueprint in (
     tasks_bp,
     task_activity_bp,
     checklists_bp,
+    checklist_templates_bp,
     locations_bp,
     stats_bp,
     import_bp,

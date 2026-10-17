@@ -12,6 +12,9 @@ import { useTaskEvents } from "./features/realtime/useTaskEvents";
 import { t, useLocale } from "./i18n/locale";
 import { Login } from "./pages/Login";
 
+const ChecklistTemplates = lazy(() =>
+  import("./pages/ChecklistTemplates").then((module) => ({ default: module.ChecklistTemplates })),
+);
 const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const Export = lazy(() => import("./pages/Export").then((module) => ({ default: module.Export })));
 const Import = lazy(() => import("./pages/Import").then((module) => ({ default: module.Import })));
@@ -61,6 +64,7 @@ function AppRoutes() {
         <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/my-tasks" element={guard(["cleaner"], <MyTasks />)} />
         <Route path="/locations" element={guard(MANAGERS, <Locations />)} />
+        <Route path="/checklist-templates" element={guard(MANAGERS, <ChecklistTemplates />)} />
         <Route path="/reports" element={guard(MANAGERS, <Reports />)} />
         <Route path="/import" element={guard(MANAGERS, <Import />)} />
         <Route path="/export" element={guard(MANAGERS, <Export />)} />

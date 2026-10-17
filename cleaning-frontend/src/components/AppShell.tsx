@@ -52,6 +52,7 @@ function navGroups(): { title: string; items: NavItem[] }[] {
         { to: "/tasks", label: nav.tasks, icon: "tasks", roles: MANAGERS, counter: "review" },
         { to: "/my-tasks", label: nav.myTasks, icon: "tasks", roles: ["cleaner"], counter: "pending" },
         { to: "/locations", label: nav.locations, icon: "locations", roles: MANAGERS },
+        { to: "/checklist-templates", label: nav.templates, icon: "check", roles: MANAGERS },
       ],
     },
     {

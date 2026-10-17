@@ -148,6 +148,23 @@ class TaskChecklistItem(Base):
     __table_args__ = (Index("ix_task_checklist_items_task_id_position", "task_id", "position"),)
 
 
+class ChecklistTemplate(Base):
+    """A named list of checklist steps that managers of a country reuse when they create tasks."""
+
+    __tablename__ = "checklist_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100))
+    country: Mapped[str] = mapped_column(String(2))
+    items: Mapped[list[str]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("jsonb_typeof(items) = 'array'", name="items_array"),
+        UniqueConstraint("country", "name"),
+    )
+
+
 class TaskReminder(Base):
     """One row per reminder sent, so each due date of a task triggers each kind of reminder once."""
 

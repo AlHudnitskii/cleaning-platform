@@ -4,17 +4,21 @@ from datetime import UTC, datetime, timedelta
 
 import azure.functions as func
 from azure.core.exceptions import AzureError
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.accounts import user_response
 from src.api.http import ApiError, authenticated, json_response, read_model
-from src.api.schemas.user import ProfileUpdate
+from src.api.schemas.user import NotificationSettings, NotificationSettingsUpdate, ProfileUpdate
 from src.api.stats_queries import personal_summary
 from src.api.task_queries import day_start, scope_conditions
+from src.domain.models.enums import NotificationTopic
 from src.domain.models.user import CurrentUser
 from src.domain.services.photos import detect_image_type
 from src.infrastructure.blob.storage import AVATARS_CONTAINER, delete_blob, upload_blob
 from src.infrastructure.database.connection import session_scope
-from src.infrastructure.database.models import User
+from src.infrastructure.database.models import MutedNotification, User
 from src.translations import phrases
 
 bp = func.Blueprint()
@@ -99,3 +103,41 @@ async def get_profile_stats(req: func.HttpRequest, user: CurrentUser) -> func.Ht
     async with session_scope() as session:
         summary = await personal_summary(session, scope_conditions(user), since)
     return json_response({"period_days": STATS_DAYS, **summary})
+
+
+async def notification_settings(session: AsyncSession, user_id: uuid.UUID) -> NotificationSettings:
+    muted = set(await session.scalars(select(MutedNotification.topic).where(MutedNotification.user_id == user_id)))
+    return NotificationSettings(**{topic.value: topic.value not in muted for topic in NotificationTopic})
+
+
+@bp.route(route="profile/notifications", methods=["GET"])
+@authenticated()
+async def get_notification_settings(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    async with session_scope() as session:
+        settings = await notification_settings(session, user.id)
+    return json_response(settings)
+
+
+@bp.route(route="profile/notifications", methods=["PATCH"])
+@authenticated()
+async def update_notification_settings(req: func.HttpRequest, user: CurrentUser) -> func.HttpResponse:
+    data = read_model(req, NotificationSettingsUpdate)
+    if not data.model_fields_set:
+        raise ApiError(400, phrases.NOTHING_TO_UPDATE())
+
+    async with session_scope() as session, session.begin():
+        for name in data.model_fields_set:
+            topic, enabled = NotificationTopic(name), getattr(data, name)
+            if enabled:
+                await session.execute(
+                    delete(MutedNotification).where(
+                        MutedNotification.user_id == user.id, MutedNotification.topic == topic
+                    )
+                )
+            else:
+                await session.execute(
+                    insert(MutedNotification).values(user_id=user.id, topic=topic).on_conflict_do_nothing()
+                )
+        settings = await notification_settings(session, user.id)
+
+    return json_response(settings)

@@ -6,9 +6,9 @@ from collections.abc import Awaitable, Callable
 from aio_pika.abc import AbstractIncomingMessage
 from sqlalchemy import delete, select
 
-from src.domain.models.enums import UserRole
+from src.domain.models.enums import NotificationTopic, UserRole
 from src.infrastructure.database.connection import session_scope
-from src.infrastructure.database.models import PushSubscription, User
+from src.infrastructure.database.models import MutedNotification, PushSubscription, User
 from src.infrastructure.messaging.events import TaskEvent, TaskEventType
 from src.infrastructure.messaging.rabbitmq import connect, declare_push_queue, decode_event
 from src.infrastructure.push.notifications import PushMessage, PushResult, send_push_notification
@@ -20,13 +20,16 @@ logger = logging.getLogger(__name__)
 RETRY_SECONDS = 5.0
 
 
-async def notify_user(user_id: uuid.UUID, message: PushMessage) -> None:
+async def notify_user(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
+    muted = select(MutedNotification.user_id).where(
+        MutedNotification.user_id == user_id, MutedNotification.topic == topic
+    )
     async with session_scope() as session:
         subscriptions = (
             await session.scalars(
                 select(PushSubscription)
                 .join(User, User.id == PushSubscription.user_id)
-                .where(PushSubscription.user_id == user_id, User.is_active.is_(True))
+                .where(PushSubscription.user_id == user_id, User.is_active.is_(True), ~muted.exists())
             )
         ).all()
 
@@ -58,7 +61,7 @@ def assigned_message(event: TaskEvent) -> PushMessage:
 
 async def handle_task_created(event: TaskEvent) -> None:
     if event.assigned_to:
-        await notify_user(event.assigned_to, assigned_message(event))
+        await notify_user(event.assigned_to, assigned_message(event), NotificationTopic.ASSIGNED)
     # Managers planned a recurring series already, so its scheduled tasks reach the assignee only.
     if not event.country or event.scheduled:
         return
@@ -66,7 +69,7 @@ async def handle_task_created(event: TaskEvent) -> None:
     created = PushMessage(phrases.PUSH_CREATED_TITLE(), body, str(event.task_id))
     for manager_id in await active_managers(event.country):
         if manager_id != event.changed_by:
-            await notify_user(manager_id, created)
+            await notify_user(manager_id, created, NotificationTopic.TASK_CREATED)
 
 
 async def handle_task_status_changed(event: TaskEvent) -> None:
@@ -79,7 +82,8 @@ async def handle_task_status_changed(event: TaskEvent) -> None:
         old=phrases.status_name(event.old_status),
         new=phrases.status_name(event.new_status),
     )
-    await notify_user(event.assigned_to, PushMessage(phrases.PUSH_STATUS_TITLE(), body, str(event.task_id)))
+    message = PushMessage(phrases.PUSH_STATUS_TITLE(), body, str(event.task_id))
+    await notify_user(event.assigned_to, message, NotificationTopic.STATUS_CHANGED)
 
 
 async def handle_task_updated(event: TaskEvent) -> None:
@@ -89,14 +93,15 @@ async def handle_task_updated(event: TaskEvent) -> None:
         return
     if event.assigned_to == event.changed_by:
         return
-    await notify_user(event.assigned_to, assigned_message(event))
+    await notify_user(event.assigned_to, assigned_message(event), NotificationTopic.ASSIGNED)
 
 
 async def handle_task_due_soon(event: TaskEvent) -> None:
     if event.assigned_to is None:
         return
     body = phrases.PUSH_DUE_SOON_BODY(title=event.title)
-    await notify_user(event.assigned_to, PushMessage(phrases.PUSH_DUE_SOON_TITLE(), body, str(event.task_id)))
+    message = PushMessage(phrases.PUSH_DUE_SOON_TITLE(), body, str(event.task_id))
+    await notify_user(event.assigned_to, message, NotificationTopic.DUE_SOON)
 
 
 async def handle_task_overdue(event: TaskEvent) -> None:
@@ -107,7 +112,7 @@ async def handle_task_overdue(event: TaskEvent) -> None:
     if event.country:
         recipients.extend(await active_managers(event.country))
     for user_id in recipients:
-        await notify_user(user_id, overdue)
+        await notify_user(user_id, overdue, NotificationTopic.OVERDUE)
 
 
 async def ignore_event(event: TaskEvent) -> None:

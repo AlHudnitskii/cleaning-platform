@@ -10,6 +10,9 @@ export const server = setupServer(
   http.get("*/api/tasks", () => HttpResponse.json(makePage([]))),
   http.get("*/api/tasks/:id/checklist", () => HttpResponse.json([])),
   http.get("*/api/checklist-templates", () => HttpResponse.json([])),
+  http.get("*/api/profile/notifications", () =>
+    HttpResponse.json({ assigned: true, task_created: true, status_changed: true, due_soon: true, overdue: true }),
+  ),
   http.get("*/api/profile/stats", () =>
     HttpResponse.json({
       period_days: 30,

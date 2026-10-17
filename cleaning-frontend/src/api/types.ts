@@ -35,6 +35,12 @@ export interface UserResponse {
   created_at: string;
 }
 
+export const NOTIFICATION_TOPICS = ["assigned", "task_created", "status_changed", "due_soon", "overdue"] as const;
+
+export type NotificationTopic = (typeof NOTIFICATION_TOPICS)[number];
+
+export type NotificationSettings = Record<NotificationTopic, boolean>;
+
 export interface ProfileUpdate {
   full_name?: string | null;
   phone?: string | null;

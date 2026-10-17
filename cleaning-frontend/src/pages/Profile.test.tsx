@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
-import { CLEANER } from "../test/fixtures";
+import { ADMIN, CLEANER, MANAGER } from "../test/fixtures";
 import { chooseOption, renderApp } from "../test/render";
 import { server } from "../test/server";
 import { setTheme } from "../theme";
@@ -107,5 +107,53 @@ describe("Profile page", () => {
     await waitFor(() => expect(details.querySelector("img.avatar-photo")).toHaveAttribute("src", AVATAR));
     await user.click(within(details).getByRole("button", { name: "Remove photo" }));
     await waitFor(() => expect(details.querySelector("img.avatar-photo")).toBeNull());
+  });
+
+  it("turns a notification topic off for the cleaner", async () => {
+    let sent: unknown = null;
+    server.use(
+      http.patch("*/api/profile/notifications", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ assigned: true, task_created: true, status_changed: true, due_soon: false, overdue: true });
+      }),
+    );
+    const { user } = renderApp("/profile", CLEANER);
+    const card = (await screen.findByRole("heading", { name: "Notifications" })).closest("section") as HTMLElement;
+    const dueSoon = await within(card).findByRole("checkbox", { name: "My task is due tomorrow" });
+    expect(within(card).queryByRole("checkbox", { name: "A task is created in my country" })).not.toBeInTheDocument();
+
+    await user.click(dueSoon);
+
+    await waitFor(() => expect(sent).toEqual({ due_soon: false }));
+    expect(dueSoon).not.toBeChecked();
+  });
+
+  it("restores a switch when the server refuses the change", async () => {
+    server.use(
+      http.patch("*/api/profile/notifications", () => HttpResponse.json({ error: "Internal server error" }, { status: 500 })),
+    );
+    const { user } = renderApp("/profile", CLEANER);
+    const card = (await screen.findByRole("heading", { name: "Notifications" })).closest("section") as HTMLElement;
+    const overdue = await within(card).findByRole("checkbox", { name: "A task is overdue" });
+
+    await user.click(overdue);
+
+    expect(await within(card).findByRole("alert")).toBeInTheDocument();
+    expect(overdue).toBeChecked();
+  });
+
+  it("shows managers only the topics they receive", async () => {
+    renderApp("/profile", MANAGER);
+    const card = (await screen.findByRole("heading", { name: "Notifications" })).closest("section") as HTMLElement;
+
+    const names = (await within(card).findAllByRole("checkbox")).map((box) => box.closest("label")?.textContent);
+    expect(names).toEqual(["A task is created in my country", "A task is overdue"]);
+  });
+
+  it("has no notification switches for admins, who receive no pushes", async () => {
+    renderApp("/profile", ADMIN);
+    await screen.findByRole("heading", { name: "Personal details" });
+
+    expect(screen.queryByRole("heading", { name: "Notifications" })).not.toBeInTheDocument();
   });
 });

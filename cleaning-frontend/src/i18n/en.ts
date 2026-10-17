@@ -1,4 +1,12 @@
-import type { LocationLevel, PhotoKind, TaskPriority, TaskSort, TaskStatus, UserRole } from "../api/types";
+import type {
+  LocationLevel,
+  NotificationTopic,
+  PhotoKind,
+  TaskPriority,
+  TaskSort,
+  TaskStatus,
+  UserRole,
+} from "../api/types";
 
 function count(n: number, one: string, other: string): string {
   return `${n} ${n === 1 ? one : other}`;
@@ -340,6 +348,27 @@ export const en = {
     noCleaners: (country: string) => `No active cleaners in ${country} yet. Add one on the Users page.`,
     noLocations: (country: string) => `No locations in ${country} yet.`,
     listFailed: (message: string) => `Could not load the list: ${message}`,
+  },
+  notifications: {
+    title: "Notifications",
+    loading: "Loading notification settings",
+    deviceOff: "Notifications are off on this device. Your choices below apply once you turn them on.",
+    turnOn: "Turn on on this device",
+    unsupported: "This browser cannot show push notifications. Your choices apply on your other devices.",
+    topics: {
+      assigned: "A task is assigned to me",
+      task_created: "A task is created in my country",
+      status_changed: "A manager changes the status of my task",
+      due_soon: "My task is due tomorrow",
+      overdue: "A task is overdue",
+    } as Record<NotificationTopic, string>,
+    hints: {
+      assigned: "Includes tasks of recurring series.",
+      task_created: "Scheduled tasks of recurring series do not count.",
+      status_changed: "For example, when a manager approves your work or returns it for rework.",
+      due_soon: "Sent the day before the due date.",
+      overdue: "Sent once, the day after the due date passes.",
+    } as Record<NotificationTopic, string>,
   },
   myStats: {
     title: "My figures",

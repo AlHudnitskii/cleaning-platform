@@ -29,6 +29,8 @@ from src.api.schemas.task import (
 )
 from src.api.schemas.user import (
     AssigneeResponse,
+    NotificationSettings,
+    NotificationSettingsUpdate,
     PasswordChange,
     PasswordReset,
     ProfileUpdate,
@@ -57,6 +59,8 @@ SCHEMAS: list[type[BaseModel]] = [
     PasswordReset,
     PhotoResponse,
     ProfileUpdate,
+    NotificationSettings,
+    NotificationSettingsUpdate,
     QualityReview,
     SyncStatusChange,
     TaskCreate,
@@ -117,6 +121,15 @@ ROUTES: list[tuple[str, str, str, str | None, str | None, bool]] = [
     ),
     ("delete", "/profile/avatar", "Remove own profile photo", None, "UserResponse", True),
     ("get", "/profile/stats", "Own figures for the last 30 days, scoped like the task list", None, None, True),
+    ("get", "/profile/notifications", "Own push topics", None, "NotificationSettings", True),
+    (
+        "patch",
+        "/profile/notifications",
+        "Turn push topics on or off",
+        "NotificationSettingsUpdate",
+        "NotificationSettings",
+        True,
+    ),
     ("get", "/tasks", "List tasks visible to the caller", None, "TaskResponse", True),
     ("post", "/tasks", "Create a task (admin, manager)", "TaskCreate", "TaskResponse", True),
     ("get", "/tasks/{task_id}", "Task details", None, "TaskResponse", True),

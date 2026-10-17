@@ -74,6 +74,14 @@ class PhotoKind(StrEnum):
     AFTER = "after"
 
 
+class NotificationTopic(StrEnum):
+    ASSIGNED = "assigned"
+    TASK_CREATED = "task_created"
+    STATUS_CHANGED = "status_changed"
+    DUE_SOON = "due_soon"
+    OVERDUE = "overdue"
+
+
 class ReminderKind(StrEnum):
     DUE_SOON = "due_soon"
     OVERDUE = "overdue"

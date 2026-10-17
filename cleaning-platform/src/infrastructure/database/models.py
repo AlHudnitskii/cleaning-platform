@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
-from src.domain.models.enums import PhotoKind, ReminderKind, TaskPriority, TaskStatus
+from src.domain.models.enums import NotificationTopic, PhotoKind, ReminderKind, TaskPriority, TaskStatus
 from src.infrastructure.database.connection import Base
 
 
@@ -222,6 +222,17 @@ class PushSubscription(Base):
     auth: Mapped[str] = mapped_column(String(100))
     locale: Mapped[str] = mapped_column(String(5), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+
+
+class MutedNotification(Base):
+    """A push topic a user turned off; topics without a row stay on."""
+
+    __tablename__ = "muted_notifications"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    topic: Mapped[str] = mapped_column(String(30), primary_key=True)
+
+    __table_args__ = (CheckConstraint(_in_list("topic", [t.value for t in NotificationTopic]), name="topic"),)
 
 
 class OutboxMessage(Base):

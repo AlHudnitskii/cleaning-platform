@@ -1,6 +1,7 @@
 import json
 import uuid
 
+from src.domain.models.enums import NotificationTopic
 from src.infrastructure.messaging import consumer
 from src.infrastructure.messaging.events import TaskEvent
 from src.infrastructure.push.notifications import PushMessage
@@ -26,7 +27,7 @@ def test_payload_carries_the_task_to_open_in_the_device_language():
 async def test_status_changes_name_the_statuses_instead_of_their_codes(monkeypatch):
     sent: list[PushMessage] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append(message)
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
@@ -49,7 +50,7 @@ async def test_every_notification_about_a_task_links_to_it(monkeypatch):
     cleaner, manager = uuid.uuid4(), uuid.uuid4()
     sent: list[tuple[uuid.UUID, PushMessage]] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append((user_id, message))
 
     async def fake_managers(country: str) -> list[uuid.UUID]:
@@ -77,7 +78,7 @@ def test_an_event_without_a_readable_task_or_type_is_dropped():
 async def test_a_new_task_names_its_country_in_the_device_language(monkeypatch):
     sent: list[PushMessage] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append(message)
 
     async def fake_managers(country: str) -> list[uuid.UUID]:
@@ -96,7 +97,7 @@ async def test_the_creator_is_not_notified_about_their_own_task(monkeypatch):
     manager, other = uuid.uuid4(), uuid.uuid4()
     sent: list[uuid.UUID] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append(user_id)
 
     async def fake_managers(country: str) -> list[uuid.UUID]:
@@ -113,7 +114,7 @@ async def test_the_creator_is_not_notified_about_their_own_task(monkeypatch):
 async def test_checklist_changes_do_not_look_like_a_new_assignment(monkeypatch):
     sent: list[uuid.UUID] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append(user_id)
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
@@ -127,7 +128,7 @@ async def test_a_scheduled_occurrence_notifies_its_assignee_and_no_managers(monk
     cleaner, manager = uuid.uuid4(), uuid.uuid4()
     sent: list[uuid.UUID] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append(user_id)
 
     async def fake_managers(country: str) -> list[uuid.UUID]:
@@ -146,7 +147,7 @@ async def test_a_due_soon_reminder_goes_to_the_assignee(monkeypatch):
     cleaner = uuid.uuid4()
     sent: list[tuple[uuid.UUID, PushMessage]] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append((user_id, message))
 
     monkeypatch.setattr(consumer, "notify_user", fake_notify)
@@ -162,7 +163,7 @@ async def test_an_overdue_task_reaches_its_assignee_and_the_country_managers(mon
     cleaner, manager = uuid.uuid4(), uuid.uuid4()
     sent: list[uuid.UUID] = []
 
-    async def fake_notify(user_id: uuid.UUID, message: PushMessage) -> None:
+    async def fake_notify(user_id: uuid.UUID, message: PushMessage, topic: NotificationTopic) -> None:
         sent.append(user_id)
 
     async def fake_managers(country: str) -> list[uuid.UUID]:

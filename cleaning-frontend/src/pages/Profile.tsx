@@ -11,6 +11,7 @@ import { LOCALES, setLocale, t, useLocale } from "../i18n/locale";
 import { useChangePassword } from "../features/users/api";
 import { ProfileDetails } from "../features/users/ProfileDetails";
 import { MyStats } from "../features/stats/MyStats";
+import { NotificationSettingsCard } from "../features/push/NotificationSettingsCard";
 import { countryName } from "../labels";
 import { setTheme, useTheme, type Theme } from "../theme";
 
@@ -81,6 +82,7 @@ export function Profile() {
       </div>
 
       <div className="two-columns">
+        <NotificationSettingsCard role={user.role} />
         <section className="card" aria-labelledby="password-title">
           <h2 id="password-title" className="section-title">
             {t().profile.changePassword}

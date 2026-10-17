@@ -3,6 +3,7 @@ import pytest
 from sqlalchemy import select
 
 from src.api import auth, events, tasks, users
+from src.domain.models.enums import NotificationTopic
 from src.infrastructure.auth.jwt_handler import decode_stream_ticket
 from src.infrastructure.database.connection import session_scope
 from src.infrastructure.database.models import PushSubscription, User
@@ -163,7 +164,8 @@ async def test_push_is_not_sent_to_inactive_users(account, monkeypatch):
 
     monkeypatch.setattr(consumer, "send_push_notification", fake_send)
 
-    await consumer.notify_user(cleaner.user.id, PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.TASK()))
+    message = PushMessage(phrases.PUSH_ASSIGNED_TITLE(), phrases.TASK())
+    await consumer.notify_user(cleaner.user.id, message, NotificationTopic.ASSIGNED)
 
     assert sent == []
 

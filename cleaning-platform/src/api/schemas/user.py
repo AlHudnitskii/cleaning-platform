@@ -94,6 +94,31 @@ class ProfileUpdate(BaseModel):
         return value
 
 
+class NotificationSettings(BaseModel):
+    """Which push topics reach the user; true means on."""
+
+    assigned: bool = True
+    task_created: bool = True
+    status_changed: bool = True
+    due_soon: bool = True
+    overdue: bool = True
+
+
+class NotificationSettingsUpdate(BaseModel):
+    assigned: bool | None = None
+    task_created: bool | None = None
+    status_changed: bool | None = None
+    due_soon: bool | None = None
+    overdue: bool | None = None
+
+    @field_validator("*")
+    @classmethod
+    def reject_null(cls, v: bool | None) -> bool | None:
+        if v is None:
+            raise ValueError(phrases.DONE_NOT_BOOLEAN())
+        return v
+
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
